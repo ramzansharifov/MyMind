@@ -807,6 +807,7 @@ export function createDemoData(): AppData {
         category: "Planning",
         tags: ["Planning"],
         isImportant: true,
+        importanceLevel: "high",
         recurrence: "once",
         recurrenceStartDate: null,
         reminders: [],

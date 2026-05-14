@@ -8,30 +8,44 @@ import type { CalendarEvent, CalendarReminder } from './types';
 
 interface CalendarEventFormProps {
   event?: CalendarEvent | null;
+  defaultDate?: string;
   onCancel: () => void;
   onSave: (event: CalendarEvent) => void;
 }
 
-export function CalendarEventForm({ event, onCancel, onSave }: CalendarEventFormProps) {
+export function CalendarEventForm({ event, defaultDate, onCancel, onSave }: CalendarEventFormProps) {
   const [title, setTitle] = useState(event?.title ?? '');
   const [description, setDescription] = useState(event?.description ?? '');
-  const [date, setDate] = useState(event?.date.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(event?.date.slice(0, 10) ?? defaultDate ?? new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState(event?.time ?? '');
   const [tags, setTags] = useState(joinCsv(event?.tags?.length ? event.tags : event?.category ? [event.category] : []));
-  const [isImportant, setIsImportant] = useState(event?.isImportant ?? false);
+  const [importanceLevel, setImportanceLevel] = useState<CalendarEvent['importanceLevel']>(event?.importanceLevel ?? (event?.isImportant ? 'high' : 'low'));
   const [recurrence, setRecurrence] = useState<'once' | 'yearly'>(event?.recurrence ?? 'once');
   const [useStartDate, setUseStartDate] = useState(Boolean(event?.recurrenceStartDate));
   const [recurrenceStartDate, setRecurrenceStartDate] = useState(event?.recurrenceStartDate?.slice(0, 10) ?? date);
   const [reminders, setReminders] = useState<CalendarReminder[]>(event?.reminders ?? []);
   const [reminderOffset, setReminderOffset] = useState('7');
+  const [reminderAt, setReminderAt] = useState('');
   const { t } = useI18n();
 
-  function addReminder() {
+  function addRelativeReminder() {
     const offsetDays = Math.max(0, Number.parseInt(reminderOffset, 10) || 0);
-    if (reminders.some((reminder) => reminder.offsetDays === offsetDays)) {
+    if (reminders.some((reminder) => !reminder.remindAt && reminder.offsetDays === offsetDays)) {
       return;
     }
-    setReminders([...reminders, { id: createId('calendar-reminder'), offsetDays, firedAt: null, firedCycle: null }].sort((a, b) => b.offsetDays - a.offsetDays));
+    setReminders(sortReminders([...reminders, { id: createId('calendar-reminder'), offsetDays, remindAt: null, status: 'pending', firedAt: null, firedCycle: null }]));
+  }
+
+  function addExactReminder() {
+    if (!reminderAt) {
+      return;
+    }
+    const remindAtIso = new Date(reminderAt).toISOString();
+    if (reminders.some((reminder) => reminder.remindAt === remindAtIso)) {
+      return;
+    }
+    setReminders(sortReminders([...reminders, { id: createId('calendar-reminder'), offsetDays: 0, remindAt: remindAtIso, status: 'pending', firedAt: null, firedCycle: null }]));
+    setReminderAt('');
   }
 
   function removeReminder(id: string) {
@@ -42,7 +56,10 @@ export function CalendarEventForm({ event, onCancel, onSave }: CalendarEventForm
     formEvent.preventDefault();
     const timestamp = new Date().toISOString();
     const cleanTags = splitCsv(tags);
-    const firstReminderAt = reminders[0] ? reminderIso(date, reminders[0].offsetDays) : null;
+    const firstReminderAt = reminders
+      .map((reminder) => reminder.remindAt ?? reminderIso(date, reminder.offsetDays))
+      .filter(Boolean)
+      .sort()[0] ?? null;
     onSave({
       id: event?.id ?? createId('event'),
       title: title.trim(),
@@ -51,7 +68,8 @@ export function CalendarEventForm({ event, onCancel, onSave }: CalendarEventForm
       time,
       category: cleanTags[0] ?? '',
       tags: cleanTags,
-      isImportant,
+      isImportant: importanceLevel === 'high',
+      importanceLevel,
       recurrence,
       recurrenceStartDate: recurrence === 'yearly' && useStartDate ? recurrenceStartDate : null,
       reminders,
@@ -80,17 +98,29 @@ export function CalendarEventForm({ event, onCancel, onSave }: CalendarEventForm
         </label>
         <label>
           {t('Time')}
-          <input value={time} onChange={(item) => setTime(item.target.value)} />
+          <input type="time" value={time} onChange={(item) => setTime(item.target.value)} />
         </label>
       </div>
       <label>
         {t('Tags')}
         <input value={tags} onChange={(item) => setTags(item.target.value)} placeholder={t('Comma-separated tags')} />
       </label>
-      <label className="checkbox-line">
-        <input type="checkbox" checked={isImportant} onChange={(item) => setIsImportant(item.target.checked)} />
-        {t('Important')}
-      </label>
+      <div className="form-section">
+        <strong>{t('Importance')}</strong>
+        <div className="calendar-importance-picker">
+          {importanceOptions.map((option) => (
+            <button
+              className={`calendar-importance-choice ${option.value}${importanceLevel === option.value ? ' active' : ''}`}
+              type="button"
+              key={option.value}
+              onClick={() => setImportanceLevel(option.value)}
+            >
+              <span />
+              <strong>{t(option.label)}</strong>
+            </button>
+          ))}
+        </div>
+      </div>
       <label>
         {t('Event repeat')}
         <select value={recurrence} onChange={(item) => setRecurrence(item.target.value as 'once' | 'yearly')}>
@@ -114,14 +144,26 @@ export function CalendarEventForm({ event, onCancel, onSave }: CalendarEventForm
       ) : null}
       <div className="form-section">
         <strong>{t('Reminders')}</strong>
-        <div className="inline-form">
-          <input type="number" min="0" value={reminderOffset} onChange={(item) => setReminderOffset(item.target.value)} />
-          <AddButton label="Add reminder" onClick={addReminder} />
+        <div className="calendar-reminder-builder">
+          <div className="calendar-reminder-builder-item">
+            <span>{t('Before event')}</span>
+            <div className="inline-form">
+              <input min="0" type="number" value={reminderOffset} onChange={(item) => setReminderOffset(item.target.value)} />
+              <AddButton label="Add reminder" onClick={addRelativeReminder} />
+            </div>
+          </div>
+          <div className="calendar-reminder-builder-item">
+            <span>{t('Exact date and time')}</span>
+            <div className="inline-form">
+              <input type="datetime-local" value={reminderAt} onChange={(item) => setReminderAt(item.target.value)} />
+              <AddButton label="Add reminder" onClick={addExactReminder} />
+            </div>
+          </div>
         </div>
         <div className="chip-row">
           {reminders.map((reminder) => (
             <button className="chip removable-chip" key={reminder.id} type="button" onClick={() => removeReminder(reminder.id)}>
-              {t('Before days')}: {reminder.offsetDays}
+              {reminder.remindAt ? formatReminder(reminder.remindAt) : `${t('Before days')}: ${reminder.offsetDays}`}
             </button>
           ))}
           {reminders.length === 0 ? <span className="muted-text">{t('No reminders')}</span> : null}
@@ -129,6 +171,28 @@ export function CalendarEventForm({ event, onCancel, onSave }: CalendarEventForm
       </div>
     </EntityForm>
   );
+}
+
+const importanceOptions: Array<{ value: CalendarEvent['importanceLevel']; label: string }> = [
+  { value: 'low', label: 'Low importance' },
+  { value: 'medium', label: 'Medium importance' },
+  { value: 'high', label: 'High importance' },
+];
+
+function formatReminder(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date);
+}
+
+function sortReminders(reminders: CalendarReminder[]) {
+  return [...reminders].sort((first, second) => reminderSortValue(first).localeCompare(reminderSortValue(second)));
+}
+
+function reminderSortValue(reminder: CalendarReminder) {
+  return reminder.remindAt ?? `offset-${String(reminder.offsetDays).padStart(4, '0')}`;
 }
 
 function reminderIso(date: string, offsetDays: number) {

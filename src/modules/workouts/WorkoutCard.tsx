@@ -14,15 +14,27 @@ interface WorkoutCardProps {
 export function WorkoutCard({ plan, exercises, onLog, onEdit, onDelete }: WorkoutCardProps) {
   const { t } = useI18n();
   const uniqueExercises = planExerciseIds(plan);
+  const dayCount = plan.days?.length ?? plan.daysOfWeek?.length ?? 0;
   return (
-    <article className="card">
-      <div className="card-title-row">
+    <article className="card workout-plan-card">
+      <div className="workout-card-heading">
         <div>
+          <span className="panel-kicker">{t('Training plan')}</span>
           <h3>{plan.title}</h3>
         </div>
         <span className="rating-pill">{uniqueExercises.length} {t('exercises')}</span>
       </div>
-      <p>{plan.description || t('No description.')}</p>
+      <p className="workout-card-description">{plan.description || t('No description.')}</p>
+      <div className="workout-card-metrics">
+        <div className="workout-card-metric">
+          <span>{t('Exercises')}</span>
+          <strong>{uniqueExercises.length}</strong>
+        </div>
+        <div className="workout-card-metric">
+          <span>{t('Training days')}</span>
+          <strong>{dayCount}</strong>
+        </div>
+      </div>
       <div className="workout-plan-exercises">
         <div className="chip-row">
           {uniqueExercises.map((exerciseId) => (

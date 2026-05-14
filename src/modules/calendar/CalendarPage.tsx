@@ -2,17 +2,13 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { EmptyState } from '../../shared/components/EmptyState';
-import { FilterBar } from '../../shared/components/FilterBar';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
 import { formatDate, todayDateOnly } from '../../shared/utils/dateUtils';
 import {
   buildCalendarDays,
-  calendarTags,
   eventsOnDate,
-  filterEvents,
-  importantUpcomingEvents,
   monthEvents,
   monthLabel,
   todayEvents,
@@ -29,15 +25,13 @@ interface CalendarPageProps {
 }
 
 export function CalendarPage({ events, onChange }: CalendarPageProps) {
-  const [tag, setTag] = useState('');
-  const [importantOnly, setImportantOnly] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(todayDateOnly());
   const [editing, setEditing] = useState<CalendarEvent | null | undefined>(undefined);
+  const [draftDate, setDraftDate] = useState<string | null>(null);
   const activeEvents = events.filter((event) => !isHiddenFromRegularLists(event));
-  const filtered = filterEvents(activeEvents, tag, importantOnly);
-  const days = useMemo(() => buildCalendarDays(visibleMonth, filtered), [filtered, visibleMonth]);
-  const selectedEvents = eventsOnDate(selectedDate, filtered);
+  const days = useMemo(() => buildCalendarDays(visibleMonth, activeEvents), [activeEvents, visibleMonth]);
+  const selectedEvents = eventsOnDate(selectedDate, activeEvents);
   const { t } = useI18n();
 
   function saveEvent(event: CalendarEvent) {
@@ -45,6 +39,22 @@ export function CalendarPage({ events, onChange }: CalendarPageProps) {
     onChange(exists ? events.map((item) => (item.id === event.id ? event : item)) : [event, ...events]);
     setSelectedDate(event.date.slice(0, 10));
     setVisibleMonth(new Date(event.date));
+    setDraftDate(null);
+    setEditing(undefined);
+  }
+
+  function openNewEvent(date: string) {
+    setDraftDate(date);
+    setEditing(null);
+  }
+
+  function openEditEvent(event: CalendarEvent) {
+    setDraftDate(null);
+    setEditing(event);
+  }
+
+  function closeForm() {
+    setDraftDate(null);
     setEditing(undefined);
   }
 
@@ -62,7 +72,7 @@ export function CalendarPage({ events, onChange }: CalendarPageProps) {
       <CalendarEventCard
         event={event}
         key={event.id}
-        onEdit={() => setEditing(event)}
+        onEdit={() => openEditEvent(event)}
         onPin={() => togglePin(event)}
         onArchive={() => onChange(events.map((item) => (item.id === event.id ? archiveEntity(item) : item)))}
         onTrash={() => onChange(events.map((item) => (item.id === event.id ? trashEntity(item) : item)))}
@@ -87,25 +97,8 @@ export function CalendarPage({ events, onChange }: CalendarPageProps) {
       <PageHeader
         title="Calendar"
         subtitle="Important dates, tags, and in-app reminders."
-        actions={<AddButton label="Add important date" onClick={() => setEditing(null)} />}
+        actions={<AddButton label="Add important date" onClick={() => openNewEvent(todayDateOnly())} />}
       />
-      <FilterBar>
-        <label>
-          {t('Tag')}
-          <select value={tag} onChange={(event) => setTag(event.target.value)}>
-            <option value="">{t('All')}</option>
-            {calendarTags(activeEvents).map((item) => (
-              <option value={item} key={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="checkbox-line">
-          <input type="checkbox" checked={importantOnly} onChange={(event) => setImportantOnly(event.target.checked)} />
-          {t('Important only')}
-        </label>
-      </FilterBar>
 
       <div className="calendar-workspace">
         <section className="panel calendar-panel">
@@ -140,15 +133,21 @@ export function CalendarPage({ events, onChange }: CalendarPageProps) {
                 onClick={() => setSelectedDate(day.date)}
               >
                 <span>{day.dayNumber}</span>
-                <div>
-                  {day.events.slice(0, 3).map((event) => (
-                    <i className={event.isImportant ? 'important' : ''} key={event.id}>
-                      {event.time ? `${event.time} ` : ''}{event.title}
-                    </i>
+                <div className="calendar-day-dots" aria-label={`${day.events.length} ${t('events')}`}>
+                  {day.events.slice(0, 4).map((event) => (
+                    <i className={eventImportance(event)} key={event.id} title={event.title} />
                   ))}
-                  {day.events.length > 3 ? <small>+{day.events.length - 3}</small> : null}
+                  {day.events.length > 4 ? <small>+{day.events.length - 4}</small> : null}
                 </div>
               </button>
+            ))}
+          </div>
+          <div className="calendar-legend">
+            {importanceLegend.map((item) => (
+              <span key={item.value}>
+                <i className={item.value} />
+                {t(item.label)}
+              </span>
             ))}
           </div>
         </section>
@@ -159,7 +158,7 @@ export function CalendarPage({ events, onChange }: CalendarPageProps) {
               <h2>{formatDate(selectedDate)}</h2>
               <small>{selectedEvents.length} {t('events')}</small>
             </div>
-            <AddButton label="Add important date" onClick={() => setEditing(null)} />
+            <AddButton label="Add important date" onClick={() => openNewEvent(selectedDate)} />
           </div>
           {selectedEvents.length === 0 ? <EmptyState title="No events on this date" message="Add an event or select another date." /> : null}
           <div className="stack">{selectedEvents.map(renderEventCard)}</div>
@@ -167,14 +166,23 @@ export function CalendarPage({ events, onChange }: CalendarPageProps) {
       </div>
 
       <div className="calendar-support-grid">
-        <Section title="Today" items={todayEvents(filtered)} />
-        <Section title="This week" items={weekEvents(filtered)} />
-        <Section title="This month" items={monthEvents(filtered)} />
-        <Section title="Important upcoming" items={importantUpcomingEvents(filtered)} />
-        <Section title="Upcoming events" items={upcomingEvents(filtered)} />
+        <Section title="Today" items={todayEvents(activeEvents)} />
+        <Section title="This week" items={weekEvents(activeEvents)} />
+        <Section title="This month" items={monthEvents(activeEvents)} />
+        <Section title="Upcoming events" items={upcomingEvents(activeEvents)} />
       </div>
-      {filtered.length === 0 ? <EmptyState title="No upcoming events" message="Add appointments, dates, and reminders." /> : null}
-      {editing !== undefined ? <CalendarEventForm event={editing} onCancel={() => setEditing(undefined)} onSave={saveEvent} /> : null}
+      {activeEvents.length === 0 ? <EmptyState title="No upcoming events" message="Add appointments, dates, and reminders." /> : null}
+      {editing !== undefined ? <CalendarEventForm event={editing} defaultDate={draftDate ?? undefined} onCancel={closeForm} onSave={saveEvent} /> : null}
     </section>
   );
+}
+
+const importanceLegend: Array<{ value: CalendarEvent['importanceLevel']; label: string }> = [
+  { value: 'low', label: 'Low importance' },
+  { value: 'medium', label: 'Medium importance' },
+  { value: 'high', label: 'High importance' },
+];
+
+function eventImportance(event: CalendarEvent) {
+  return event.importanceLevel ?? (event.isImportant ? 'high' : 'low');
 }

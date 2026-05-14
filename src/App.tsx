@@ -438,7 +438,7 @@ export function App() {
           ? {
               ...event,
               reminders: (event.reminders ?? []).map((item) =>
-                item.id === reminder.reminderId ? { ...item, firedAt: timestamp, firedCycle: reminder.cycle ?? item.firedCycle ?? null } : item,
+                item.id === reminder.reminderId ? { ...item, status: 'confirmed', firedAt: timestamp, firedCycle: reminder.cycle ?? item.firedCycle ?? null } : item,
               ),
               reminderFiredAt: timestamp,
               updatedAt: timestamp,
@@ -500,10 +500,14 @@ function normalizeData(data: AppData): AppData {
     calendarEvents: (data.calendarEvents ?? []).map((event) => ({
       ...event,
       tags: event.tags ?? (event.category ? [event.category] : []),
+      importanceLevel: event.importanceLevel ?? (event.isImportant ? 'high' : 'low'),
+      isImportant: event.isImportant ?? (event.importanceLevel === 'high'),
       recurrence: event.recurrence ?? 'once',
       recurrenceStartDate: event.recurrenceStartDate ?? null,
       reminders: (event.reminders ?? normalizeLegacyEventReminder(event)).map((reminder) => ({
         ...reminder,
+        remindAt: reminder.remindAt ?? null,
+        status: reminder.status ?? (reminder.firedAt ? 'confirmed' : 'pending'),
         firedAt: reminder.firedAt ?? null,
         firedCycle: reminder.firedCycle ?? null,
       })),
@@ -537,17 +541,28 @@ function buildDueReminders(data: AppData, now: number): AppReminder[] {
     }));
 
   const calendarReminders = data.calendarEvents.flatMap((event) => {
+    const exactReminders = (event.reminders ?? [])
+      .filter((reminder) => reminder.remindAt && reminder.status !== 'confirmed' && !reminder.firedAt)
+      .filter((reminder) => new Date(reminder.remindAt as string).getTime() <= now)
+      .map((reminder) => ({
+        id: `calendar-${event.id}-${reminder.id}`,
+        module: 'calendar' as const,
+        sourceId: event.id,
+        reminderId: reminder.id,
+        title: event.title,
+        body: event.description || 'Important date',
+      }));
+
     const target = nextCalendarTarget(event.date, event.recurrence ?? 'once', event.recurrenceStartDate ?? null, now);
     if (!target) {
-      return [];
+      return exactReminders;
     }
     const daysLeft = daysBetweenLocal(now, target.getTime());
-    if (daysLeft < 0) {
-      return [];
-    }
     const cycle = event.recurrence === 'yearly' ? String(target.getFullYear()) : event.date.slice(0, 10);
-    return (event.reminders ?? [])
+    const relativeReminders = (event.reminders ?? [])
+      .filter((reminder) => !reminder.remindAt)
       .filter((reminder) => reminder.offsetDays >= daysLeft)
+      .filter((reminder) => reminder.status !== 'confirmed')
       .filter((reminder) => (event.recurrence === 'yearly' ? reminder.firedCycle !== cycle : !reminder.firedAt))
       .map((reminder) => ({
         id: `calendar-${event.id}-${reminder.id}`,
@@ -556,8 +571,9 @@ function buildDueReminders(data: AppData, now: number): AppReminder[] {
         reminderId: reminder.id,
         cycle,
         title: event.title,
-        body: `${event.description || 'Important date'} / ${daysLeft} days left`,
+        body: `${event.description || 'Important date'} / ${daysLeft >= 0 ? `${daysLeft} days left` : 'reminder overdue'}`,
       }));
+    return [...exactReminders, ...relativeReminders];
   });
 
   return [...todoReminders, ...calendarReminders];
@@ -635,7 +651,14 @@ function normalizeLegacyEventReminder(event: {
   const eventDate = new Date(`${event.date.slice(0, 10)}T09:00`).getTime();
   const reminderDate = new Date(event.reminderAt).getTime();
   const offsetDays = Number.isNaN(eventDate) || Number.isNaN(reminderDate) ? 0 : Math.max(0, Math.round((eventDate - reminderDate) / 86400000));
-  return [{ id: `${event.id}-legacy-reminder`, offsetDays, firedAt: event.reminderFiredAt ?? null, firedCycle: null }];
+  return [{
+    id: `${event.id}-legacy-reminder`,
+    offsetDays,
+    remindAt: event.reminderAt,
+    status: event.reminderFiredAt ? 'confirmed' as const : 'pending' as const,
+    firedAt: event.reminderFiredAt ?? null,
+    firedCycle: null,
+  }];
 }
 
 function normalizeTodoData(todos: TodoData | TodoItem[] | undefined): TodoData {

@@ -2,12 +2,23 @@
   display: grid;
   grid-template-columns: 260px 1fr;
   min-height: 100vh;
+  transition: grid-template-columns 180ms ease;
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 76px 1fr;
 }
 
 .sidebar {
+  min-width: 0;
   border-right: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 88%, black 12%);
   padding: 22px 14px;
+  transition: padding 180ms ease;
+}
+
+.sidebar.collapsed {
+  padding-inline: 12px;
 }
 
 .brand {
@@ -18,15 +29,61 @@
   padding: 0 8px;
 }
 
+.sidebar.collapsed .brand {
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 0;
+}
+
 .brand-mark {
   display: grid;
   width: 42px;
   height: 42px;
+  flex: 0 0 42px;
   place-items: center;
   border-radius: 8px;
   background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   color: white;
   font-weight: 800;
+}
+
+.brand-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.brand-copy strong,
+.brand-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-toggle {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  margin-left: auto;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.sidebar-toggle:hover {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  color: var(--accent-strong);
+}
+
+.sidebar.collapsed .brand-copy {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-toggle {
+  width: 42px;
+  margin-left: 0;
 }
 
 .brand small,
@@ -53,10 +110,38 @@
   color: color-mix(in srgb, var(--text) 78%, var(--muted));
   padding: 11px 12px;
   text-align: left;
+  transition: background 160ms ease, color 160ms ease, padding 180ms ease;
+}
+
+.nav-item.active::after {
+  content: '';
+  position: absolute;
+  top: 9px;
+  right: 0;
+  bottom: 9px;
+  width: 4px;
+  border-radius: 999px;
+  background: var(--accent-strong);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  gap: 0;
+  min-height: 46px;
+  padding: 12px;
 }
 
 .nav-item span {
   min-width: 0;
+}
+
+.sidebar.collapsed .nav-item span {
+  display: none;
+}
+
+.sidebar.collapsed .nav-item.active::after {
+  display: none;
 }
 
 .nav-badge {
@@ -71,6 +156,16 @@
   font-size: 12px;
   line-height: 1;
   padding: 0 6px;
+}
+
+.sidebar.collapsed .nav-badge {
+  position: absolute;
+  top: 6px;
+  right: 5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
 }
 
 .nav-item svg {

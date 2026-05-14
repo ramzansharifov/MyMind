@@ -95,7 +95,12 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   min-height: 112px;
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
   padding: 16px;
+}
+
+.workout-exercise-card h3 {
+  margin-top: 4px;
 }
 
 .workout-exercise-card p {
@@ -113,6 +118,73 @@
 .workout-day-list {
   display: grid;
   gap: 8px;
+}
+
+.workout-plan-card,
+.workout-history-card,
+.workout-record-card,
+.workout-detail-card {
+  display: grid;
+  gap: 14px;
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
+  background: var(--surface-strong);
+}
+
+.workout-card-heading {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.workout-card-heading h3 {
+  margin-top: 3px;
+  font-size: 20px;
+}
+
+.workout-card-description {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.workout-card-metrics,
+.workout-record-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.workout-card-metric,
+.workout-metric-tile {
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px 12px;
+}
+
+.workout-card-metric span,
+.workout-metric-tile span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.workout-card-metric strong,
+.workout-metric-tile strong {
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.workout-note-line {
+  margin: 0;
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+  padding-left: 10px;
+  line-height: 1.45;
 }
 
 .workout-day-editor {
@@ -212,10 +284,6 @@
   color: #fff;
 }
 
-.workout-history-card {
-  gap: 10px;
-}
-
 .workout-history-heading {
   display: grid;
   gap: 4px;
@@ -255,7 +323,7 @@
   gap: 10px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-soft) 74%, transparent);
+  background: var(--surface);
   padding: 14px;
 }
 
@@ -269,19 +337,11 @@
 .workout-metric-grid,
 .workout-record-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
 }
 
 .workout-metric-grid {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-}
-
-.workout-metric-tile {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-strong);
-  padding: 12px;
 }
 
 .workout-record-layout {

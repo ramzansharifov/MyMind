@@ -340,12 +340,12 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
               </div>
             </aside>
             <div className="workout-exercise-grid">
-              {visibleExercises.map((exercise) => (
+            {visibleExercises.map((exercise) => (
                 <article className="card workout-exercise-card" key={exercise.id}>
                   <div>
+                    <span className="panel-kicker">{exerciseGroups.find((group) => group.id === exercise.groupId)?.title ?? t('No group')}</span>
                     <h3>{exercise.name}</h3>
                     <p>{exercise.description || t('No description.')}</p>
-                    <span className="chip">{exerciseGroups.find((group) => group.id === exercise.groupId)?.title ?? t('No group')}</span>
                   </div>
                   <div className="card-actions">
                     <EditButton onClick={() => setOpenForm({ kind: 'exercise', exercise })} />
@@ -413,16 +413,32 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
               const summary = resultSummary(session.exercises ?? session.completedExercises ?? []);
               return (
                 <article className="card workout-history-card" key={session.id}>
-                  <div className="workout-history-heading">
-                    <h3>{formatDate(session.date)}</h3>
-                    <p>{session.planTitle || plan?.title || t('Free workout')}</p>
-                    <small>
-                      {t(weekdayLabels[session.dayOfWeek])} {session.time} / {t('Energy')} {session.energyLevel}/10 / {t('Mood')} {session.mood}/10
-                    </small>
+                  <div className="workout-card-heading">
+                    <div>
+                      <span className="panel-kicker">{t(weekdayLabels[session.dayOfWeek])} {session.time}</span>
+                      <h3>{formatDate(session.date)}</h3>
+                      <p className="workout-card-description">{session.planTitle || plan?.title || t('Free workout')}</p>
+                    </div>
+                    <span className="rating-pill">{summary.completed} / {summary.completed + summary.skipped}</span>
                   </div>
-                  <p>
-                    {t('Completed')}: {summary.completed} / {t('Skipped')}: {summary.skipped}
-                  </p>
+                  <div className="workout-card-metrics">
+                    <div className="workout-card-metric">
+                      <span>{t('Completed')}</span>
+                      <strong>{summary.completed}</strong>
+                    </div>
+                    <div className="workout-card-metric">
+                      <span>{t('Skipped')}</span>
+                      <strong>{summary.skipped}</strong>
+                    </div>
+                    <div className="workout-card-metric">
+                      <span>{t('Energy')}</span>
+                      <strong>{session.energyLevel}/10</strong>
+                    </div>
+                    <div className="workout-card-metric">
+                      <span>{t('Mood')}</span>
+                      <strong>{session.mood}/10</strong>
+                    </div>
+                  </div>
                   <div className="chip-row">
                     {(session.exercises ?? session.completedExercises ?? []).slice(0, 8).map((exercise) => (
                       <span className={exercise.status === 'skipped' ? 'chip skipped-chip' : 'chip'} key={exercise.id}>
@@ -430,7 +446,7 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
                       </span>
                     ))}
                   </div>
-                  {session.notes ? <p>{session.notes}</p> : null}
+                  {session.notes ? <p className="workout-note-line">{session.notes}</p> : null}
                 </article>
               );
             })}
@@ -451,7 +467,13 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
           </div>
           {startingPosition ? (
             <div className="workout-detail-card workout-baseline-block">
-              <h3>{formatDate(startingPosition.date)}</h3>
+              <div className="workout-card-heading">
+                <div>
+                  <span className="panel-kicker">{t('Baseline')}</span>
+                  <h3>{formatDate(startingPosition.date)}</h3>
+                </div>
+                <span className="rating-pill">{(startingPosition.metrics ?? []).length} {t('Metrics')}</span>
+              </div>
               <div className="workout-detail-body">
                 <section className="workout-detail-section">
                   <h4>{t('Metrics')}</h4>
@@ -459,7 +481,8 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
                     <div className="workout-metric-grid">
                       {(startingPosition.metrics ?? []).map((metric) => (
                         <div className="workout-metric-tile" key={metric.key}>
-                          <strong>{metric.label}:</strong> <br /> {metric.value} {metric.unit}
+                          <span>{metric.label}</span>
+                          <strong>{metric.value} {metric.unit}</strong>
                         </div>
                       ))}
                     </div>
@@ -480,7 +503,7 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
                 {startingPosition.notes ? (
                   <section className="workout-detail-section">
                     <h4>{t('Description')}</h4>
-                    <p>{startingPosition.notes}</p>
+                    <p className="workout-note-line">{startingPosition.notes}</p>
                   </section>
                 ) : null}
               </div>
@@ -506,13 +529,20 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
               <article className="card workout-record-card" key={record.id}>
                 <div className="workout-record-layout">
                   <div className="workout-record-main">
-                    <h3>{formatDate(record.date)}</h3>
+                    <div className="workout-card-heading">
+                      <div>
+                        <span className="panel-kicker">{t('Progress record')}</span>
+                        <h3>{formatDate(record.date)}</h3>
+                      </div>
+                      <span className="rating-pill">{(record.metrics ?? []).length} {t('Metrics')}</span>
+                    </div>
                     {(record.metrics ?? []).length > 0 && (
                       <div className="workout-record-metrics">
                         {(record.metrics ?? []).map((metric) => (
-                          <small key={metric.key}>
-                            <strong>{metric.label}:</strong> {metric.value} {metric.unit}
-                          </small>
+                          <div className="workout-card-metric" key={metric.key}>
+                            <span>{metric.label}</span>
+                            <strong>{metric.value} {metric.unit}</strong>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -523,7 +553,7 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
                             ))}
                         </div>
                     )}
-                    {record.notes && <p>{record.notes}</p>}
+                    {record.notes && <p className="workout-note-line">{record.notes}</p>}
                   </div>
                   <div className="card-actions compact">
                     <EditButton onClick={() => setOpenForm({ kind: 'progress-record', record })} />
@@ -549,12 +579,19 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
               </div>
               {latestProgress ? (
                   <article className="card workout-detail-card">
-                      <h3>{formatDate(latestProgress.date)}</h3>
+                      <div className="workout-card-heading">
+                        <div>
+                          <span className="panel-kicker">{t('Latest Progress')}</span>
+                          <h3>{formatDate(latestProgress.date)}</h3>
+                        </div>
+                        <span className="rating-pill">{latestProgress.metrics.length} {t('Metrics')}</span>
+                      </div>
                       <div className="workout-detail-body">
                           <div className="workout-metric-grid">
                               {latestProgress.metrics.map((metric) => (
                                   <div className="workout-metric-tile" key={metric.key}>
-                                      <strong>{metric.label}:</strong> <br /> {metric.value} {metric.unit}
+                                      <span>{metric.label}</span>
+                                      <strong>{metric.value} {metric.unit}</strong>
                                   </div>
                               ))}
                           </div>
@@ -566,7 +603,7 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
                               </div>
                           )}
                       </div>
-                      {latestProgress.notes && <p>{latestProgress.notes}</p>}
+                      {latestProgress.notes && <p className="workout-note-line">{latestProgress.notes}</p>}
                   </article>
               ) : (
                   <EmptyState title="No progress recorded" message="Add your first progress record to see it here." />

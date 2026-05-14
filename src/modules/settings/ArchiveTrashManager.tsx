@@ -46,10 +46,7 @@ export function ArchiveTrashManager({ data, onChange, onClose, onStatusMessage }
   const rows = activeTab === 'archive' ? archiveRows : trashRows;
 
   function updateCollection(config: CollectionConfig, updater: (items: ManagedItem[]) => ManagedItem[], message: string) {
-    const nextData = {
-      ...data,
-      [config.key]: updater(getCollectionItems(data, config.key)),
-    } as AppData;
+    const nextData = setCollectionItems(data, config.key, updater(getCollectionItems(data, config.key)));
     onChange(nextData);
     onStatusMessage(message);
   }
@@ -175,7 +172,30 @@ function getRows(data: AppData, state: ArchiveTab) {
 }
 
 function getCollectionItems(data: AppData, key: ManagedCollectionKey) {
-  return data[key] as unknown as ManagedItem[];
+  if (key === 'todos') {
+    return data.todos.items as unknown as ManagedItem[];
+  }
+  const collection = data[key];
+  if (!Array.isArray(collection)) {
+    return [];
+  }
+  return collection as unknown as ManagedItem[];
+}
+
+function setCollectionItems(data: AppData, key: ManagedCollectionKey, items: ManagedItem[]): AppData {
+  if (key === 'todos') {
+    return {
+      ...data,
+      todos: {
+        ...data.todos,
+        items: items as unknown as AppData['todos']['items'],
+      },
+    };
+  }
+  return {
+    ...data,
+    [key]: items,
+  } as AppData;
 }
 
 function getFirstText(item: ManagedItem, keys: string[]) {

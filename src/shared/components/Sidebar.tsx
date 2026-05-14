@@ -13,6 +13,8 @@ import {
   Landmark,
   Lightbulb,
   Package,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -45,35 +47,50 @@ const items: SidebarItem[] = [
 
 interface SidebarProps {
   active: ModuleKey;
+  isCollapsed: boolean;
   onNavigate: (key: ModuleKey) => void;
+  onToggleCollapse: () => void;
   reminderBadges?: Partial<Record<ModuleKey, number>>;
 }
 
-export function Sidebar({ active, onNavigate, reminderBadges }: SidebarProps) {
+export function Sidebar({ active, isCollapsed, onNavigate, onToggleCollapse, reminderBadges }: SidebarProps) {
   const { t } = useI18n();
+  const ToggleIcon = isCollapsed ? PanelLeftOpen : PanelLeftClose;
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="brand">
         <span className="brand-mark">M</span>
-        <div>
+        <div className="brand-copy">
           <strong>MyMind</strong>
           <small>{t('Personal OS')}</small>
         </div>
+        <button
+          className="sidebar-toggle"
+          type="button"
+          title={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
+          aria-label={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
+          onClick={onToggleCollapse}
+        >
+          <ToggleIcon size={18} aria-hidden="true" />
+        </button>
       </div>
       <nav>
         {items.map((item) => {
           const Icon = item.icon;
+          const label = t(item.label);
           return (
-          <button
-            className={`nav-item ${active === item.key ? 'active' : ''}`}
-            key={item.key}
-            type="button"
-            onClick={() => onNavigate(item.key)}
-          >
-            <Icon size={18} aria-hidden="true" />
-            <span>{t(item.label)}</span>
-            {reminderBadges?.[item.key] ? <strong className="nav-badge">{reminderBadges[item.key]}</strong> : null}
-          </button>
+            <button
+              className={`nav-item ${active === item.key ? 'active' : ''}`}
+              key={item.key}
+              type="button"
+              title={isCollapsed ? label : undefined}
+              aria-label={label}
+              onClick={() => onNavigate(item.key)}
+            >
+              <Icon size={18} aria-hidden="true" />
+              <span>{label}</span>
+              {reminderBadges?.[item.key] ? <strong className="nav-badge">{reminderBadges[item.key]}</strong> : null}
+            </button>
           );
         })}
       </nav>
