@@ -9,13 +9,14 @@ import { PageHeader } from './PageHeader';
 import { useI18n } from '../i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../utils/archiveUtils';
 
-type FieldType = 'text' | 'textarea' | 'date' | 'number' | 'select' | 'tags';
+type FieldType = 'text' | 'textarea' | 'date' | 'number' | 'select' | 'card-select' | 'tags';
 
 export interface EntityField<T> {
   key: keyof T;
   label: string;
   type?: FieldType;
   options?: string[];
+  optionDescriptions?: Record<string, string>;
   required?: boolean;
 }
 
@@ -207,6 +208,29 @@ function SimpleEntityForm<T extends { id: string; createdAt: string; updatedAt: 
                 ))}
               </select>
             </label>
+          );
+        }
+        if (field.type === 'card-select') {
+          return (
+            <section className="form-choice-section" key={key}>
+              <h3>{t(field.label)}</h3>
+              <div className="form-choice-grid">
+                {field.options?.map((option) => (
+                  <button
+                    className={`form-choice-card${value === option ? ' active' : ''}`}
+                    type="button"
+                    key={option}
+                    onClick={() => setDraft((current) => ({ ...current, [key]: option }))}
+                  >
+                    <span className="form-choice-mark">{value === option ? '✓' : ''}</span>
+                    <span>
+                      <strong>{t(option)}</strong>
+                      {field.optionDescriptions?.[option] ? <small>{t(field.optionDescriptions[option])}</small> : null}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
           );
         }
         return (

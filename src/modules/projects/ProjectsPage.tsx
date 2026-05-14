@@ -16,7 +16,18 @@ export function ProjectsPage({ projects, onChange }: { projects: Project[]; onCh
       fields={[
         { key: 'title', label: 'Title', required: true },
         { key: 'description', label: 'Description', type: 'textarea' },
-        { key: 'status', label: 'Status', type: 'select', options: ['active', 'paused', 'completed', 'archived'] },
+        {
+          key: 'status',
+          label: 'Status',
+          type: 'card-select',
+          options: ['active', 'paused', 'completed', 'archived'],
+          optionDescriptions: {
+            active: 'In progress',
+            paused: 'Temporarily stopped',
+            completed: 'Finished project',
+            archived: 'Hidden from regular lists',
+          },
+        },
         { key: 'area', label: 'Area' },
         { key: 'nextAction', label: 'Next action' },
         { key: 'deadline', label: 'Deadline', type: 'date' },

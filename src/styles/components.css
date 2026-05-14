@@ -740,6 +740,71 @@
   background: var(--surface-soft);
 }
 
+.form-choice-section {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 12px;
+}
+
+.form-choice-section h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 16px;
+}
+
+.form-choice-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.form-choice-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 12px;
+  text-align: left;
+}
+
+.form-choice-card:hover,
+.form-choice-card.active {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  background: var(--surface-strong);
+}
+
+.form-choice-mark {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-soft));
+  color: var(--accent-strong);
+  font-weight: 800;
+}
+
+.form-choice-card strong,
+.form-choice-card small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.form-choice-card small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .form-panel .form-actions {
   position: sticky;
   bottom: -18px;
