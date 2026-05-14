@@ -158,7 +158,7 @@ export function CalendarPage({ events, onChange }: CalendarPageProps) {
               <h2>{formatDate(selectedDate)}</h2>
               <small>{selectedEvents.length} {t('events')}</small>
             </div>
-            <AddButton label="Add important date" onClick={() => openNewEvent(selectedDate)} />
+            <AddButton className="calendar-date-add-button" iconOnly label="Add important date" onClick={() => openNewEvent(selectedDate)} />
           </div>
           {selectedEvents.length === 0 ? <EmptyState title="No events on this date" message="Add an event or select another date." /> : null}
           <div className="stack">{selectedEvents.map(renderEventCard)}</div>

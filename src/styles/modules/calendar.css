@@ -8,6 +8,10 @@
 .calendar-panel {
   display: grid;
   gap: 14px;
+  position: sticky;
+  top: 24px;
+  align-self: start;
+  z-index: 2;
 }
 
 .calendar-toolbar {
@@ -134,6 +138,13 @@
   gap: 12px;
 }
 
+.calendar-date-add-button {
+  width: 46px;
+  height: 46px;
+  min-height: 46px;
+  border-radius: 999px;
+}
+
 .calendar-support-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
@@ -141,26 +152,85 @@
 }
 
 .calendar-event-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.calendar-event-header {
+  min-width: 0;
+}
+
+.calendar-event-title-row {
+  display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
 }
 
 .calendar-event-accent {
+  margin-top: 5px;
   width: 12px;
   height: 12px;
   flex: 0 0 auto;
 }
 
-.calendar-event-title-row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  justify-content: space-between;
-  min-width: 0;
-}
-
 .calendar-event-title-row h3 {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.calendar-event-date {
+  white-space: nowrap;
+}
+
+.calendar-event-actions {
+  flex-wrap: nowrap;
+}
+
+.calendar-event-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+
+.calendar-event-footer .chip-row {
+  min-width: 0;
+}
+
+.calendar-event-body {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.calendar-event-description {
+  display: -webkit-box;
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.calendar-event-description.expanded {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: initial;
+}
+
+.calendar-event-more {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  padding: 0;
+  font-weight: 700;
 }
 
 .calendar-importance-picker {
@@ -170,20 +240,80 @@
 }
 
 .calendar-importance-choice {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 8px;
   align-items: center;
-  justify-content: center;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
   color: var(--text);
-  padding: 10px;
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.calendar-importance-choice strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .calendar-importance-choice.active {
   border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
   background: var(--surface-strong);
+}
+
+.calendar-recurrence-picker {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.calendar-recurrence-choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 12px;
+  text-align: left;
+}
+
+.calendar-recurrence-choice:hover,
+.calendar-recurrence-choice.active {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  background: var(--surface-strong);
+}
+
+.calendar-recurrence-choice > span:not(.calendar-recurrence-icon) {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.calendar-recurrence-choice strong,
+.calendar-recurrence-choice small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.calendar-recurrence-choice small {
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.calendar-recurrence-icon {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-soft));
+  color: var(--accent-strong);
 }
 
 .calendar-reminder-builder {
@@ -194,8 +324,12 @@
 
 .calendar-reminder-builder-item {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 12px;
 }
 
 .calendar-reminder-builder-item > span {
@@ -204,9 +338,34 @@
   font-weight: 700;
 }
 
-.calendar-reminder-builder .inline-form {
-  grid-template-columns: minmax(0, 1fr) auto;
-  margin-bottom: 0;
+.calendar-reminder-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: 10px;
+  align-items: end;
+}
+
+.calendar-reminder-control label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.calendar-reminder-control input {
+  min-width: 0;
+}
+
+.calendar-reminder-control .icon-button {
+  width: 42px;
+  height: 42px;
+  min-height: 42px;
+  border-radius: 999px;
 }
 
 :root {
@@ -218,6 +377,10 @@
 @media (max-width: 980px) {
   .calendar-workspace {
     grid-template-columns: 1fr;
+  }
+
+  .calendar-panel {
+    position: static;
   }
 }
 
@@ -234,6 +397,14 @@
 
   .calendar-importance-picker {
     grid-template-columns: 1fr;
+  }
+
+  .calendar-event-footer {
+    grid-template-columns: 1fr;
+  }
+
+  .calendar-event-actions {
+    justify-self: start;
   }
 
   .calendar-reminder-builder {

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { CalendarDays, Check, Repeat } from 'lucide-react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { EntityForm } from '../../shared/components/EntityForm';
 import { useI18n } from '../../shared/i18n/I18nProvider';
@@ -116,18 +117,37 @@ export function CalendarEventForm({ event, defaultDate, onCancel, onSave }: Cale
               onClick={() => setImportanceLevel(option.value)}
             >
               <span />
-              <strong>{t(option.label)}</strong>
+              <strong>{t(option.shortLabel)}</strong>
             </button>
           ))}
         </div>
       </div>
-      <label>
-        {t('Event repeat')}
-        <select value={recurrence} onChange={(item) => setRecurrence(item.target.value as 'once' | 'yearly')}>
-          <option value="once">{t('One-time event')}</option>
-          <option value="yearly">{t('Every year')}</option>
-        </select>
-      </label>
+      <div className="form-section">
+        <strong>{t('Event repeat')}</strong>
+        <div className="calendar-recurrence-picker">
+          {recurrenceOptions.map((option) => {
+            const Icon = option.icon;
+            const isActive = recurrence === option.value;
+            return (
+              <button
+                className={`calendar-recurrence-choice${isActive ? ' active' : ''}`}
+                type="button"
+                key={option.value}
+                onClick={() => setRecurrence(option.value)}
+              >
+                <span className="calendar-recurrence-icon">
+                  <Icon size={18} aria-hidden="true" />
+                </span>
+                <span>
+                  <strong>{t(option.label)}</strong>
+                  <small>{t(option.description)}</small>
+                </span>
+                {isActive ? <Check size={16} aria-hidden="true" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       {recurrence === 'yearly' ? (
         <>
           <label className="checkbox-line">
@@ -147,16 +167,22 @@ export function CalendarEventForm({ event, defaultDate, onCancel, onSave }: Cale
         <div className="calendar-reminder-builder">
           <div className="calendar-reminder-builder-item">
             <span>{t('Before event')}</span>
-            <div className="inline-form">
-              <input min="0" type="number" value={reminderOffset} onChange={(item) => setReminderOffset(item.target.value)} />
-              <AddButton label="Add reminder" onClick={addRelativeReminder} />
+            <div className="calendar-reminder-control">
+              <label>
+                {t('Days before')}
+                <input min="0" type="number" value={reminderOffset} onChange={(item) => setReminderOffset(item.target.value)} />
+              </label>
+              <AddButton iconOnly label="Add reminder" onClick={addRelativeReminder} />
             </div>
           </div>
           <div className="calendar-reminder-builder-item">
             <span>{t('Exact date and time')}</span>
-            <div className="inline-form">
-              <input type="datetime-local" value={reminderAt} onChange={(item) => setReminderAt(item.target.value)} />
-              <AddButton label="Add reminder" onClick={addExactReminder} />
+            <div className="calendar-reminder-control">
+              <label>
+                {t('Calendar reminder time')}
+                <input type="datetime-local" value={reminderAt} onChange={(item) => setReminderAt(item.target.value)} />
+              </label>
+              <AddButton iconOnly label="Add reminder" onClick={addExactReminder} />
             </div>
           </div>
         </div>
@@ -173,10 +199,20 @@ export function CalendarEventForm({ event, defaultDate, onCancel, onSave }: Cale
   );
 }
 
-const importanceOptions: Array<{ value: CalendarEvent['importanceLevel']; label: string }> = [
-  { value: 'low', label: 'Low importance' },
-  { value: 'medium', label: 'Medium importance' },
-  { value: 'high', label: 'High importance' },
+const importanceOptions: Array<{ value: CalendarEvent['importanceLevel']; shortLabel: string }> = [
+  { value: 'low', shortLabel: 'Low importance short' },
+  { value: 'medium', shortLabel: 'Medium importance short' },
+  { value: 'high', shortLabel: 'High importance short' },
+];
+
+const recurrenceOptions: Array<{
+  value: CalendarEvent['recurrence'];
+  label: string;
+  description: string;
+  icon: typeof CalendarDays;
+}> = [
+  { value: 'once', label: 'One-time event', description: 'Only on selected date', icon: CalendarDays },
+  { value: 'yearly', label: 'Every year', description: 'Repeat annually', icon: Repeat },
 ];
 
 function formatReminder(value: string) {
