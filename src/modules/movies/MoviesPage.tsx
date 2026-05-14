@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { AddButton, BackButton, EditButton } from '../../shared/components/ActionButtons';
+import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EmptyState } from '../../shared/components/EmptyState';
-import { FilterBar } from '../../shared/components/FilterBar';
 import { PageHeader } from '../../shared/components/PageHeader';
-import { SearchInput } from '../../shared/components/SearchInput';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
 import { filterMovies, movieGenres } from './movieUtils';
@@ -19,21 +18,43 @@ interface MoviesPageProps {
 
 export function MoviesPage({ movies, onChange }: MoviesPageProps) {
   const [query, setQuery] = useState('');
-  const [status, setStatus] = useState<MovieStatus | 'all'>('all');
-  const [genre, setGenre] = useState('');
+  const [statuses, setStatuses] = useState<MovieStatus[]>([]);
+  const [genres, setGenres] = useState<string[]>([]);
   const [minRating, setMinRating] = useState(0);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [editing, setEditing] = useState<Movie | null | undefined>(undefined);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const activeMovies = movies.filter((movie) => !isHiddenFromRegularLists(movie));
-  const filtered = filterMovies(activeMovies, query, status, genre, minRating).sort(
+  const searched = filterMovies(activeMovies, query, 'all', '', 0);
+  const filtered = searched.filter((movie) => {
+    const matchesStatus = statuses.length === 0 || statuses.includes(movie.status);
+    const matchesGenre = genres.length === 0 || genres.some((item) => movie.genres.includes(item));
+    return matchesStatus && matchesGenre && movie.rating >= minRating;
+  }).sort(
     (a, b) => Number(Boolean(b.pinnedAt)) - Number(Boolean(a.pinnedAt)) || b.updatedAt.localeCompare(a.updatedAt),
   );
   const { t } = useI18n();
+  const availableGenres = movieGenres(activeMovies);
+  const activeFilterCount = statuses.length + genres.length + (minRating > 0 ? 1 : 0);
 
   function saveMovie(movie: Movie) {
     const exists = movies.some((item) => item.id === movie.id);
     onChange(exists ? movies.map((item) => (item.id === movie.id ? movie : item)) : [movie, ...movies]);
     setEditing(undefined);
+  }
+
+  function toggleStatusFilter(value: MovieStatus) {
+    setStatuses((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  }
+
+  function toggleGenreFilter(value: string) {
+    setGenres((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  }
+
+  function clearMovieFilters() {
+    setStatuses([]);
+    setGenres([]);
+    setMinRating(0);
   }
 
   if (selectedMovie) {
@@ -96,33 +117,55 @@ export function MoviesPage({ movies, onChange }: MoviesPageProps) {
           <AddButton label="Add movie" onClick={() => setEditing(null)} />
         }
       />
-      <FilterBar>
-        <SearchInput value={query} placeholder="Search title" onChange={setQuery} />
-        <label>
-          {t('Status')}
-          <select value={status} onChange={(event) => setStatus(event.target.value as MovieStatus | 'all')}>
-            <option value="all">{t('All')}</option>
-            <option value="planned">{t('Planned')}</option>
-            <option value="unwatched">{t('Unwatched')}</option>
-            <option value="watched">{t('Watched')}</option>
-          </select>
-        </label>
-        <label>
-          {t('Genre')}
-          <select value={genre} onChange={(event) => setGenre(event.target.value)}>
-            <option value="">{t('All')}</option>
-            {movieGenres(activeMovies).map((item) => (
-              <option value={item} key={item}>
-                {item}
-              </option>
+      <CollapsibleFilters
+        query={query}
+        placeholder="Search title"
+        isOpen={filtersOpen}
+        activeCount={activeFilterCount}
+        onQueryChange={setQuery}
+        onToggle={() => setFiltersOpen((current) => !current)}
+      >
+        <div className="filter-choice-group">
+          <div className="filter-choice-heading">
+            <strong>{t('Status')}</strong>
+            {statuses.length > 0 ? <button type="button" onClick={() => setStatuses([])}>{t('Clear')}</button> : null}
+          </div>
+          <div className="filter-chip-row">
+            {movieStatusFilters.map((item) => (
+              <button className={`filter-chip${statuses.includes(item) ? ' active' : ''}`} type="button" key={item} onClick={() => toggleStatusFilter(item)}>
+                {t(item)}
+              </button>
             ))}
-          </select>
-        </label>
-        <label>
-          {t('Minimum rating')}
-          <input type="number" min="0" max="10" value={minRating} onChange={(event) => setMinRating(Number(event.target.value))} />
-        </label>
-      </FilterBar>
+          </div>
+        </div>
+        <div className="filter-choice-group">
+          <div className="filter-choice-heading">
+            <strong>{t('Genre')}</strong>
+            {genres.length > 0 ? <button type="button" onClick={() => setGenres([])}>{t('Clear')}</button> : null}
+          </div>
+          <div className="filter-chip-row">
+            {availableGenres.length > 0 ? availableGenres.map((item) => (
+              <button className={`filter-chip${genres.includes(item) ? ' active' : ''}`} type="button" key={item} onClick={() => toggleGenreFilter(item)}>
+                {item}
+              </button>
+            )) : <span className="muted-text">{t('No genres yet.')}</span>}
+          </div>
+        </div>
+        <div className="filter-choice-group">
+          <div className="filter-choice-heading">
+            <strong>{t('Minimum rating')}</strong>
+            {minRating > 0 ? <button type="button" onClick={() => setMinRating(0)}>{t('Clear')}</button> : null}
+          </div>
+          <div className="filter-chip-row">
+            {ratingFilters.map((item) => (
+              <button className={`filter-chip${minRating === item ? ' active' : ''}`} type="button" key={item} onClick={() => setMinRating(item)}>
+                {item === 0 ? t('All') : `${item}/10+`}
+              </button>
+            ))}
+          </div>
+        </div>
+        {activeFilterCount > 0 ? <button className="button ghost filter-clear-button" type="button" onClick={clearMovieFilters}>{t('Clear filters')}</button> : null}
+      </CollapsibleFilters>
       {filtered.length === 0 ? (
         <EmptyState title="No movies found" message="Add a movie or relax the filters." />
       ) : (
@@ -147,3 +190,6 @@ export function MoviesPage({ movies, onChange }: MoviesPageProps) {
     </section>
   );
 }
+
+const movieStatusFilters: MovieStatus[] = ['planned', 'unwatched', 'watched'];
+const ratingFilters = [0, 6, 8, 9];

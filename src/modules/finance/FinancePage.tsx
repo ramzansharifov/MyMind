@@ -1,10 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { AddButton, BackButton, DeleteButton, EditButton } from '../../shared/components/ActionButtons';
+import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EntityForm } from '../../shared/components/EntityForm';
 import { EmptyState } from '../../shared/components/EmptyState';
-import { FilterBar } from '../../shared/components/FilterBar';
 import { PageHeader } from '../../shared/components/PageHeader';
-import { SearchInput } from '../../shared/components/SearchInput';
 import { StatCard } from '../../shared/components/StatCard';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { formatCurrency } from '../../shared/utils/formatters';
@@ -31,14 +30,22 @@ type OpenForm =
 export function FinancePage({ data, currency, onChange }: FinancePageProps) {
   const [view, setView] = useState<'ledger' | 'goals'>('ledger');
   const [query, setQuery] = useState('');
-  const [type, setType] = useState<TransactionType | 'all'>('all');
-  const [tag, setTag] = useState('');
+  const [types, setTypes] = useState<TransactionType[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [date, setDate] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [openForm, setOpenForm] = useState<OpenForm>(null);
   const [newTagName, setNewTagName] = useState('');
   const [newTagType, setNewTagType] = useState<FinanceTagType>('both');
-  const filtered = filterTransactions(data.transactions, query, type, tag, date);
+  const searchedTransactions = filterTransactions(data.transactions, query, 'all', '', date);
+  const filtered = searchedTransactions.filter((transaction) => {
+    const matchesType = types.length === 0 || types.includes(transaction.type);
+    const matchesTags = selectedTags.length === 0 || selectedTags.some((tag) => transaction.tags.includes(tag));
+    return matchesType && matchesTags;
+  });
   const { t } = useI18n();
+  const availableTransactionTags = [...new Set([...transactionTags(data.transactions), ...data.tags.map((item) => item.name)])];
+  const activeFilterCount = types.length + selectedTags.length + (date ? 1 : 0);
 
   function saveTransaction(transaction: FinanceTransaction) {
     const exists = data.transactions.some((item) => item.id === transaction.id);
@@ -74,8 +81,8 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
       tags: [],
     });
     setQuery('');
-    setType('all');
-    setTag('');
+    setTypes([]);
+    setSelectedTags([]);
     setDate('');
     setView('ledger');
     setOpenForm({ kind: 'start-balance' });
@@ -100,6 +107,20 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
     };
     onChange({ ...data, tags: [...data.tags, nextTag] });
     setNewTagName('');
+  }
+
+  function toggleTypeFilter(value: TransactionType) {
+    setTypes((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  }
+
+  function toggleTransactionTag(value: string) {
+    setSelectedTags((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  }
+
+  function clearFinanceFilters() {
+    setTypes([]);
+    setSelectedTags([]);
+    setDate('');
   }
 
   if (view === 'goals') {
@@ -185,32 +206,49 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
           ))}
         </div>
       </section>
-      <FilterBar>
-        <SearchInput value={query} placeholder="Search transactions" onChange={setQuery} />
-        <label>
-          {t('Type')}
-          <select value={type} onChange={(event) => setType(event.target.value as TransactionType | 'all')}>
-            <option value="all">{t('All')}</option>
-            <option value="income">{t('Income')}</option>
-            <option value="expense">{t('Expense')}</option>
-          </select>
-        </label>
-        <label>
-          {t('Tag')}
-          <select value={tag} onChange={(event) => setTag(event.target.value)}>
-            <option value="">{t('All')}</option>
-            {[...new Set([...transactionTags(data.transactions), ...data.tags.map((item) => item.name)])].map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
+      <CollapsibleFilters
+        query={query}
+        placeholder="Search transactions"
+        isOpen={filtersOpen}
+        activeCount={activeFilterCount}
+        onQueryChange={setQuery}
+        onToggle={() => setFiltersOpen((current) => !current)}
+      >
+        <div className="filter-choice-group">
+          <div className="filter-choice-heading">
+            <strong>{t('Type')}</strong>
+            {types.length > 0 ? <button type="button" onClick={() => setTypes([])}>{t('Clear')}</button> : null}
+          </div>
+          <div className="filter-chip-row">
+            {transactionTypeFilters.map((item) => (
+              <button className={`filter-chip${types.includes(item) ? ' active' : ''}`} type="button" key={item} onClick={() => toggleTypeFilter(item)}>
+                {t(item === 'income' ? 'Income' : 'Expense')}
+              </button>
             ))}
-          </select>
-        </label>
-        <label>
-          {t('Date')}
+          </div>
+        </div>
+        <div className="filter-choice-group">
+          <div className="filter-choice-heading">
+            <strong>{t('Tag')}</strong>
+            {selectedTags.length > 0 ? <button type="button" onClick={() => setSelectedTags([])}>{t('Clear')}</button> : null}
+          </div>
+          <div className="filter-chip-row">
+            {availableTransactionTags.length > 0 ? availableTransactionTags.map((item) => (
+              <button className={`filter-chip${selectedTags.includes(item) ? ' active' : ''}`} type="button" key={item} onClick={() => toggleTransactionTag(item)}>
+                {item}
+              </button>
+            )) : <span className="muted-text">{t('No tags yet.')}</span>}
+          </div>
+        </div>
+        <div className="filter-choice-group">
+          <div className="filter-choice-heading">
+            <strong>{t('Date')}</strong>
+            {date ? <button type="button" onClick={() => setDate('')}>{t('Clear')}</button> : null}
+          </div>
           <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-        </label>
-      </FilterBar>
+        </div>
+        {activeFilterCount > 0 ? <button className="button ghost filter-clear-button" type="button" onClick={clearFinanceFilters}>{t('Clear filters')}</button> : null}
+      </CollapsibleFilters>
       <div className="two-column">
         <section className="panel">
           <h2>{t('Transactions')}</h2>
@@ -307,3 +345,5 @@ function expenseTagTotals(transactions: FinanceTransaction[]) {
     .map(([tag, total]) => ({ tag, total, percent: Math.max(4, (total / max) * 100) }))
     .sort((a, b) => b.total - a.total);
 }
+
+const transactionTypeFilters: TransactionType[] = ['income', 'expense'];

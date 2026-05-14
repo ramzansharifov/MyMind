@@ -3,7 +3,6 @@ import { AddButton, CancelButton, DeleteButton, EditButton, SaveButton } from '.
 import { EntityForm } from '../../shared/components/EntityForm';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { PageHeader } from '../../shared/components/PageHeader';
-import { StatCard } from '../../shared/components/StatCard';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { formatDate } from '../../shared/utils/dateUtils';
 import { createId } from '../../shared/utils/idGenerator';
@@ -231,14 +230,6 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
   return (
     <section>
       <PageHeader title="Training & Nutrition" subtitle="Manage exercises, workouts, nutrition, and track your progress." />
-
-      <div className="stats-grid workout-stats">
-        <StatCard label="Exercises" value={exercises.length} />
-        <StatCard label="Plans" value={plans.length} />
-        <StatCard label="Workouts" value={sessions.length} />
-        <StatCard label="Progress Records" value={progressRecords.length} />
-        <StatCard label="Nutrition Entries" value={nutritionEntries.length} />
-      </div>
 
       <div className="workout-tabs" role="tablist" aria-label="Training and nutrition sections">
         {SECTION_TABS.map((section) => (
@@ -694,7 +685,15 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
       )}
 
       {/* Charts Section */}
-      {activeSection === 'charts' && <ChartsSection />}
+      {activeSection === 'charts' && (
+        <ChartsSection
+          exercises={exercises}
+          plans={plans}
+          sessions={sessions}
+          progressRecords={progressRecords}
+          nutritionEntries={nutritionEntries}
+        />
+      )}
 
       {/* Forms */}
       {openForm?.kind === 'exercise' ? (

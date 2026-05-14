@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
+import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EmptyState } from '../../shared/components/EmptyState';
-import { FilterBar } from '../../shared/components/FilterBar';
 import { PageHeader } from '../../shared/components/PageHeader';
-import { SearchInput } from '../../shared/components/SearchInput';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
 import { createId } from '../../shared/utils/idGenerator';
@@ -19,8 +18,9 @@ interface TodosPageProps {
 
 export function TodosPage({ data, onChange }: TodosPageProps) {
   const [query, setQuery] = useState('');
-  const [priority, setPriority] = useState<TodoPriority | 'all'>('all');
-  const [tag, setTag] = useState('');
+  const [priorities, setPriorities] = useState<TodoPriority[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeGroupId, setActiveGroupId] = useState('all');
   const [newGroupTitle, setNewGroupTitle] = useState('');
   const [editing, setEditing] = useState<TodoItem | null | undefined>(undefined);
@@ -28,12 +28,19 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
   const items = todoItems(data);
   const groups = todoGroups(data);
   const activeTodos = items.filter((todo) => !isHiddenFromRegularLists(todo));
-  const searched = filterTodos(activeTodos, query, 'all', priority, tag);
-  const filtered = (query.trim() ? searched : searched.filter((todo) => matchesGroup(todo, activeGroupId))).sort(
+  const searched = filterTodos(activeTodos, query, 'all', 'all', '');
+  const filteredByButtons = searched.filter((todo) => {
+    const matchesPriority = priorities.length === 0 || priorities.includes(todo.priority);
+    const matchesTags = tags.length === 0 || tags.some((item) => todo.tags.includes(item));
+    return matchesPriority && matchesTags;
+  });
+  const filtered = (query.trim() ? filteredByButtons : filteredByButtons.filter((todo) => matchesGroup(todo, activeGroupId))).sort(
     (a, b) => Number(Boolean(b.pinnedAt)) - Number(Boolean(a.pinnedAt)) || b.updatedAt.localeCompare(a.updatedAt),
   );
   const { t } = useI18n();
   const selectedGroup = groups.find((group) => group.id === activeGroupId);
+  const availableTags = todoTags(activeTodos);
+  const activeFilterCount = priorities.length + tags.length;
 
   function saveTodo(todo: TodoItem) {
     const exists = items.some((item) => item.id === todo.id);
@@ -96,6 +103,19 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
     setEditing(todo);
   }
 
+  function togglePriorityFilter(value: TodoPriority) {
+    setPriorities((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  }
+
+  function toggleTagFilter(value: string) {
+    setTags((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  }
+
+  function clearFilters() {
+    setPriorities([]);
+    setTags([]);
+  }
+
   return (
     <section>
       <PageHeader
@@ -107,29 +127,63 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
       />
       <div className="todo-workspace">
         <div className="todo-filters-row">
-          <FilterBar>
-            <SearchInput value={query} placeholder="Search tasks" onChange={setQuery} />
-            <label>
-              {t('Priority')}
-              <select value={priority} onChange={(event) => setPriority(event.target.value as TodoPriority | 'all')}>
-                <option value="all">{t('All')}</option>
-                <option value="low">{t('Low')}</option>
-                <option value="medium">{t('Medium')}</option>
-                <option value="high">{t('High')}</option>
-              </select>
-            </label>
-            <label>
-              {t('Tag')}
-              <select value={tag} onChange={(event) => setTag(event.target.value)}>
-                <option value="">{t('All')}</option>
-                {todoTags(activeTodos).map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </FilterBar>
+          <CollapsibleFilters
+            query={query}
+            placeholder="Search tasks"
+            isOpen={filtersOpen}
+            activeCount={activeFilterCount}
+            onQueryChange={setQuery}
+            onToggle={() => setFiltersOpen((current) => !current)}
+          >
+              <div className="filter-choice-group">
+                <div className="filter-choice-heading">
+                  <strong>{t('Priority')}</strong>
+                  {priorities.length > 0 ? <button type="button" onClick={() => setPriorities([])}>{t('Clear')}</button> : null}
+                </div>
+                <div className="filter-chip-row">
+                  {priorityFilterOptions.map((option) => (
+                    <button
+                      className={`filter-chip${priorities.includes(option.value) ? ' active' : ''}`}
+                      type="button"
+                      key={option.value}
+                      aria-pressed={priorities.includes(option.value)}
+                      onClick={() => togglePriorityFilter(option.value)}
+                    >
+                      <span className={`filter-chip-dot ${option.value}`} aria-hidden="true" />
+                      {t(option.label)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="filter-choice-group">
+                <div className="filter-choice-heading">
+                  <strong>{t('Tag')}</strong>
+                  {tags.length > 0 ? <button type="button" onClick={() => setTags([])}>{t('Clear')}</button> : null}
+                </div>
+                <div className="filter-chip-row">
+                  {availableTags.length > 0 ? (
+                    availableTags.map((item) => (
+                      <button
+                        className={`filter-chip${tags.includes(item) ? ' active' : ''}`}
+                        type="button"
+                        key={item}
+                        aria-pressed={tags.includes(item)}
+                        onClick={() => toggleTagFilter(item)}
+                      >
+                        {item}
+                      </button>
+                    ))
+                  ) : (
+                    <span className="muted-text">{t('No tags yet.')}</span>
+                  )}
+                </div>
+              </div>
+              {activeFilterCount > 0 ? (
+                <button className="button ghost filter-clear-button" type="button" onClick={clearFilters}>
+                  {t('Clear filters')}
+                </button>
+              ) : null}
+          </CollapsibleFilters>
         </div>
 
         <aside className="panel todo-groups-panel">
@@ -228,3 +282,9 @@ function matchesGroup(todo: TodoItem, groupId: string) {
   }
   return todo.groupId === groupId;
 }
+
+const priorityFilterOptions: Array<{ value: TodoPriority; label: string }> = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+];

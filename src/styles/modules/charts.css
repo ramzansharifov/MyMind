@@ -1,26 +1,57 @@
-﻿.chart-list {
+.workout-chart-stats {
+  margin-bottom: 18px;
+}
+
+.workout-chart-grid {
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
+  gap: 16px;
 }
 
-.chart-row {
+.workout-chart-card {
   display: grid;
-  grid-template-columns: 140px minmax(160px, 1fr) 120px;
-  gap: 12px;
-  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  min-height: 360px;
 }
 
-.chart-row div {
-  height: 10px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--surface-strong);
+.workout-chart-card:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 
-.chart-row i {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: var(--accent);
+.workout-chart-heading {
+  display: grid;
+  gap: 4px;
 }
 
+.workout-chart-heading p {
+  color: var(--muted);
+}
+
+.workout-chart-empty {
+  display: grid;
+  min-height: 240px;
+  place-items: center;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.recharts-default-legend {
+  color: var(--muted);
+}
+
+.recharts-text {
+  fill: var(--muted);
+}
+
+@media (max-width: 980px) {
+  .workout-chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workout-chart-card:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+}

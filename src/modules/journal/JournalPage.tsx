@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
+import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EmptyState } from '../../shared/components/EmptyState';
-import { FilterBar } from '../../shared/components/FilterBar';
 import { PageHeader } from '../../shared/components/PageHeader';
-import { SearchInput } from '../../shared/components/SearchInput';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
 import { filterEntries, journalMoods, journalTags } from './journalUtils';
@@ -18,14 +17,23 @@ interface JournalPageProps {
 
 export function JournalPage({ entries, onChange }: JournalPageProps) {
   const [query, setQuery] = useState('');
-  const [tag, setTag] = useState('');
-  const [mood, setMood] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [moods, setMoods] = useState<string[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [editing, setEditing] = useState<JournalEntry | null | undefined>(undefined);
   const activeEntries = entries.filter((entry) => !isHiddenFromRegularLists(entry));
-  const filtered = filterEntries(activeEntries, query, tag, mood).sort(
+  const searched = filterEntries(activeEntries, query, '', '');
+  const filtered = searched.filter((entry) => {
+    const matchesTags = tags.length === 0 || tags.some((tag) => entry.tags.includes(tag));
+    const matchesMoods = moods.length === 0 || moods.includes(entry.mood);
+    return matchesTags && matchesMoods;
+  }).sort(
     (a, b) => Number(Boolean(b.pinnedAt)) - Number(Boolean(a.pinnedAt)) || b.updatedAt.localeCompare(a.updatedAt),
   );
   const { t } = useI18n();
+  const availableTags = journalTags(activeEntries);
+  const availableMoods = journalMoods(activeEntries);
+  const activeFilterCount = tags.length + moods.length;
 
   function saveEntry(entry: JournalEntry) {
     const exists = entries.some((item) => item.id === entry.id);
@@ -38,6 +46,19 @@ export function JournalPage({ entries, onChange }: JournalPageProps) {
     onChange(entries.map((item) => (item.id === entry.id ? { ...item, pinnedAt: item.pinnedAt ? null : timestamp, updatedAt: timestamp } : item)));
   }
 
+  function toggleTag(value: string) {
+    setTags((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  }
+
+  function toggleMood(value: string) {
+    setMoods((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  }
+
+  function clearFilters() {
+    setTags([]);
+    setMoods([]);
+  }
+
   return (
     <section>
       <PageHeader
@@ -47,31 +68,42 @@ export function JournalPage({ entries, onChange }: JournalPageProps) {
           <AddButton label="Add entry" onClick={() => setEditing(null)} />
         }
       />
-      <FilterBar>
-        <SearchInput value={query} placeholder="Search diary" onChange={setQuery} />
-        <label>
-          {t('Tag')}
-          <select value={tag} onChange={(event) => setTag(event.target.value)}>
-            <option value="">{t('All')}</option>
-            {journalTags(activeEntries).map((item) => (
-              <option value={item} key={item}>
+      <CollapsibleFilters
+        query={query}
+        placeholder="Search diary"
+        isOpen={filtersOpen}
+        activeCount={activeFilterCount}
+        onQueryChange={setQuery}
+        onToggle={() => setFiltersOpen((current) => !current)}
+      >
+        <div className="filter-choice-group">
+          <div className="filter-choice-heading">
+            <strong>{t('Tag')}</strong>
+            {tags.length > 0 ? <button type="button" onClick={() => setTags([])}>{t('Clear')}</button> : null}
+          </div>
+          <div className="filter-chip-row">
+            {availableTags.length > 0 ? availableTags.map((item) => (
+              <button className={`filter-chip${tags.includes(item) ? ' active' : ''}`} type="button" key={item} onClick={() => toggleTag(item)}>
                 {item}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          {t('Mood')}
-          <select value={mood} onChange={(event) => setMood(event.target.value)}>
-            <option value="">{t('All')}</option>
-            {journalMoods(activeEntries).map((item) => (
-              <option value={item} key={item}>
+              </button>
+            )) : <span className="muted-text">{t('No tags yet.')}</span>}
+          </div>
+        </div>
+        <div className="filter-choice-group">
+          <div className="filter-choice-heading">
+            <strong>{t('Mood')}</strong>
+            {moods.length > 0 ? <button type="button" onClick={() => setMoods([])}>{t('Clear')}</button> : null}
+          </div>
+          <div className="filter-chip-row">
+            {availableMoods.length > 0 ? availableMoods.map((item) => (
+              <button className={`filter-chip${moods.includes(item) ? ' active' : ''}`} type="button" key={item} onClick={() => toggleMood(item)}>
                 {item}
-              </option>
-            ))}
-          </select>
-        </label>
-      </FilterBar>
+              </button>
+            )) : <span className="muted-text">{t('No moods yet.')}</span>}
+          </div>
+        </div>
+        {activeFilterCount > 0 ? <button className="button ghost filter-clear-button" type="button" onClick={clearFilters}>{t('Clear filters')}</button> : null}
+      </CollapsibleFilters>
       {filtered.length === 0 ? (
         <EmptyState title="No diary entries" message="Write local notes that stay on this machine." />
       ) : (

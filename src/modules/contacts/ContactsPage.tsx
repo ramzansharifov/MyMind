@@ -1,10 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { AddButton, ArchiveButton, DeleteButton, EditButton, PinButton } from '../../shared/components/ActionButtons';
+import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EntityForm } from '../../shared/components/EntityForm';
 import { EmptyState } from '../../shared/components/EmptyState';
-import { FilterBar } from '../../shared/components/FilterBar';
 import { PageHeader } from '../../shared/components/PageHeader';
-import { SearchInput } from '../../shared/components/SearchInput';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
 import { joinCsv, splitCsv } from '../../shared/utils/formatters';
@@ -51,9 +50,7 @@ export function ContactsPage({ contacts, onChange }: { contacts: Contact[]; onCh
   return (
     <section>
       <PageHeader title="Contacts" subtitle="People, relationships, birthdays, memory notes, and social links." actions={<AddButton label="Add contact" onClick={() => setEditing(null)} />} />
-      <FilterBar>
-        <SearchInput value={query} placeholder="Search contacts" onChange={setQuery} />
-      </FilterBar>
+      <CollapsibleFilters query={query} placeholder="Search contacts" onQueryChange={setQuery} />
       {visibleContacts.length === 0 ? (
         <EmptyState title="No contacts" message="Add people you want to remember and follow up with." />
       ) : (

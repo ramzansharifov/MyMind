@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
+import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EmptyState } from '../../shared/components/EmptyState';
-import { FilterBar } from '../../shared/components/FilterBar';
 import { PageHeader } from '../../shared/components/PageHeader';
-import { SearchInput } from '../../shared/components/SearchInput';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
 import { filterNotes, noteCategories, noteTags } from './noteUtils';
@@ -18,13 +17,23 @@ interface NotesPageProps {
 
 export function NotesPage({ notes, onChange }: NotesPageProps) {
   const [query, setQuery] = useState('');
-  const [tag, setTag] = useState('');
-  const [category, setCategory] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [editorNote, setEditorNote] = useState<Note | null | undefined>(undefined);
   const visibleNotes = notes.filter((note) => !isHiddenFromRegularLists(note));
-  const filtered = filterNotes(visibleNotes, query, tag, category, pinnedOnly);
+  const searched = filterNotes(visibleNotes, query, '', '', false);
+  const filtered = searched.filter((note) => {
+    const matchesTags = tags.length === 0 || tags.some((tag) => note.tags.includes(tag));
+    const matchesCategories = categories.length === 0 || categories.includes(note.category);
+    const matchesPinned = !pinnedOnly || Boolean(note.pinned || note.pinnedAt);
+    return matchesTags && matchesCategories && matchesPinned;
+  });
   const { t } = useI18n();
+  const availableTags = noteTags(visibleNotes);
+  const availableCategories = noteCategories(visibleNotes);
+  const activeFilterCount = tags.length + categories.length + (pinnedOnly ? 1 : 0);
 
   function saveNote(note: Note) {
     const exists = notes.some((item) => item.id === note.id);
@@ -50,6 +59,20 @@ export function NotesPage({ notes, onChange }: NotesPageProps) {
     );
   }
 
+  function toggleTag(value: string) {
+    setTags((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  }
+
+  function toggleCategory(value: string) {
+    setCategories((current) => (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]));
+  }
+
+  function clearFilters() {
+    setTags([]);
+    setCategories([]);
+    setPinnedOnly(false);
+  }
+
   if (editorNote !== undefined) {
     return <NoteEditorPage note={editorNote} onCancel={() => setEditorNote(undefined)} onSave={saveNote} />;
   }
@@ -63,35 +86,52 @@ export function NotesPage({ notes, onChange }: NotesPageProps) {
           <AddButton label="Add note" onClick={() => setEditorNote(null)} />
         }
       />
-      <FilterBar>
-        <SearchInput value={query} placeholder="Search notes" onChange={setQuery} />
-        <label>
-          {t('Category')}
-          <select value={category} onChange={(event) => setCategory(event.target.value)}>
-            <option value="">{t('All')}</option>
-            {noteCategories(visibleNotes).map((item) => (
-              <option value={item} key={item}>
+      <CollapsibleFilters
+        query={query}
+        placeholder="Search notes"
+        isOpen={filtersOpen}
+        activeCount={activeFilterCount}
+        onQueryChange={setQuery}
+        onToggle={() => setFiltersOpen((current) => !current)}
+      >
+        <div className="filter-choice-group">
+          <div className="filter-choice-heading">
+            <strong>{t('Category')}</strong>
+            {categories.length > 0 ? <button type="button" onClick={() => setCategories([])}>{t('Clear')}</button> : null}
+          </div>
+          <div className="filter-chip-row">
+            {availableCategories.length > 0 ? availableCategories.map((item) => (
+              <button className={`filter-chip${categories.includes(item) ? ' active' : ''}`} type="button" key={item} onClick={() => toggleCategory(item)}>
                 {item}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          {t('Tag')}
-          <select value={tag} onChange={(event) => setTag(event.target.value)}>
-            <option value="">{t('All')}</option>
-            {noteTags(visibleNotes).map((item) => (
-              <option value={item} key={item}>
+              </button>
+            )) : <span className="muted-text">{t('No categories yet.')}</span>}
+          </div>
+        </div>
+        <div className="filter-choice-group">
+          <div className="filter-choice-heading">
+            <strong>{t('Tag')}</strong>
+            {tags.length > 0 ? <button type="button" onClick={() => setTags([])}>{t('Clear')}</button> : null}
+          </div>
+          <div className="filter-chip-row">
+            {availableTags.length > 0 ? availableTags.map((item) => (
+              <button className={`filter-chip${tags.includes(item) ? ' active' : ''}`} type="button" key={item} onClick={() => toggleTag(item)}>
                 {item}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="checkbox-line">
-          <input type="checkbox" checked={pinnedOnly} onChange={(event) => setPinnedOnly(event.target.checked)} />
-          {t('Pinned only')}
-        </label>
-      </FilterBar>
+              </button>
+            )) : <span className="muted-text">{t('No tags yet.')}</span>}
+          </div>
+        </div>
+        <div className="filter-choice-group">
+          <div className="filter-choice-heading">
+            <strong>{t('Pinned only')}</strong>
+          </div>
+          <div className="filter-chip-row">
+            <button className={`filter-chip${pinnedOnly ? ' active' : ''}`} type="button" onClick={() => setPinnedOnly((current) => !current)}>
+              {t('Pinned only')}
+            </button>
+          </div>
+        </div>
+        {activeFilterCount > 0 ? <button className="button ghost filter-clear-button" type="button" onClick={clearFilters}>{t('Clear filters')}</button> : null}
+      </CollapsibleFilters>
       {filtered.length === 0 ? (
         <EmptyState title="No notes found" message="Capture ideas, instructions, references, and personal knowledge." />
       ) : (

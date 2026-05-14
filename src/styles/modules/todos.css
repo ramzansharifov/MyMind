@@ -175,12 +175,123 @@
 }
 
 .todo-filters-row {
+  display: grid;
+  gap: 10px;
   grid-column: 1 / -1;
   min-width: 0;
 }
 
-.todo-filters-row > * {
+.todo-search-filter-shell {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
   width: 100%;
+}
+
+.todo-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--control-height);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 58%, transparent);
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+.todo-filter-toggle:hover,
+.todo-filter-toggle.active {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-strong));
+}
+
+.todo-filter-toggle strong {
+  display: inline-grid;
+  min-width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--accent);
+  color: white;
+  font-size: 12px;
+}
+
+.todo-filter-toggle.active svg:last-child {
+  transform: rotate(180deg);
+}
+
+.todo-filter-panel {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  padding: 14px;
+}
+
+.todo-filter-group {
+  display: grid;
+  gap: 8px;
+}
+
+.todo-filter-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+}
+
+.todo-filter-heading button {
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  padding: 0;
+}
+
+.todo-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.todo-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 7px 12px;
+}
+
+.todo-filter-chip:hover,
+.todo-filter-chip.active {
+  border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+
+.todo-filter-chip > span {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #6f8fd6;
+}
+
+.todo-filter-chip.priority-medium > span {
+  background: #d59d31;
+}
+
+.todo-filter-chip.priority-high > span {
+  background: #d85f5f;
+}
+
+.todo-filter-clear {
+  justify-self: start;
 }
 
 .todo-groups-panel,
@@ -195,6 +306,10 @@
 
   .todo-filters-row {
     grid-column: 1;
+  }
+
+  .todo-search-filter-shell {
+    grid-template-columns: 1fr;
   }
 }
 .todo-groups-panel,

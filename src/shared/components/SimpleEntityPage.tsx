@@ -4,9 +4,8 @@ import { splitCsv, joinCsv } from '../utils/formatters';
 import { createId } from '../utils/idGenerator';
 import { EmptyState } from './EmptyState';
 import { EntityForm as EntityFormShell } from './EntityForm';
-import { FilterBar } from './FilterBar';
+import { CollapsibleFilters } from './CollapsibleFilters';
 import { PageHeader } from './PageHeader';
-import { SearchInput } from './SearchInput';
 import { useI18n } from '../i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../utils/archiveUtils';
 
@@ -90,9 +89,7 @@ export function SimpleEntityPage<T extends { id: string; createdAt: string; upda
           <AddButton label={addLabel} onClick={() => setEditing(null)} />
         }
       />
-      <FilterBar>
-        <SearchInput value={query} placeholder={`Search ${title.toLowerCase()}`} onChange={setQuery} />
-      </FilterBar>
+      <CollapsibleFilters query={query} placeholder={`Search ${title.toLowerCase()}`} onQueryChange={setQuery} />
       {filtered.length === 0 ? (
         <EmptyState title={emptyTitle} message={emptyMessage} />
       ) : (
