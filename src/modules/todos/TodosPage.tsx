@@ -133,29 +133,29 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
           </div>
         </aside>
         <section className="todo-list-panel">
-      <FilterBar>
-        <SearchInput value={query} placeholder="Search tasks" onChange={setQuery} />
-        <label>
-          {t('Priority')}
-          <select value={priority} onChange={(event) => setPriority(event.target.value as TodoPriority | 'all')}>
-            <option value="all">{t('All')}</option>
-            <option value="low">{t('Low')}</option>
-            <option value="medium">{t('Medium')}</option>
-            <option value="high">{t('High')}</option>
-          </select>
-        </label>
-        <label>
-          {t('Tag')}
-          <select value={tag} onChange={(event) => setTag(event.target.value)}>
-            <option value="">{t('All')}</option>
-            {todoTags(activeTodos).map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </label>
-      </FilterBar>
+          <FilterBar>
+            <SearchInput value={query} placeholder="Search tasks" onChange={setQuery} />
+            <label>
+              {t('Priority')}
+              <select value={priority} onChange={(event) => setPriority(event.target.value as TodoPriority | 'all')}>
+                <option value="all">{t('All')}</option>
+                <option value="low">{t('Low')}</option>
+                <option value="medium">{t('Medium')}</option>
+                <option value="high">{t('High')}</option>
+              </select>
+            </label>
+            <label>
+              {t('Tag')}
+              <select value={tag} onChange={(event) => setTag(event.target.value)}>
+                <option value="">{t('All')}</option>
+                {todoTags(activeTodos).map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </FilterBar>
           <section className="panel section-block">
             <div className="section-heading">
               <div>
