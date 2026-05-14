@@ -16,6 +16,7 @@ interface NoteEditorPageProps {
 
 type NoteMode = 'read' | 'rich' | 'markdown';
 type SheetRatio = '1:1' | '4:3' | '16:9' | '3:4' | 'A4';
+type ToolbarTab = 'text' | 'color' | 'divider' | 'sheet';
 
 const quickColors = ['#eef1f4', '#3aa997', '#7db4ff', '#e3b261', '#e77878', '#c69cff'];
 const sheetRatios: Array<{ id: SheetRatio; label: string; width: number; height: number }> = [
@@ -24,6 +25,12 @@ const sheetRatios: Array<{ id: SheetRatio; label: string; width: number; height:
   { id: '16:9', label: '16:9', width: 1120, height: 630 },
   { id: '3:4', label: '3:4', width: 720, height: 960 },
   { id: 'A4', label: 'A4', width: 794, height: 1123 },
+];
+const toolbarTabs: Array<{ id: ToolbarTab; label: string }> = [
+  { id: 'text', label: 'Text' },
+  { id: 'color', label: 'Text color' },
+  { id: 'divider', label: 'Divider' },
+  { id: 'sheet', label: 'Drawing sheet' },
 ];
 
 export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) {
@@ -35,6 +42,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
   const [drawingColor, setDrawingColor] = useState('#3aa997');
   const [sheetRatio, setSheetRatio] = useState<SheetRatio>('4:3');
   const [selectedSheetId, setSelectedSheetId] = useState('');
+  const [toolbarTab, setToolbarTab] = useState<ToolbarTab>('text');
   const [editorHtml, setEditorHtml] = useState(noteEditorHtml(note));
   const [markdownContent, setMarkdownContent] = useState(note?.contentFormat === 'markdown' ? note.content : note ? notePlainText(note) : '');
   const [activeFormats, setActiveFormats] = useState({ bold: false, italic: false, underline: false });
@@ -373,8 +381,22 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
         {mode === 'rich' ? (
           <>
             <div className="note-editor-toolbar" aria-label={t('Editor toolbar')} onMouseDownCapture={saveSelection}>
-              <div className="note-toolbar-group">
-                <span>{t('Text')}</span>
+              <div className="note-toolbar-tabs" role="tablist" aria-label={t('Editor tools')}>
+                {toolbarTabs.map((tab) => (
+                  <button
+                    className={`note-toolbar-tab${toolbarTab === tab.id ? ' active' : ''}`}
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={toolbarTab === tab.id}
+                    onClick={() => setToolbarTab(tab.id)}
+                  >
+                    {t(tab.label)}
+                  </button>
+                ))}
+              </div>
+              <div className="note-toolbar-panel">
+                {toolbarTab === 'text' ? (
                 <div className="note-toolbar-row">
                   <button className={`icon-button ghost ${activeFormats.bold ? 'format-active' : ''}`} type="button" onClick={() => applyCommand('bold')} aria-label={t('Bold')}>
                     <Bold size={17} aria-hidden="true" />
@@ -396,9 +418,8 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
                     </select>
                   </label>
                 </div>
-              </div>
-              <div className="note-toolbar-group">
-                <span>{t('Text color')}</span>
+                ) : null}
+                {toolbarTab === 'color' ? (
                 <div className="note-toolbar-row">
                   <div className="quick-color-row" aria-label={t('Quick colors')}>
                     {quickColors.map((color) => (
@@ -410,9 +431,8 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
                     <input type="color" defaultValue="#eef1f4" onChange={(event) => applyCommand('foreColor', event.target.value)} />
                   </label>
                 </div>
-              </div>
-              <div className="note-toolbar-group">
-                <span>{t('Divider')}</span>
+                ) : null}
+                {toolbarTab === 'divider' ? (
                 <div className="note-toolbar-row">
                   <button className="button ghost" type="button" onClick={insertHorizontalRule}>
                     <Minus size={17} aria-hidden="true" />
@@ -425,9 +445,8 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
                   </div>
                   <input type="color" value={ruleColor} onChange={(event) => setRuleColor(event.target.value)} aria-label={t('Divider color')} />
                 </div>
-              </div>
-              <div className="note-toolbar-group note-sheet-tool">
-                <span>{t('Drawing sheet')}</span>
+                ) : null}
+                {toolbarTab === 'sheet' ? (
                 <div className="note-toolbar-row">
                   <div className="note-ratio-row" aria-label={t('Sheet ratio')}>
                     {sheetRatios.map((ratio) => (
@@ -450,6 +469,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
                     <span>{t('Delete sheet')}</span>
                   </button>
                 </div>
+                ) : null}
               </div>
             </div>
             <div

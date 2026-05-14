@@ -69,28 +69,39 @@
 
 .note-editor-toolbar {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, max-content));
-  align-items: stretch;
-  gap: 10px;
+  gap: 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-soft);
   padding: 8px;
 }
 
-.note-toolbar-group {
-  display: grid;
-  align-content: start;
-  gap: 7px;
+.note-toolbar-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.note-toolbar-tab {
+  min-height: 38px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 8px 12px;
+}
+
+.note-toolbar-tab.active {
+  border-color: var(--selected-border);
+  background: var(--selected-bg);
+}
+
+.note-toolbar-panel {
+  min-height: 54px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
   background: var(--surface);
   padding: 8px;
-}
-
-.note-toolbar-group > span {
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .note-toolbar-row {
@@ -148,10 +159,6 @@
   padding: 6px 8px;
 }
 
-.note-sheet-tool {
-  grid-column: span 2;
-}
-
 .note-ratio-row {
   display: flex;
   gap: 6px;
@@ -184,7 +191,10 @@
 
 .rich-note-editor,
 .markdown-note-editor {
-  min-height: 560px;
+  height: min(72vh, 780px);
+  min-height: 640px;
+  max-height: 780px;
+  overflow: auto;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
