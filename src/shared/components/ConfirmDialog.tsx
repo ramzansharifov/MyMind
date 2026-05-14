@@ -30,7 +30,7 @@ export function ConfirmDialog({
         <p>{t(message)}</p>
         <div className="dialog-actions">
           <CancelButton onClick={onCancel} />
-          <button className={`button ${confirmVariant}`} type="button" onClick={onConfirm}>
+          <button className={`button ${confirmVariant} ${action === 'archive' ? 'archive' : ''}`} type="button" onClick={onConfirm}>
             <Icon size={17} aria-hidden="true" />
             {t(confirmLabel)}
           </button>

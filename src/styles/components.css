@@ -42,7 +42,15 @@
 .button.danger,
 .button.danger {
   border-color: color-mix(in srgb, var(--danger) 70%, var(--border));
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface-strong));
   color: var(--danger);
+}
+
+.button.danger:hover,
+.icon-button.danger:hover {
+  border-color: color-mix(in srgb, var(--danger) 88%, var(--border));
+  background: color-mix(in srgb, var(--danger) 20%, var(--surface-strong));
+  color: color-mix(in srgb, var(--danger) 92%, white);
 }
 
 .button:hover,
@@ -56,7 +64,9 @@
 .icon-button.primary:hover {
   border-color: color-mix(in srgb, var(--accent) 86%, var(--border));
   background: color-mix(in srgb, var(--accent) 24%, var(--surface-strong));
-  box-shadow: 0 8px 22px var(--shadow), inset 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
+  box-shadow:
+    0 8px 22px var(--shadow),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .icon-button {
@@ -193,8 +203,6 @@
 :root[data-density="compact"] .card {
   gap: 10px;
 }
-
-
 
 /* Shared application primitives */
 .card-title-row,
@@ -521,7 +529,6 @@
   align-items: center;
 }
 
-
 /* Shared utilities and application chrome */
 .card.pinned {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
@@ -622,4 +629,3 @@
 .status-message {
   color: var(--code);
 }
-
