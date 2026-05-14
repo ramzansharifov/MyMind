@@ -9,6 +9,9 @@ export interface Movie extends BaseEntity {
   status: MovieStatus;
   rating: number;
   posterPath: string;
+  description?: string;
+  cast?: string;
+  director?: string;
   genres: string[];
   notes: string;
   watchedAt: string | null;

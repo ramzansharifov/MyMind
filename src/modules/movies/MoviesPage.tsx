@@ -59,8 +59,21 @@ export function MoviesPage({ movies, onChange }: MoviesPageProps) {
               <span className="chip">{currentMovie.year}</span>
               <span className="chip">{t(currentMovie.status)}</span>
               <span className="chip">{currentMovie.rating > 0 ? `${currentMovie.rating}/10` : t('No rating')}</span>
+              {currentMovie.director ? <span className="chip">{currentMovie.director}</span> : null}
             </div>
-            <p>{currentMovie.notes || t('No notes yet.')}</p>
+            <p>{currentMovie.description || currentMovie.notes || t('No notes yet.')}</p>
+            {currentMovie.cast ? (
+              <div>
+                <h3>{t('Cast')}</h3>
+                <p>{currentMovie.cast}</p>
+              </div>
+            ) : null}
+            {currentMovie.notes && currentMovie.description ? (
+              <div>
+                <h3>{t('Notes')}</h3>
+                <p>{currentMovie.notes}</p>
+              </div>
+            ) : null}
             <div className="chip-row">
               {currentMovie.genres.map((genre) => (
                 <span className="chip" key={genre}>{genre}</span>

@@ -105,6 +105,18 @@
   color: #d9902f;
 }
 
+.dialog .button.archive {
+  border-color: color-mix(in srgb, #d9902f 72%, var(--border));
+  background: color-mix(in srgb, #d9902f 14%, var(--surface-strong));
+  color: #d9902f;
+}
+
+.dialog .button.danger {
+  border-color: color-mix(in srgb, var(--danger) 70%, var(--border));
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface-strong));
+  color: var(--danger);
+}
+
 .icon-button.primary:hover,
 .icon-button.ghost:hover {
   border-color: color-mix(in srgb, var(--accent-strong) 82%, var(--border));
@@ -117,6 +129,18 @@
   border-color: color-mix(in srgb, #d9902f 86%, var(--border));
   background: color-mix(in srgb, #d9902f 20%, var(--surface-strong));
   color: #f0a33c;
+}
+
+.dialog .button.archive:hover {
+  border-color: color-mix(in srgb, #d9902f 86%, var(--border));
+  background: color-mix(in srgb, #d9902f 20%, var(--surface-strong));
+  color: #f0a33c;
+}
+
+.dialog .button.danger:hover {
+  border-color: color-mix(in srgb, var(--danger) 88%, var(--border));
+  background: color-mix(in srgb, var(--danger) 20%, var(--surface-strong));
+  color: color-mix(in srgb, var(--danger) 92%, white);
 }
 
 .icon-button.danger:hover {

@@ -29,7 +29,7 @@ export function MovieCard({ movie, onOpen, onEdit, onPin, onArchive, onTrash }: 
         </div>
         <span className="rating-pill">{movie.rating > 0 ? `${movie.rating}/10` : t('No rating')}</span>
       </div>
-      <p>{movie.notes || t('No notes yet.')}</p>
+      <p>{movie.description || movie.notes || t('No notes yet.')}</p>
       <div className="chip-row">
         {movie.genres.map((genre) => (
           <span className="chip" key={genre}>
