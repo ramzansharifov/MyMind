@@ -1,0 +1,123 @@
+﻿.archive-window-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  background: var(--backdrop);
+  padding: 26px;
+}
+
+.archive-window {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 16px;
+  width: min(1120px, calc(100vw - 64px));
+  max-height: calc(100vh - 64px);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 98%, black 2%);
+  box-shadow: 0 32px 90px var(--shadow-strong);
+  padding: 20px;
+}
+
+.archive-window-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.archive-window-header p {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.archive-tabs {
+  display: inline-flex;
+  width: fit-content;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 6px;
+}
+
+.archive-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  padding: 9px 12px;
+}
+
+.archive-tabs button.active {
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
+.archive-tabs strong {
+  display: grid;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--chip-text);
+  font-size: 12px;
+}
+
+.archive-list {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.archive-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 14px;
+}
+
+.archive-row-main {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.archive-row-main .chip {
+  width: fit-content;
+}
+
+.archive-row-main h3,
+.archive-row-main p {
+  overflow-wrap: anywhere;
+}
+
+.archive-row-main p,
+.archive-row-main small {
+  color: var(--muted);
+}
+
+.archive-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.archive-empty {
+  min-height: 260px;
+}
+

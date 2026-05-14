@@ -1,0 +1,26 @@
+﻿.chart-list {
+  display: grid;
+  gap: 10px;
+}
+
+.chart-row {
+  display: grid;
+  grid-template-columns: 140px minmax(160px, 1fr) 120px;
+  gap: 12px;
+  align-items: center;
+}
+
+.chart-row div {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-strong);
+}
+
+.chart-row i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+

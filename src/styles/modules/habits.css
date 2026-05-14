@@ -1,0 +1,159 @@
+﻿.habit-history-day {
+  gap: 12px;
+}
+
+.habits-stats {
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+
+.habits-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.habits-panel {
+  overflow: hidden;
+}
+
+.today-habits-panel {
+  min-height: 240px;
+}
+
+.week-habits-panel,
+.all-habits-panel {
+  grid-column: 1 / -1;
+}
+
+.habit-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.habit-week-grid div {
+  min-width: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 12px;
+}
+
+.habit-week-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  word-break: normal;
+}
+
+.habit-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
+  gap: 10px;
+}
+
+.habit-card {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.habit-card.completed {
+  border-color: color-mix(in srgb, var(--positive) 42%, var(--border));
+  background: color-mix(in srgb, var(--surface) 88%, var(--positive) 12%);
+}
+
+.habit-card input[type="checkbox"] {
+  position: relative;
+  width: 58px;
+  height: 32px;
+  min-height: 32px;
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  padding: 0;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.habit-card input[type="checkbox"]::before {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 82%, var(--muted));
+  box-shadow: 0 3px 8px var(--shadow);
+  content: "";
+  transition:
+    transform 0.16s ease,
+    background 0.16s ease;
+}
+
+.habit-card input[type="checkbox"]:checked {
+  border-color: var(--positive);
+  background: linear-gradient(135deg, var(--positive), var(--accent-strong));
+}
+
+.habit-card input[type="checkbox"]:checked::before {
+  background: white;
+  transform: translateX(26px);
+}
+
+.habit-card input[type="checkbox"]:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent);
+  outline: none;
+}
+
+.habit-card-body {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+.habit-note-field {
+  max-width: 680px;
+}
+
+.habit-card .card-title-row {
+  align-items: start;
+}
+
+.habit-card h3,
+.habit-card p {
+  overflow-wrap: anywhere;
+}
+
+.habit-history-status {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+}
+
+.habit-history-status::before {
+  width: 8px;
+  height: 5px;
+  border-bottom: 2px solid transparent;
+  border-left: 2px solid transparent;
+  content: "";
+  transform: rotate(-45deg) translateY(-1px);
+}
+
+.habit-history-status.completed {
+  border-color: var(--positive);
+  background: var(--positive);
+}
+
+.habit-history-status.completed::before {
+  border-color: white;
+}
+

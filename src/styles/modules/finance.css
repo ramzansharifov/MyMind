@@ -1,0 +1,24 @@
+﻿.finance-start-panel,
+.finance-tags-panel {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+}
+
+.tag-income {
+  border-color: color-mix(in srgb, var(--positive) 72%, var(--border));
+}
+
+.tag-expense {
+  border-color: color-mix(in srgb, var(--danger) 72%, var(--border));
+}
+
+.tag-both {
+  border-color: color-mix(in srgb, var(--neutral) 72%, var(--border));
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 4px;
+}
+

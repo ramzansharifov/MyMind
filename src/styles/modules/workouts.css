@@ -1,0 +1,345 @@
+﻿.workout-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.workout-action-panel {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 18px;
+  min-height: 260px;
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+}
+
+.workout-action-panel h2 {
+  margin: 4px 0 8px;
+  font-size: 24px;
+}
+
+.workout-action-panel p {
+  max-width: 620px;
+  color: var(--muted);
+}
+
+.panel-kicker {
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.workout-action-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-self: end;
+}
+
+.workout-action-buttons .button {
+  width: 100%;
+}
+
+.nutrition-action-panel,
+.nutrition-history-panel {
+  border-color: color-mix(in srgb, var(--positive) 32%, var(--border));
+}
+
+.workout-section-panel {
+  overflow: hidden;
+  padding: 22px;
+}
+
+.workout-stats {
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+}
+
+.workout-tabs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.workout-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: color-mix(in srgb, var(--text) 78%, var(--muted));
+  padding: 8px 12px;
+}
+
+.workout-tab:hover,
+.workout-tab.active {
+  border-color: var(--selected-border);
+  background: var(--selected-bg);
+  color: var(--text);
+}
+
+.workout-exercise-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+  align-content: start;
+}
+
+.workout-exercise-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 112px;
+  padding: 16px;
+}
+
+.workout-exercise-card p {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.workout-exercise-card .chip {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 8px;
+}
+
+.workout-plan-days,
+.workout-day-list {
+  display: grid;
+  gap: 8px;
+}
+
+.workout-day-editor {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 12px;
+}
+
+.workout-result-list {
+  display: grid;
+  gap: 10px;
+}
+
+.workout-result-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) repeat(
+      3,
+      minmax(90px, 110px)
+    ) minmax(160px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px;
+}
+
+.workout-result-row > div {
+  display: grid;
+  gap: 6px;
+}
+
+.workout-result-notes {
+  min-width: 0;
+}
+
+.workout-history-card {
+  gap: 10px;
+}
+
+.workout-history-heading {
+  display: grid;
+  gap: 4px;
+}
+
+.workout-history-heading h3 {
+  font-size: 20px;
+}
+
+.workout-history-heading p {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.workout-history-heading small {
+  color: var(--muted);
+}
+
+.workout-detail-card,
+.workout-record-card,
+.nutrition-row-card {
+  padding: 16px;
+}
+
+.workout-detail-body {
+  display: grid;
+  gap: 14px;
+}
+
+.workout-baseline-block {
+  display: grid;
+  gap: 14px;
+}
+
+.workout-detail-section {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 74%, transparent);
+  padding: 14px;
+}
+
+.workout-detail-section h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workout-metric-grid,
+.workout-record-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.workout-metric-grid {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.workout-metric-tile {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 12px;
+}
+
+.workout-record-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+}
+
+.workout-record-main {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.workout-record-main p,
+.nutrition-row-card small,
+.nutrition-meal-list {
+  color: var(--muted);
+}
+
+.nutrition-meal-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+  border-left: 2px solid var(--line-soft);
+  padding-left: 12px;
+  font-size: 13px;
+}
+
+.nutrition-dish-selector {
+  display: grid;
+  gap: 8px;
+}
+
+.nutrition-dish-option {
+  min-width: 0;
+  align-items: flex-start;
+}
+
+.nutrition-dish-option span {
+  min-width: 0;
+  color: var(--text);
+}
+
+.metric-form-section h3 {
+  margin: 0;
+}
+
+.metric-input-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(100px, 0.8fr) minmax(
+      80px,
+      0.6fr
+    ) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.metric-add-button {
+  white-space: nowrap;
+}
+
+.metric-list {
+  display: grid;
+  gap: 8px;
+}
+
+.metric-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 8px;
+}
+
+.metric-list-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.workout-placeholder {
+  display: grid;
+  min-height: 190px;
+  place-content: center;
+  gap: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 28px;
+  text-align: center;
+}
+
+.workout-placeholder p {
+  max-width: 560px;
+  color: var(--muted);
+}
+
+.skipped-chip {
+  border-color: color-mix(in srgb, var(--danger) 44%, var(--border));
+  color: var(--danger);
+}
+
+.nutrition-latest-card,
+.nutrition-today {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 14px;
+}
+
+.nutrition-latest-card p,
+.nutrition-latest-card span {
+  color: var(--muted);
+}
+

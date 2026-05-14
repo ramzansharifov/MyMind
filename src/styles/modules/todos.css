@@ -1,0 +1,59 @@
+.todo-card {
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
+}
+
+.todo-card:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent);
+  outline: none;
+}
+
+.todo-card.completed {
+  border-color: color-mix(in srgb, var(--positive) 42%, var(--border));
+  background: color-mix(in srgb, var(--surface) 90%, var(--positive) 10%);
+}
+
+.todo-card.completed h3,
+.todo-card.completed p {
+  opacity: 0.72;
+}
+
+.todo-status-mark {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+}
+
+.todo-status-mark::before {
+  width: 10px;
+  height: 6px;
+  border-bottom: 2px solid transparent;
+  border-left: 2px solid transparent;
+  content: "";
+  transform: rotate(-45deg) translateY(-1px);
+}
+
+.todo-card.completed .todo-status-mark {
+  border-color: var(--positive);
+  background: var(--positive);
+}
+
+.todo-card.completed .todo-status-mark::before {
+  border-color: white;
+}
+
+.todo-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 5px;
+}

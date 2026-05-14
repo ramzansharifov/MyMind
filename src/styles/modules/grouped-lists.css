@@ -1,0 +1,121 @@
+﻿.todo-workspace {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.exercise-library-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.todo-groups-panel,
+.todo-list-panel,
+.exercise-groups-panel {
+  min-width: 0;
+}
+
+.exercise-groups-panel {
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 78%, transparent);
+  padding: 14px;
+}
+
+.todo-group-tabs,
+.exercise-group-tabs {
+  display: grid;
+  gap: 8px;
+}
+
+.exercise-group-row,
+.exercise-group-edit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.exercise-group-row .exercise-group-tab {
+  min-width: 0;
+}
+
+.exercise-group-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.exercise-group-actions .icon-button {
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+}
+
+.exercise-group-edit-row input {
+  min-width: 0;
+}
+
+.todo-group-create,
+.exercise-group-create {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.todo-group-create {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.exercise-group-create {
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin: 0;
+}
+
+.todo-group-create input,
+.exercise-group-create input {
+  min-width: 0;
+}
+
+.todo-group-create .button,
+.exercise-group-create .button {
+  flex: 0 0 auto;
+}
+
+.todo-group-create .button {
+  width: 100%;
+}
+
+.todo-group-tab,
+.exercise-group-tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.todo-group-tab small,
+.exercise-group-tab small {
+  color: var(--muted);
+}
+
+.todo-group-tab.active,
+.todo-group-tab:hover,
+.exercise-group-tab.active,
+.exercise-group-tab:hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: var(--selected-bg);
+}
+

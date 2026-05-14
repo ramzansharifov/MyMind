@@ -1,0 +1,63 @@
+﻿.settings-row {
+  border-bottom: 1px solid var(--line-soft);
+  padding: 12px 0;
+}
+
+.settings-wide-panel {
+  grid-column: 1 / -1;
+}
+
+.module-transfer {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 12px;
+}
+
+.module-transfer-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.record-center-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.record-center-row {
+  display: grid;
+  grid-template-columns: 120px minmax(180px, 0.75fr) minmax(220px, 1fr) 130px;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text);
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.record-center-row:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: var(--surface-strong);
+}
+
+.record-center-row span,
+.record-center-row small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+code {
+  color: var(--code);
+  word-break: break-all;
+}
+
