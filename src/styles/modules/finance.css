@@ -22,3 +22,43 @@
   padding-right: 4px;
 }
 
+.finance-summary-grid {
+  margin-bottom: 18px;
+}
+
+.finance-settings-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.finance-tag-builder {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, auto) auto;
+  gap: 12px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.finance-tag-list {
+  margin-top: 14px;
+}
+
+.transaction-amount {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.transaction-amount.income {
+  color: var(--positive);
+}
+
+.transaction-amount.expense {
+  color: var(--danger);
+}
+
+@media (max-width: 980px) {
+  .finance-tag-builder {
+    grid-template-columns: 1fr;
+  }
+}
+

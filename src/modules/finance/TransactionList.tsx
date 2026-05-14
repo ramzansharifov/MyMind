@@ -24,7 +24,10 @@ export function TransactionList({ transactions, currency, onEdit, onDelete }: Tr
               {transaction.sourceOrCategory || t('Uncategorized')} / {formatDate(transaction.date)}
             </small>
           </div>
-          <strong>{formatCurrency(transaction.amount, currency)}</strong>
+          <strong className={`transaction-amount ${transaction.type}`}>
+            {transaction.type === 'expense' ? '-' : '+'}
+            {formatCurrency(transaction.amount, currency)}
+          </strong>
           <div className="card-actions compact">
             <EditButton onClick={() => onEdit(transaction)} />
             <DeleteButton onConfirm={() => onDelete(transaction)} confirmTitle="Delete transaction?" />
