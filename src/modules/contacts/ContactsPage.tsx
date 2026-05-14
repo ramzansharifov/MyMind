@@ -128,7 +128,6 @@ function ContactForm({ contact, onCancel, onSave }: { contact?: Contact | null; 
     telegram: contact?.telegram ?? '',
     instagram: contact?.instagram ?? '',
     birthday: contact?.birthday?.slice(0, 10) ?? '',
-    lastContactedAt: contact?.lastContactedAt?.slice(0, 10) ?? '',
     notes: contact?.notes ?? '',
     tags: joinCsv(contact?.tags ?? []),
   });
@@ -153,7 +152,7 @@ function ContactForm({ contact, onCancel, onSave }: { contact?: Contact | null; 
       telegram: draft.telegram.trim(),
       instagram: draft.instagram.trim(),
       birthday: draft.birthday || null,
-      lastContactedAt: draft.lastContactedAt || null,
+      lastContactedAt: contact?.lastContactedAt ?? null,
       notes: draft.notes.trim(),
       tags: splitCsv(draft.tags),
       createdAt: contact?.createdAt ?? timestamp,
@@ -171,17 +170,14 @@ function ContactForm({ contact, onCancel, onSave }: { contact?: Contact | null; 
       </div>
       <div className="form-section">
         <strong>{t('Social networks and messengers')}</strong>
-        <div className="form-grid">
+        <div className="form-grid contact-social-fields">
           <label>Facebook<input value={draft.facebook} onChange={(event) => update('facebook', event.target.value)} /></label>
           <label>WhatsApp<input value={draft.whatsapp} onChange={(event) => update('whatsapp', event.target.value)} /></label>
           <label>Telegram<input value={draft.telegram} onChange={(event) => update('telegram', event.target.value)} /></label>
           <label>Instagram<input value={draft.instagram} onChange={(event) => update('instagram', event.target.value)} /></label>
         </div>
       </div>
-      <div className="form-grid">
-        <label>{t('Birthday')}<input type="date" value={draft.birthday} onChange={(event) => update('birthday', event.target.value)} /></label>
-        <label>{t('Last contacted')}<input type="date" value={draft.lastContactedAt} onChange={(event) => update('lastContactedAt', event.target.value)} /></label>
-      </div>
+      <label>{t('Birthday')}<input type="date" value={draft.birthday} onChange={(event) => update('birthday', event.target.value)} /></label>
       <label>{t('Notes')}<textarea rows={4} value={draft.notes} onChange={(event) => update('notes', event.target.value)} /></label>
       <label>{t('Tags')}<input value={draft.tags} onChange={(event) => update('tags', event.target.value)} /></label>
     </EntityForm>

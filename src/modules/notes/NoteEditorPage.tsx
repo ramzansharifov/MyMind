@@ -40,6 +40,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
   const [tags, setTags] = useState(joinCsv(note?.tags ?? []));
   const [ruleColor, setRuleColor] = useState('#3aa997');
   const [drawingColor, setDrawingColor] = useState('#3aa997');
+  const [drawingStrokeWidth, setDrawingStrokeWidth] = useState(5);
   const [sheetRatio, setSheetRatio] = useState<SheetRatio>('4:3');
   const [selectedSheetId, setSelectedSheetId] = useState('');
   const [toolbarTab, setToolbarTab] = useState<ToolbarTab>('text');
@@ -50,6 +51,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
   const selectionRef = useRef<Range | null>(null);
   const drawingSheetsRef = useRef<WeakSet<SVGSVGElement>>(new WeakSet());
   const drawingColorRef = useRef(drawingColor);
+  const drawingStrokeWidthRef = useRef(drawingStrokeWidth);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -67,6 +69,10 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
   useEffect(() => {
     drawingColorRef.current = drawingColor;
   }, [drawingColor]);
+
+  useEffect(() => {
+    drawingStrokeWidthRef.current = drawingStrokeWidth;
+  }, [drawingStrokeWidth]);
 
   useEffect(() => {
     syncDrawingSheetSelection();
@@ -184,7 +190,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
         path.setAttribute('d', `M ${point.x.toFixed(1)} ${point.y.toFixed(1)}`);
         path.setAttribute('fill', 'none');
         path.setAttribute('stroke', drawingColorRef.current);
-        path.setAttribute('stroke-width', '5');
+        path.setAttribute('stroke-width', String(drawingStrokeWidthRef.current));
         path.setAttribute('stroke-linecap', 'round');
         path.setAttribute('stroke-linejoin', 'round');
         sheet.appendChild(path);
@@ -407,7 +413,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
                   <button className={`icon-button ghost ${activeFormats.underline ? 'format-active' : ''}`} type="button" onClick={() => applyCommand('underline')} aria-label={t('Underline')}>
                     <Underline size={17} aria-hidden="true" />
                   </button>
-                  <label>
+                  <label className="note-select-control">
                     <Type size={16} aria-hidden="true" />
                     <select defaultValue="16" onChange={(event) => applyFontSize(event.target.value)}>
                       <option value="14">14</option>
@@ -426,7 +432,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
                       <button className="color-swatch" type="button" key={color} style={{ backgroundColor: color }} onClick={() => applyCommand('foreColor', color)} aria-label={`${t('Text color')} ${color}`} />
                     ))}
                   </div>
-                  <label>
+                  <label className="note-color-input">
                     <Palette size={16} aria-hidden="true" />
                     <input type="color" defaultValue="#eef1f4" onChange={(event) => applyCommand('foreColor', event.target.value)} />
                   </label>
@@ -443,7 +449,10 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
                       <button className={`color-swatch ${ruleColor === color ? 'active' : ''}`} type="button" key={color} style={{ backgroundColor: color }} onClick={() => setRuleColor(color)} aria-label={`${t('Divider color')} ${color}`} />
                     ))}
                   </div>
-                  <input type="color" value={ruleColor} onChange={(event) => setRuleColor(event.target.value)} aria-label={t('Divider color')} />
+                  <label className="note-color-input">
+                    <Palette size={16} aria-hidden="true" />
+                    <input type="color" value={ruleColor} onChange={(event) => setRuleColor(event.target.value)} aria-label={t('Divider color')} />
+                  </label>
                 </div>
                 ) : null}
                 {toolbarTab === 'sheet' ? (
@@ -460,6 +469,15 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
                       <button className={`color-swatch ${drawingColor === color ? 'active' : ''}`} type="button" key={color} style={{ backgroundColor: color }} onClick={() => setDrawingColor(color)} aria-label={`${t('Drawing color')} ${color}`} />
                     ))}
                   </div>
+                  <label className="note-color-input">
+                    <Palette size={16} aria-hidden="true" />
+                    <input type="color" value={drawingColor} onChange={(event) => setDrawingColor(event.target.value)} aria-label={t('Drawing color')} />
+                  </label>
+                  <label className="note-stroke-control">
+                    <span>{t('Line width')}</span>
+                    <input type="range" min="2" max="16" value={drawingStrokeWidth} onChange={(event) => setDrawingStrokeWidth(Number(event.target.value))} />
+                    <strong>{drawingStrokeWidth}</strong>
+                  </label>
                   <button className="button ghost" type="button" onClick={insertDrawingSheet}>
                     <FilePlus2 size={17} aria-hidden="true" />
                     <span>{t('Add sheet')}</span>

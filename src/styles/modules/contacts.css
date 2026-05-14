@@ -27,4 +27,10 @@
   gap: 6px;
 }
 
+.contact-social-fields label {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
 
