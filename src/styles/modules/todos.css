@@ -42,7 +42,7 @@
   width: 28px;
   height: 28px;
   place-items: center;
-  border: 1px solid var(--border);
+  border: 2px solid var(--accent);
   border-radius: 999px;
   background: var(--surface-strong);
 }
@@ -165,4 +165,40 @@
 
 .todo-choice-card.priority-high .todo-priority-dot {
   background: #d85f5f;
+}
+
+.todo-workspace {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.todo-filters-row {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.todo-filters-row > * {
+  width: 100%;
+}
+
+.todo-groups-panel,
+.todo-list-panel {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .todo-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .todo-filters-row {
+    grid-column: 1;
+  }
+}
+.todo-groups-panel,
+.todo-list-panel,
+.todo-list-panel .section-block {
+  margin-top: 0;
 }

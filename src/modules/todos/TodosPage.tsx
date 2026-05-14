@@ -106,33 +106,7 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
         }
       />
       <div className="todo-workspace">
-        <aside className="panel todo-groups-panel">
-          <div className="section-heading">
-            <h2>{t('Groups')}</h2>
-            <span className="rating-pill">{activeTodos.length}</span>
-          </div>
-          <div className="todo-group-tabs" role="tablist" aria-label={t('Task groups')}>
-            {groups.map((group) => {
-              const count = activeTodos.filter((todo) => matchesGroup(todo, group.id)).length;
-              return (
-                <button
-                  className={`todo-group-tab ${activeGroupId === group.id ? 'active' : ''}`}
-                  key={group.id}
-                  type="button"
-                  onClick={() => setActiveGroupId(group.id)}
-                >
-                  <span>{t(group.title)}</span>
-                  <small>{count}</small>
-                </button>
-              );
-            })}
-          </div>
-          <div className="inline-form inline-form-stacked todo-group-create">
-            <input value={newGroupTitle} placeholder={t('New group')} onChange={(event) => setNewGroupTitle(event.target.value)} />
-            <AddButton label="Add group" onClick={addGroup} />
-          </div>
-        </aside>
-        <section className="todo-list-panel">
+        <div className="todo-filters-row">
           <FilterBar>
             <SearchInput value={query} placeholder="Search tasks" onChange={setQuery} />
             <label>
@@ -156,15 +130,59 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
               </select>
             </label>
           </FilterBar>
+        </div>
+
+        <aside className="panel todo-groups-panel">
+          <div className="section-heading">
+            <h2>{t('Groups')}</h2>
+            <span className="rating-pill">{activeTodos.length}</span>
+          </div>
+
+          <div className="todo-group-tabs" role="tablist" aria-label={t('Task groups')}>
+            {groups.map((group) => {
+              const count = activeTodos.filter((todo) => matchesGroup(todo, group.id)).length;
+
+              return (
+                <button
+                  className={`todo-group-tab ${activeGroupId === group.id ? 'active' : ''}`}
+                  key={group.id}
+                  type="button"
+                  onClick={() => setActiveGroupId(group.id)}
+                >
+                  <span>{t(group.title)}</span>
+                  <small>{count}</small>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="inline-form inline-form-stacked todo-group-create">
+            <input
+              value={newGroupTitle}
+              placeholder={t('New group')}
+              onChange={(event) => setNewGroupTitle(event.target.value)}
+            />
+            <AddButton label="Add group" onClick={addGroup} />
+          </div>
+        </aside>
+
+        <section className="todo-list-panel">
           <section className="panel section-block">
             <div className="section-heading">
               <div>
                 <h2>{query.trim() ? t('Search results') : t(selectedGroup?.title ?? 'All')}</h2>
-                <p className="muted-text">{filtered.length} {t('tasks')}</p>
+                <p className="muted-text">
+                  {filtered.length} {t('tasks')}
+                </p>
               </div>
+
               <AddButton className="todo-group-add-button" iconOnly label="Add task" onClick={() => openNewTask()} />
             </div>
-            {filtered.length === 0 ? <EmptyState title="No tasks found" message="Add a task or change the filters." /> : null}
+
+            {filtered.length === 0 ? (
+              <EmptyState title="No tasks found" message="Add a task or change the filters." />
+            ) : null}
+
             <div className="stack">
               {filtered.map((todo) => (
                 <TodoCard
