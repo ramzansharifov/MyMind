@@ -19,6 +19,10 @@ function buttonClass(variant: ButtonVariant, iconOnly: boolean, className = '') 
   return [base, variantClass, className].filter(Boolean).join(' ');
 }
 
+function mergeClassNames(...classNames: Array<string | undefined>) {
+  return classNames.filter(Boolean).join(' ');
+}
+
 export function AddButton({ label, iconOnly = false, children, className, ...props }: IconButtonProps) {
   const { t } = useI18n();
   const translated = t(label);
@@ -135,7 +139,7 @@ export function ArchiveButton({
   return (
     <>
       <button
-        className={buttonClass('ghost', iconOnly, className)}
+        className={buttonClass('ghost', iconOnly, mergeClassNames('archive', className))}
         type="button"
         title={translatedLabel}
         aria-label={translatedLabel}

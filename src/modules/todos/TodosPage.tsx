@@ -24,6 +24,7 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
   const [activeGroupId, setActiveGroupId] = useState('all');
   const [newGroupTitle, setNewGroupTitle] = useState('');
   const [editing, setEditing] = useState<TodoItem | null | undefined>(undefined);
+  const [draftGroupId, setDraftGroupId] = useState('pending');
   const items = todoItems(data);
   const groups = todoGroups(data);
   const activeTodos = items.filter((todo) => !isHiddenFromRegularLists(todo));
@@ -38,6 +39,7 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
     const exists = items.some((item) => item.id === todo.id);
     onChange({ ...data, items: exists ? items.map((item) => (item.id === todo.id ? todo : item)) : [todo, ...items] });
     setEditing(undefined);
+    setDraftGroupId('pending');
   }
 
   function toggle(todo: TodoItem) {
@@ -77,13 +79,30 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
     setNewGroupTitle('');
   }
 
+  function defaultGroupForNewTask() {
+    if (activeGroupId === 'all' || activeGroupId === 'completed') {
+      return 'pending';
+    }
+    return activeGroupId;
+  }
+
+  function openNewTask(groupId = defaultGroupForNewTask()) {
+    setDraftGroupId(groupId);
+    setEditing(null);
+  }
+
+  function openEditTask(todo: TodoItem) {
+    setDraftGroupId(todo.groupId);
+    setEditing(todo);
+  }
+
   return (
     <section>
       <PageHeader
         title="Todo"
         subtitle="Grouped tasks with global search, tags, priority, and due dates."
         actions={
-          <AddButton label="Add task" onClick={() => setEditing(null)} />
+          <AddButton label="Add task" onClick={() => openNewTask()} />
         }
       />
       <div className="todo-workspace">
@@ -143,7 +162,7 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
                 <h2>{query.trim() ? t('Search results') : t(selectedGroup?.title ?? 'All')}</h2>
                 <p className="muted-text">{filtered.length} {t('tasks')}</p>
               </div>
-              <AddButton label="Add task" onClick={() => setEditing(null)} />
+              <AddButton className="todo-group-add-button" iconOnly label="Add task" onClick={() => openNewTask()} />
             </div>
             {filtered.length === 0 ? <EmptyState title="No tasks found" message="Add a task or change the filters." /> : null}
             <div className="stack">
@@ -153,7 +172,7 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
                   key={todo.id}
                   groupTitle={groups.find((group) => group.id === todo.groupId)?.title}
                   onToggle={() => toggle(todo)}
-                  onEdit={() => setEditing(todo)}
+                  onEdit={() => openEditTask(todo)}
                   onPin={() => togglePin(todo)}
                   onArchive={() => archive(todo)}
                   onTrash={() => moveToTrash(todo)}
@@ -167,8 +186,11 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
         <TodoForm
           todo={editing}
           groups={groups}
-          defaultGroupId={activeGroupId === 'all' || activeGroupId === 'completed' ? 'pending' : activeGroupId}
-          onCancel={() => setEditing(undefined)}
+          defaultGroupId={draftGroupId}
+          onCancel={() => {
+            setDraftGroupId('pending');
+            setEditing(undefined);
+          }}
           onSave={saveTodo}
         />
       ) : null}

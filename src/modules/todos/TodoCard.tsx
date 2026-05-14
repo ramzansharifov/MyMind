@@ -1,4 +1,3 @@
-import type { KeyboardEvent, MouseEvent } from 'react';
 import { ArchiveButton, DeleteButton, EditButton, PinButton } from '../../shared/components/ActionButtons';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { formatDate } from '../../shared/utils/dateUtils';
@@ -18,34 +17,19 @@ export function TodoCard({ todo, groupTitle, onToggle, onEdit, onPin, onArchive,
   const { t } = useI18n();
   const isCompleted = todo.status === 'completed';
 
-  function handleCardClick(event: MouseEvent<HTMLElement>) {
-    const target = event.target as HTMLElement;
-    if (target.closest('button, a, input, textarea, select')) {
-      return;
-    }
-    onToggle();
-  }
-
-  function handleCardKeyDown(event: KeyboardEvent<HTMLElement>) {
-    if (event.target !== event.currentTarget) {
-      return;
-    }
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      onToggle();
-    }
-  }
-
   return (
     <article
       className={`card list-card todo-card ${todo.pinnedAt ? 'pinned' : ''} ${isCompleted ? 'completed' : ''}`}
-      role="button"
-      tabIndex={0}
-      aria-pressed={isCompleted}
-      onClick={handleCardClick}
-      onKeyDown={handleCardKeyDown}
     >
-      <span className="todo-status-mark" aria-hidden="true" />
+      <button
+        className="todo-toggle-button"
+        type="button"
+        aria-pressed={isCompleted}
+        aria-label={t(isCompleted ? 'Mark as pending' : 'Mark as completed')}
+        onClick={onToggle}
+      >
+        <span className="todo-status-mark" aria-hidden="true" />
+      </button>
       <div>
         <h3>{todo.title}</h3>
         <p>{todo.description || t('No description.')}</p>

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Check, CheckCircle2, Circle, Folder } from 'lucide-react';
 import { EntityForm } from '../../shared/components/EntityForm';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { splitCsv, joinCsv } from '../../shared/utils/formatters';
@@ -58,34 +59,81 @@ export function TodoForm({ todo, groups, defaultGroupId = 'pending', onCancel, o
         <textarea rows={4} value={description} onChange={(event) => setDescription(event.target.value)} />
       </label>
       <div className="form-grid">
-        <label>
-          {t('Status')}
-          <select value={status} onChange={(event) => setStatus(event.target.value as TodoStatus)}>
-            <option value="pending">{t('Pending')}</option>
-            <option value="completed">{t('Completed')}</option>
-          </select>
-        </label>
-        <label>
-          {t('Priority')}
-          <select value={priority} onChange={(event) => setPriority(event.target.value as TodoPriority)}>
-            <option value="low">{t('Low')}</option>
-            <option value="medium">{t('Medium')}</option>
-            <option value="high">{t('High')}</option>
-          </select>
-        </label>
+        <div className="form-section todo-choice-section">
+          <strong>{t('Status')}</strong>
+          <div className="todo-status-picker">
+            {statusOptions.map((option) => {
+              const Icon = option.icon;
+              const isActive = status === option.value;
+              return (
+                <button
+                  className={`todo-choice-card${isActive ? ' active' : ''}`}
+                  type="button"
+                  key={option.value}
+                  onClick={() => setStatus(option.value)}
+                >
+                  <span className="todo-choice-icon">
+                    <Icon size={18} aria-hidden="true" />
+                  </span>
+                  <span>
+                    <strong>{t(option.label)}</strong>
+                    <small>{t(option.description)}</small>
+                  </span>
+                  {isActive ? <Check size={16} aria-hidden="true" /> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="form-section todo-choice-section">
+          <strong>{t('Priority')}</strong>
+          <div className="todo-priority-picker">
+            {priorityOptions.map((option) => {
+              const isActive = priority === option.value;
+              return (
+                <button
+                  className={`todo-choice-card priority-${option.value}${isActive ? ' active' : ''}`}
+                  type="button"
+                  key={option.value}
+                  onClick={() => setPriority(option.value)}
+                >
+                  <span className="todo-priority-dot" aria-hidden="true" />
+                  <span>
+                    <strong>{t(option.label)}</strong>
+                  </span>
+                  {isActive ? <Check size={16} aria-hidden="true" /> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
-      <label>
-        {t('Group')}
-        <select value={groupId} onChange={(event) => setGroupId(event.target.value)}>
+      <div className="form-section todo-choice-section">
+        <strong>{t('Group')}</strong>
+        <div className="todo-group-picker">
           {groups
             .filter((group) => group.kind !== 'all' && group.kind !== 'completed')
-            .map((group) => (
-              <option value={group.id} key={group.id}>
-                {t(group.title)}
-              </option>
-            ))}
-        </select>
-      </label>
+            .map((group) => {
+              const isActive = groupId === group.id;
+              return (
+                <button
+                  className={`todo-choice-card${isActive ? ' active' : ''}`}
+                  type="button"
+                  key={group.id}
+                  onClick={() => setGroupId(group.id)}
+                >
+                  <span className="todo-choice-icon">
+                    <Folder size={18} aria-hidden="true" />
+                  </span>
+                  <span>
+                    <strong>{t(group.title)}</strong>
+                  </span>
+                  {isActive ? <Check size={16} aria-hidden="true" /> : null}
+                </button>
+              );
+            })}
+        </div>
+      </div>
       <label>
         {t('Due date')}
         <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
@@ -107,6 +155,17 @@ export function TodoForm({ todo, groups, defaultGroupId = 'pending', onCancel, o
     </EntityForm>
   );
 }
+
+const statusOptions: Array<{ value: TodoStatus; label: string; description: string; icon: typeof Circle }> = [
+  { value: 'pending', label: 'Pending', description: 'Task is still open', icon: Circle },
+  { value: 'completed', label: 'Completed', description: 'Task is done', icon: CheckCircle2 },
+];
+
+const priorityOptions: Array<{ value: TodoPriority; label: string }> = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+];
 
 function toDateTimeLocalValue(value?: string | null) {
   if (!value) {
