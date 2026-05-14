@@ -1,4 +1,4 @@
-import { Bold, BookOpen, Code2, Edit3, Italic, Minus, Palette, Type, Underline } from 'lucide-react';
+import { Bold, BookOpen, Code2, Edit3, FilePlus2, Italic, Minus, Palette, Trash2, Type, Underline } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { BackButton, EditButton, SaveButton } from '../../shared/components/ActionButtons';
 import { useI18n } from '../../shared/i18n/I18nProvider';
@@ -15,8 +15,16 @@ interface NoteEditorPageProps {
 }
 
 type NoteMode = 'read' | 'rich' | 'markdown';
+type SheetRatio = '1:1' | '4:3' | '16:9' | '3:4' | 'A4';
 
 const quickColors = ['#eef1f4', '#3aa997', '#7db4ff', '#e3b261', '#e77878', '#c69cff'];
+const sheetRatios: Array<{ id: SheetRatio; label: string; width: number; height: number }> = [
+  { id: '1:1', label: '1:1', width: 900, height: 900 },
+  { id: '4:3', label: '4:3', width: 960, height: 720 },
+  { id: '16:9', label: '16:9', width: 1120, height: 630 },
+  { id: '3:4', label: '3:4', width: 720, height: 960 },
+  { id: 'A4', label: 'A4', width: 794, height: 1123 },
+];
 
 export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) {
   const [mode, setMode] = useState<NoteMode>(note ? 'read' : 'rich');
@@ -24,11 +32,16 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
   const [category, setCategory] = useState(note?.category ?? '');
   const [tags, setTags] = useState(joinCsv(note?.tags ?? []));
   const [ruleColor, setRuleColor] = useState('#3aa997');
+  const [drawingColor, setDrawingColor] = useState('#3aa997');
+  const [sheetRatio, setSheetRatio] = useState<SheetRatio>('4:3');
+  const [selectedSheetId, setSelectedSheetId] = useState('');
   const [editorHtml, setEditorHtml] = useState(noteEditorHtml(note));
   const [markdownContent, setMarkdownContent] = useState(note?.contentFormat === 'markdown' ? note.content : note ? notePlainText(note) : '');
   const [activeFormats, setActiveFormats] = useState({ bold: false, italic: false, underline: false });
   const editorRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef<Range | null>(null);
+  const drawingSheetsRef = useRef<WeakSet<SVGSVGElement>>(new WeakSet());
+  const drawingColorRef = useRef(drawingColor);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -36,6 +49,20 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
       editorRef.current.innerHTML = editorHtml;
     }
   }, [editorHtml, mode]);
+
+  useEffect(() => {
+    if (mode === 'rich') {
+      initializeDrawingSheets();
+    }
+  }, [editorHtml, mode]);
+
+  useEffect(() => {
+    drawingColorRef.current = drawingColor;
+  }, [drawingColor]);
+
+  useEffect(() => {
+    syncDrawingSheetSelection();
+  }, [selectedSheetId]);
 
   useEffect(() => {
     function handleSelectionChange() {
@@ -102,6 +129,126 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
     saveSelection();
   }
 
+  function insertDrawingSheet() {
+    const ratio = sheetRatios.find((item) => item.id === sheetRatio) ?? sheetRatios[1];
+    const sheetId = createId('sheet');
+    restoreSelection();
+    editorRef.current?.focus();
+    document.execCommand(
+      'insertHTML',
+      false,
+      `<figure class="note-drawing-block" contenteditable="false" style="aspect-ratio:${ratio.width}/${ratio.height};"><svg class="note-drawing-sheet" data-sheet-id="${sheetId}" data-ratio="${ratio.id}" width="${ratio.width}" height="${ratio.height}" viewBox="0 0 ${ratio.width} ${ratio.height}" style="aspect-ratio:${ratio.width}/${ratio.height};" role="img" aria-label="Drawing sheet"><rect class="note-drawing-page" x="0" y="0" width="${ratio.width}" height="${ratio.height}" rx="10"></rect></svg></figure><p><br></p>`,
+    );
+    setSelectedSheetId(sheetId);
+    if (editorRef.current) {
+      setEditorHtml(editorRef.current.innerHTML);
+    }
+    window.setTimeout(initializeDrawingSheets, 0);
+    saveSelection();
+  }
+
+  function initializeDrawingSheets() {
+    const sheets = editorRef.current?.querySelectorAll<SVGSVGElement>('.note-drawing-sheet');
+    sheets?.forEach((sheet) => {
+      if (!sheet.dataset.sheetId) {
+        sheet.dataset.sheetId = createId('sheet');
+      }
+      applySheetAspectRatio(sheet);
+      sheet.classList.toggle('is-selected', Boolean(selectedSheetId) && sheet.dataset.sheetId === selectedSheetId);
+      if (drawingSheetsRef.current.has(sheet)) {
+        return;
+      }
+      drawingSheetsRef.current.add(sheet);
+      let path: SVGPathElement | null = null;
+      const getPoint = (event: PointerEvent) => {
+        const point = sheet.createSVGPoint();
+        const matrix = sheet.getScreenCTM();
+        point.x = event.clientX;
+        point.y = event.clientY;
+        return matrix ? point.matrixTransform(matrix.inverse()) : point;
+      };
+      const startDrawing = (event: PointerEvent) => {
+        event.preventDefault();
+        selectDrawingSheet(sheet);
+        sheet.setPointerCapture(event.pointerId);
+        const point = getPoint(event);
+        path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', `M ${point.x.toFixed(1)} ${point.y.toFixed(1)}`);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', drawingColorRef.current);
+        path.setAttribute('stroke-width', '5');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('stroke-linejoin', 'round');
+        sheet.appendChild(path);
+      };
+      const draw = (event: PointerEvent) => {
+        if (!path) {
+          return;
+        }
+        event.preventDefault();
+        const point = getPoint(event);
+        path.setAttribute('d', `${path.getAttribute('d')} L ${point.x.toFixed(1)} ${point.y.toFixed(1)}`);
+      };
+      const stopDrawing = (event: PointerEvent) => {
+        if (!path) {
+          return;
+        }
+        path = null;
+        sheet.releasePointerCapture(event.pointerId);
+        if (editorRef.current) {
+          setEditorHtml(editorRef.current.innerHTML);
+        }
+      };
+      sheet.addEventListener('pointerdown', startDrawing);
+      sheet.addEventListener('pointermove', draw);
+      sheet.addEventListener('pointerup', stopDrawing);
+      sheet.addEventListener('pointercancel', stopDrawing);
+    });
+  }
+
+  function selectDrawingSheet(sheet: SVGSVGElement) {
+    const id = sheet.dataset.sheetId ?? createId('sheet');
+    sheet.dataset.sheetId = id;
+    setSelectedSheetId(id);
+    syncDrawingSheetSelection(id);
+  }
+
+  function removeSelectedSheet() {
+    if (!selectedSheetId || !editorRef.current) {
+      return;
+    }
+    const sheet = Array.from(editorRef.current.querySelectorAll<SVGSVGElement>('.note-drawing-sheet')).find((item) => item.dataset.sheetId === selectedSheetId);
+    sheet?.closest('.note-drawing-block')?.remove();
+    setSelectedSheetId('');
+    setEditorHtml(editorRef.current.innerHTML);
+    saveSelection();
+  }
+
+  function syncDrawingSheetSelection(nextSelectedId = selectedSheetId) {
+    editorRef.current?.querySelectorAll<SVGSVGElement>('.note-drawing-sheet').forEach((sheet) => {
+      sheet.classList.toggle('is-selected', Boolean(nextSelectedId) && sheet.dataset.sheetId === nextSelectedId);
+    });
+  }
+
+  function applySheetAspectRatio(sheet: SVGSVGElement) {
+    const ratio = sheetRatios.find((item) => item.id === sheet.dataset.ratio);
+    if (!ratio) {
+      return;
+    }
+    sheet.setAttribute('width', String(ratio.width));
+    sheet.setAttribute('height', String(ratio.height));
+    sheet.style.aspectRatio = `${ratio.width} / ${ratio.height}`;
+    const block = sheet.closest<HTMLElement>('.note-drawing-block');
+    if (block) {
+      block.style.aspectRatio = `${ratio.width} / ${ratio.height}`;
+    }
+  }
+
+  function cleanRichEditorHtml() {
+    editorRef.current?.querySelectorAll('.note-drawing-sheet.is-selected').forEach((item) => item.classList.remove('is-selected'));
+    return editorRef.current?.innerHTML ?? editorHtml;
+  }
+
   function handleEditorInput() {
     if (editorRef.current) {
       setEditorHtml(editorRef.current.innerHTML);
@@ -142,7 +289,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
     onSave({
       id: note?.id ?? createId('note'),
       title: title.trim(),
-      content: isMarkdown ? markdownContent : editorRef.current?.innerHTML ?? editorHtml,
+      content: isMarkdown ? markdownContent : cleanRichEditorHtml(),
       contentFormat: isMarkdown ? 'markdown' : 'html',
       category: category.trim(),
       tags: splitCsv(tags),
@@ -226,64 +373,83 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
         {mode === 'rich' ? (
           <>
             <div className="note-editor-toolbar" aria-label={t('Editor toolbar')} onMouseDownCapture={saveSelection}>
-              <button className={`icon-button ghost ${activeFormats.bold ? 'format-active' : ''}`} type="button" onClick={() => applyCommand('bold')} aria-label={t('Bold')}>
-                <Bold size={17} aria-hidden="true" />
-              </button>
-              <button className={`icon-button ghost ${activeFormats.italic ? 'format-active' : ''}`} type="button" onClick={() => applyCommand('italic')} aria-label={t('Italic')}>
-                <Italic size={17} aria-hidden="true" />
-              </button>
-              <button className={`icon-button ghost ${activeFormats.underline ? 'format-active' : ''}`} type="button" onClick={() => applyCommand('underline')} aria-label={t('Underline')}>
-                <Underline size={17} aria-hidden="true" />
-              </button>
-              <label>
-                <Type size={16} aria-hidden="true" />
-                <select defaultValue="16" onChange={(event) => applyFontSize(event.target.value)}>
-                  <option value="14">14</option>
-                  <option value="16">16</option>
-                  <option value="18">18</option>
-                  <option value="22">22</option>
-                  <option value="28">28</option>
-                </select>
-              </label>
-              <div className="quick-color-row" aria-label={t('Quick colors')}>
-                {quickColors.map((color) => (
-                  <button
-                    className="color-swatch"
-                    type="button"
-                    key={color}
-                    style={{ backgroundColor: color }}
-                    onClick={() => applyCommand('foreColor', color)}
-                    aria-label={`${t('Text color')} ${color}`}
-                  />
-                ))}
-              </div>
-              <label>
-                <Palette size={16} aria-hidden="true" />
-                <input type="color" defaultValue="#eef1f4" onChange={(event) => applyCommand('foreColor', event.target.value)} />
-              </label>
-              <div className="note-rule-tool">
-                <button className="button ghost" type="button" onClick={insertHorizontalRule}>
-                  <Minus size={17} aria-hidden="true" />
-                  <span>{t('Divider')}</span>
-                </button>
-                <div className="quick-color-row compact-color-row" aria-label={t('Divider color')}>
-                  {quickColors.map((color) => (
-                    <button
-                      className={`color-swatch ${ruleColor === color ? 'active' : ''}`}
-                      type="button"
-                      key={color}
-                      style={{ backgroundColor: color }}
-                      onClick={() => setRuleColor(color)}
-                      aria-label={`${t('Divider color')} ${color}`}
-                    />
-                  ))}
+              <div className="note-toolbar-group">
+                <span>{t('Text')}</span>
+                <div className="note-toolbar-row">
+                  <button className={`icon-button ghost ${activeFormats.bold ? 'format-active' : ''}`} type="button" onClick={() => applyCommand('bold')} aria-label={t('Bold')}>
+                    <Bold size={17} aria-hidden="true" />
+                  </button>
+                  <button className={`icon-button ghost ${activeFormats.italic ? 'format-active' : ''}`} type="button" onClick={() => applyCommand('italic')} aria-label={t('Italic')}>
+                    <Italic size={17} aria-hidden="true" />
+                  </button>
+                  <button className={`icon-button ghost ${activeFormats.underline ? 'format-active' : ''}`} type="button" onClick={() => applyCommand('underline')} aria-label={t('Underline')}>
+                    <Underline size={17} aria-hidden="true" />
+                  </button>
+                  <label>
+                    <Type size={16} aria-hidden="true" />
+                    <select defaultValue="16" onChange={(event) => applyFontSize(event.target.value)}>
+                      <option value="14">14</option>
+                      <option value="16">16</option>
+                      <option value="18">18</option>
+                      <option value="22">22</option>
+                      <option value="28">28</option>
+                    </select>
+                  </label>
                 </div>
-                <input
-                  type="color"
-                  value={ruleColor}
-                  onChange={(event) => setRuleColor(event.target.value)}
-                  aria-label={t('Divider color')}
-                />
+              </div>
+              <div className="note-toolbar-group">
+                <span>{t('Text color')}</span>
+                <div className="note-toolbar-row">
+                  <div className="quick-color-row" aria-label={t('Quick colors')}>
+                    {quickColors.map((color) => (
+                      <button className="color-swatch" type="button" key={color} style={{ backgroundColor: color }} onClick={() => applyCommand('foreColor', color)} aria-label={`${t('Text color')} ${color}`} />
+                    ))}
+                  </div>
+                  <label>
+                    <Palette size={16} aria-hidden="true" />
+                    <input type="color" defaultValue="#eef1f4" onChange={(event) => applyCommand('foreColor', event.target.value)} />
+                  </label>
+                </div>
+              </div>
+              <div className="note-toolbar-group">
+                <span>{t('Divider')}</span>
+                <div className="note-toolbar-row">
+                  <button className="button ghost" type="button" onClick={insertHorizontalRule}>
+                    <Minus size={17} aria-hidden="true" />
+                    <span>{t('Divider')}</span>
+                  </button>
+                  <div className="quick-color-row compact-color-row" aria-label={t('Divider color')}>
+                    {quickColors.map((color) => (
+                      <button className={`color-swatch ${ruleColor === color ? 'active' : ''}`} type="button" key={color} style={{ backgroundColor: color }} onClick={() => setRuleColor(color)} aria-label={`${t('Divider color')} ${color}`} />
+                    ))}
+                  </div>
+                  <input type="color" value={ruleColor} onChange={(event) => setRuleColor(event.target.value)} aria-label={t('Divider color')} />
+                </div>
+              </div>
+              <div className="note-toolbar-group note-sheet-tool">
+                <span>{t('Drawing sheet')}</span>
+                <div className="note-toolbar-row">
+                  <div className="note-ratio-row" aria-label={t('Sheet ratio')}>
+                    {sheetRatios.map((ratio) => (
+                      <button className={`filter-chip${sheetRatio === ratio.id ? ' active' : ''}`} type="button" key={ratio.id} onClick={() => setSheetRatio(ratio.id)}>
+                        {ratio.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="quick-color-row compact-color-row" aria-label={t('Drawing color')}>
+                    {quickColors.map((color) => (
+                      <button className={`color-swatch ${drawingColor === color ? 'active' : ''}`} type="button" key={color} style={{ backgroundColor: color }} onClick={() => setDrawingColor(color)} aria-label={`${t('Drawing color')} ${color}`} />
+                    ))}
+                  </div>
+                  <button className="button ghost" type="button" onClick={insertDrawingSheet}>
+                    <FilePlus2 size={17} aria-hidden="true" />
+                    <span>{t('Add sheet')}</span>
+                  </button>
+                  <button className="button danger" type="button" disabled={!selectedSheetId} onClick={removeSelectedSheet}>
+                    <Trash2 size={17} aria-hidden="true" />
+                    <span>{t('Delete sheet')}</span>
+                  </button>
+                </div>
               </div>
             </div>
             <div

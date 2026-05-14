@@ -13,7 +13,6 @@ interface SavingsGoalFormProps {
 export function SavingsGoalForm({ goal, onCancel, onSave }: SavingsGoalFormProps) {
   const [title, setTitle] = useState(goal?.title ?? '');
   const [targetAmount, setTargetAmount] = useState(String(goal?.targetAmount ?? 0));
-  const [currentAmount, setCurrentAmount] = useState(String(goal?.currentAmount ?? 0));
   const [deadline, setDeadline] = useState(goal?.deadline?.slice(0, 10) ?? '');
   const [description, setDescription] = useState(goal?.description ?? '');
   const { t } = useI18n();
@@ -25,7 +24,7 @@ export function SavingsGoalForm({ goal, onCancel, onSave }: SavingsGoalFormProps
       id: goal?.id ?? createId('goal'),
       title: title.trim(),
       targetAmount: Math.max(0, Number.parseFloat(targetAmount) || 0),
-      currentAmount: Math.max(0, Number.parseFloat(currentAmount) || 0),
+      currentAmount: 0,
       deadline: deadline || null,
       description: description.trim(),
       createdAt: goal?.createdAt ?? timestamp,
@@ -39,16 +38,10 @@ export function SavingsGoalForm({ goal, onCancel, onSave }: SavingsGoalFormProps
         {t('Title')}
         <input required value={title} onChange={(event) => setTitle(event.target.value)} />
       </label>
-      <div className="form-grid">
-        <label>
-          {t('Target amount')}
-          <input value={targetAmount} onChange={(event) => setTargetAmount(event.target.value)} />
-        </label>
-        <label>
-          {t('Current amount')}
-          <input value={currentAmount} onChange={(event) => setCurrentAmount(event.target.value)} />
-        </label>
-      </div>
+      <label>
+        {t('Target amount')}
+        <input value={targetAmount} onChange={(event) => setTargetAmount(event.target.value)} />
+      </label>
       <label>
         {t('Deadline')}
         <input type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} />

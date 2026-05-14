@@ -16,6 +16,10 @@ export interface HabitLog {
   date: string;
   isCompleted: boolean;
   notes: string;
+  reminderFiredAt?: string | null;
+  completedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface HabitData {

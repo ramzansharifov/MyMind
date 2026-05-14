@@ -4,6 +4,8 @@ import { isHiddenFromRegularLists, isTrashed } from './archiveUtils';
 export type FlatCollectionKey =
   | 'movies'
   | 'todos'
+  | 'habits'
+  | 'financeTransactions'
   | 'calendarEvents'
   | 'journalEntries'
   | 'notes'
@@ -39,6 +41,8 @@ type AnyFlatRecord = Record<string, unknown> & {
 const flatCollectionKeys: FlatCollectionKey[] = [
   'movies',
   'todos',
+  'habits',
+  'financeTransactions',
   'calendarEvents',
   'journalEntries',
   'notes',
@@ -51,6 +55,8 @@ const flatCollectionKeys: FlatCollectionKey[] = [
 const moduleLabels: Record<FlatCollectionKey, string> = {
   movies: 'Movies',
   todos: 'Todo',
+  habits: 'Habits',
+  financeTransactions: 'Finance',
   calendarEvents: 'Calendar',
   journalEntries: 'Diary',
   notes: 'Notes',
@@ -63,6 +69,8 @@ const moduleLabels: Record<FlatCollectionKey, string> = {
 const titleKeys: Record<FlatCollectionKey, string[]> = {
   movies: ['title', 'originalTitle'],
   todos: ['title'],
+  habits: ['title'],
+  financeTransactions: ['title'],
   calendarEvents: ['title'],
   journalEntries: ['title'],
   notes: ['title'],
@@ -75,6 +83,8 @@ const titleKeys: Record<FlatCollectionKey, string[]> = {
 const detailKeys: Record<FlatCollectionKey, string[]> = {
   movies: ['notes', 'status'],
   todos: ['description', 'priority'],
+  habits: ['description', 'category'],
+  financeTransactions: ['sourceOrCategory', 'description'],
   calendarEvents: ['description', 'category'],
   journalEntries: ['content', 'mood'],
   notes: ['content', 'category'],
@@ -98,7 +108,15 @@ export function cleanupExpiredTrash(data: AppData) {
       }
       return !shouldRemove;
     });
-    next[key] = (key === 'todos' ? { ...data.todos, items: kept } : kept) as never;
+    if (key === 'todos') {
+      next.todos = { ...data.todos, items: kept as unknown as AppData['todos']['items'] };
+    } else if (key === 'habits') {
+      next.habits = { ...data.habits, habits: kept as unknown as AppData['habits']['habits'] };
+    } else if (key === 'financeTransactions') {
+      next.finance = { ...data.finance, transactions: kept as unknown as AppData['finance']['transactions'] };
+    } else {
+      next[key] = kept as never;
+    }
   }
 
   return { data: next, removed };
@@ -135,6 +153,12 @@ export function buildRecordCenterRows(data: AppData): FlatRecord[] {
 function getFlatItems(data: AppData, key: FlatCollectionKey): AnyFlatRecord[] {
   if (key === 'todos') {
     return data.todos.items as unknown as AnyFlatRecord[];
+  }
+  if (key === 'habits') {
+    return data.habits.habits as unknown as AnyFlatRecord[];
+  }
+  if (key === 'financeTransactions') {
+    return data.finance.transactions as unknown as AnyFlatRecord[];
   }
   return data[key] as unknown as AnyFlatRecord[];
 }

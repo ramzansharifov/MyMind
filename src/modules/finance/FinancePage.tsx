@@ -4,11 +4,12 @@ import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EntityForm } from '../../shared/components/EntityForm';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { PageHeader } from '../../shared/components/PageHeader';
-import { StatCard } from '../../shared/components/StatCard';
 import { useI18n } from '../../shared/i18n/I18nProvider';
+import { archiveEntity, trashEntity } from '../../shared/utils/archiveUtils';
 import { formatCurrency } from '../../shared/utils/formatters';
 import { createId } from '../../shared/utils/idGenerator';
-import { currentBalance, filterTransactions, totalByType, transactionTags } from './financeUtils';
+import { Minus } from 'lucide-react';
+import { currentBalance, filterTransactions, transactionTags } from './financeUtils';
 import { FinanceChartsSection } from './FinanceChartsSection';
 import { SavingsGoalCard } from './SavingsGoalCard';
 import { SavingsGoalForm } from './SavingsGoalForm';
@@ -39,6 +40,7 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
   const [openForm, setOpenForm] = useState<OpenForm>(null);
   const [newTagName, setNewTagName] = useState('');
   const [newTagType, setNewTagType] = useState<FinanceTagType>('both');
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const searchedTransactions = filterTransactions(data.transactions, query, 'all', '', date);
   const filtered = searchedTransactions.filter((transaction) => {
     const matchesType = types.length === 0 || types.includes(transaction.type);
@@ -48,6 +50,9 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
   const { t } = useI18n();
   const availableTransactionTags = [...new Set([...transactionTags(data.transactions), ...data.tags.map((item) => item.name)])];
   const activeFilterCount = types.length + selectedTags.length + (date ? 1 : 0);
+  const balance = currentBalance(data.transactions, data.startingBalance);
+  const incomeTags = data.tags.filter((tag) => tag.type === 'income' || tag.type === 'both');
+  const expenseTags = data.tags.filter((tag) => tag.type === 'expense' || tag.type === 'both');
 
   function saveTransaction(transaction: FinanceTransaction) {
     const exists = data.transactions.some((item) => item.id === transaction.id);
@@ -95,8 +100,21 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
       return;
     }
     const normalizedName = newTagName.trim();
-    if (data.tags.some((tagItem) => tagItem.name.toLowerCase() === normalizedName.toLowerCase())) {
+    if (data.tags.some((tagItem) => tagItem.id !== editingTagId && tagItem.name.toLowerCase() === normalizedName.toLowerCase())) {
       setNewTagName('');
+      setEditingTagId(null);
+      return;
+    }
+    if (editingTagId) {
+      onChange({
+        ...data,
+        tags: data.tags.map((tagItem) =>
+          tagItem.id === editingTagId ? { ...tagItem, name: normalizedName, type: newTagType } : tagItem,
+        ),
+      });
+      setNewTagName('');
+      setNewTagType('both');
+      setEditingTagId(null);
       return;
     }
     const createdAt = new Date().toISOString();
@@ -109,6 +127,12 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
     };
     onChange({ ...data, tags: [...data.tags, nextTag] });
     setNewTagName('');
+  }
+
+  function startEditTag(tag: FinanceTag) {
+    setEditingTagId(tag.id);
+    setNewTagName(tag.name);
+    setNewTagType(tag.type);
   }
 
   function toggleTypeFilter(value: TransactionType) {
@@ -130,13 +154,6 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
       <PageHeader
         title="Finance"
         subtitle="Starting balance, income, expenses, and tags for local financial tracking."
-        actions={
-          <>
-            <AddButton label="Income" onClick={() => setOpenForm({ kind: 'transaction', type: 'income' })} />
-            <AddButton label="Expense" onClick={() => setOpenForm({ kind: 'transaction', type: 'expense' })} />
-            {view === 'goals' ? <AddButton label="Add savings goal" onClick={() => setOpenForm({ kind: 'goal' })} /> : null}
-          </>
-        }
       />
 
       <div className="workout-tabs" role="tablist" aria-label={t('Finance sections')}>
@@ -154,13 +171,21 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
         ))}
       </div>
 
+      <div className="finance-tab-actions">
+        {view === 'ledger' ? (
+          <>
+            <AddButton label="Income" onClick={() => setOpenForm({ kind: 'transaction', type: 'income' })} />
+            <button className="button danger finance-expense-button" type="button" onClick={() => setOpenForm({ kind: 'transaction', type: 'expense' })}>
+              <Minus size={17} aria-hidden="true" />
+              <span>{t('Expense')}</span>
+            </button>
+          </>
+        ) : null}
+        {view === 'goals' ? <AddButton label="Add savings goal" onClick={() => setOpenForm({ kind: 'goal' })} /> : null}
+      </div>
+
       {view === 'ledger' ? (
         <>
-          <div className="stats-grid finance-summary-grid">
-            <StatCard label="Balance" value={formatCurrency(currentBalance(data.transactions, data.startingBalance), currency)} />
-            <StatCard label="Income" value={`+${formatCurrency(totalByType(data.transactions, 'income'), currency)}`} />
-            <StatCard label="Expenses" value={`-${formatCurrency(totalByType(data.transactions, 'expense'), currency)}`} />
-          </div>
           <CollapsibleFilters
             query={query}
             placeholder="Search transactions"
@@ -213,8 +238,11 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
                 transactions={filtered}
                 currency={currency}
                 onEdit={(transaction) => setOpenForm({ kind: 'transaction', type: transaction.type, item: transaction })}
+                onArchive={(transaction) =>
+                  onChange({ ...data, transactions: data.transactions.map((item) => (item.id === transaction.id ? archiveEntity(item) : item)) })
+                }
                 onDelete={(transaction) =>
-                  onChange({ ...data, transactions: data.transactions.filter((item) => item.id !== transaction.id) })
+                  onChange({ ...data, transactions: data.transactions.map((item) => (item.id === transaction.id ? trashEntity(item) : item)) })
                 }
               />
             )}
@@ -228,6 +256,8 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
             {data.savingsGoals.map((goal) => (
               <SavingsGoalCard
                 goal={goal}
+                currency={currency}
+                availableBalance={balance}
                 key={goal.id}
                 onEdit={() => setOpenForm({ kind: 'goal', item: goal })}
                 onDelete={() => onChange({ ...data, savingsGoals: data.savingsGoals.filter((item) => item.id !== goal.id) })}
@@ -259,8 +289,10 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
                 />
               </div>
             </div>
-            <div className="stats-grid finance-summary-grid">
-              <StatCard label="Starting balance" value={formatCurrency(data.startingBalance, currency)} detail={data.startedAt ? t('Financial tracking started') : t('Not set')} />
+            <div className="finance-start-value">
+              <span>{t('Starting balance')}</span>
+              <strong>{formatCurrency(data.startingBalance, currency)}</strong>
+              <small>{data.startedAt ? t('Financial tracking started') : t('Not set')}</small>
             </div>
           </section>
 
@@ -276,21 +308,11 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
                   </button>
                 ))}
               </div>
-              <AddButton label="Add tag" onClick={addTag} />
+              <AddButton label={editingTagId ? 'Save tag' : 'Add tag'} onClick={addTag} />
             </div>
-            <div className="chip-row finance-tag-list">
-              {data.tags.map((item) => (
-                <span className={`chip tag-chip tag-${item.type}`} key={item.id}>
-                  {item.name} / {t(item.type)}
-                  <DeleteButton
-                    label="Delete tag"
-                    className="chip-delete"
-                    onConfirm={() => onChange({ ...data, tags: data.tags.filter((tagItem) => tagItem.id !== item.id) })}
-                    confirmTitle="Delete tag?"
-                  />
-                </span>
-              ))}
-              {data.tags.length === 0 ? <span className="muted-text">{t('No tags yet.')}</span> : null}
+            <div className="finance-tag-columns">
+              <FinanceTagGroup title="Income tags" variant="income" tags={incomeTags} data={data} onEdit={startEditTag} onChange={onChange} />
+              <FinanceTagGroup title="Expense tags" variant="expense" tags={expenseTags} data={data} onEdit={startEditTag} onChange={onChange} />
             </div>
           </section>
         </div>
@@ -313,6 +335,52 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
         />
       ) : null}
     </section>
+  );
+}
+
+function FinanceTagGroup({
+  title,
+  variant,
+  tags,
+  data,
+  onEdit,
+  onChange,
+}: {
+  title: string;
+  variant: TransactionType;
+  tags: FinanceTag[];
+  data: FinanceData;
+  onEdit: (tag: FinanceTag) => void;
+  onChange: (data: FinanceData) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className={`finance-tag-group ${variant}`}>
+      <div className="finance-tag-group-heading">
+        <h3>{t(title)}</h3>
+        <span>{tags.length}</span>
+      </div>
+      <div className="finance-tag-list">
+        {tags.map((item) => (
+          <div className={`finance-tag-card tag-${item.type}`} key={`${title}-${item.id}`}>
+            <div>
+              <strong>{item.name}</strong>
+              <small>{t(item.type === 'both' ? 'Both' : item.type === 'income' ? 'Income' : 'Expense')}</small>
+            </div>
+            <div className="finance-tag-actions">
+              <EditButton className="finance-tag-icon-action" onClick={() => onEdit(item)} />
+              <DeleteButton
+                label="Delete tag"
+                className="finance-tag-icon-action"
+                onConfirm={() => onChange({ ...data, tags: data.tags.filter((tagItem) => tagItem.id !== item.id) })}
+                confirmTitle="Delete tag?"
+              />
+            </div>
+          </div>
+        ))}
+        {tags.length === 0 ? <span className="muted-text">{t('No tags yet.')}</span> : null}
+      </div>
+    </div>
   );
 }
 

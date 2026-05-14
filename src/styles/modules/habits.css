@@ -1,16 +1,33 @@
-﻿.habit-history-day {
-  gap: 12px;
+.habit-tab-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: -4px 0 18px;
 }
 
-.habits-stats {
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
-}
-
-.habits-layout {
+.habit-today-label {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
+  gap: 2px;
+}
+
+.habit-today-label span {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.habit-today-label strong {
+  color: var(--text);
+  text-transform: capitalize;
+}
+
+.habit-tab-action-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .habits-panel {
@@ -21,42 +38,25 @@
   min-height: 240px;
 }
 
-.week-habits-panel,
-.all-habits-panel {
-  grid-column: 1 / -1;
-}
-
-.habit-week-grid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.habit-week-grid div {
-  min-width: 0;
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  background: var(--surface-soft);
-  padding: 12px;
-}
-
-.habit-week-grid span {
-  display: block;
-  color: var(--muted);
-  font-size: 12px;
-  word-break: normal;
-}
-
 .habit-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 12px;
 }
 
 .habit-card {
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
   gap: 14px;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
+}
+
+.habit-card:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent);
 }
 
 .habit-card.completed {
@@ -64,50 +64,56 @@
   background: color-mix(in srgb, var(--surface) 88%, var(--positive) 12%);
 }
 
-.habit-card input[type="checkbox"] {
+.habit-card.completed h3,
+.habit-card.completed p {
+  opacity: 0.72;
+}
+
+.habit-toggle-button {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.habit-toggle-button:focus-visible {
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
+  outline: none;
+}
+
+.habit-status-mark {
   position: relative;
-  width: 58px;
-  height: 32px;
-  min-height: 32px;
-  appearance: none;
-  border: 1px solid var(--border);
+  display: block;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--accent);
   border-radius: 999px;
   background: var(--surface-strong);
-  padding: 0;
-  transition:
-    background 0.16s ease,
-    border-color 0.16s ease,
-    box-shadow 0.16s ease;
 }
 
-.habit-card input[type="checkbox"]::before {
+.habit-status-mark::before {
   position: absolute;
-  top: 4px;
-  left: 4px;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text) 82%, var(--muted));
-  box-shadow: 0 3px 8px var(--shadow);
+  top: 8px;
+  left: 7px;
+  width: 10px;
+  height: 6px;
   content: "";
-  transition:
-    transform 0.16s ease,
-    background 0.16s ease;
+  border-bottom: 2px solid transparent;
+  border-left: 2px solid transparent;
+  transform: rotate(-45deg);
 }
 
-.habit-card input[type="checkbox"]:checked {
+.habit-card.completed .habit-status-mark {
   border-color: var(--positive);
-  background: linear-gradient(135deg, var(--positive), var(--accent-strong));
+  background: var(--positive);
 }
 
-.habit-card input[type="checkbox"]:checked::before {
-  background: white;
-  transform: translateX(26px);
-}
-
-.habit-card input[type="checkbox"]:focus-visible {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent);
-  outline: none;
+.habit-card.completed .habit-status-mark::before {
+  border-color: white;
 }
 
 .habit-card-body {
@@ -116,12 +122,17 @@
   gap: 10px;
 }
 
-.habit-note-field {
-  max-width: 680px;
+.habit-card-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
 }
 
-.habit-card .card-title-row {
-  align-items: start;
+.habit-card-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
 }
 
 .habit-card h3,
@@ -129,23 +140,92 @@
   overflow-wrap: anywhere;
 }
 
+.habit-status.completed {
+  border-color: color-mix(in srgb, var(--positive) 62%, var(--border));
+  color: var(--positive);
+}
+
+.habit-meta-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.habit-note-field {
+  width: 100%;
+}
+
+.habit-card-actions {
+  justify-content: flex-end;
+  align-self: end;
+  flex-wrap: nowrap;
+}
+
+.habit-history-list {
+  display: grid;
+  gap: 12px;
+}
+
+.habit-history-day {
+  gap: 12px;
+}
+
+.habit-history-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.habit-history-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  min-width: 0;
+  min-height: 86px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  padding: 14px;
+}
+
+.habit-history-card > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.habit-history-card strong,
+.habit-history-card span:not(.habit-history-status) {
+  overflow-wrap: anywhere;
+}
+
+.habit-history-card span:not(.habit-history-status) {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .habit-history-status {
-  display: inline-grid;
+  position: relative;
+  display: inline-block;
+  flex: 0 0 24px;
   width: 24px;
   height: 24px;
-  place-items: center;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--surface-strong);
 }
 
 .habit-history-status::before {
+  position: absolute;
+  top: 7px;
+  left: 6px;
   width: 8px;
   height: 5px;
+  content: "";
   border-bottom: 2px solid transparent;
   border-left: 2px solid transparent;
-  content: "";
-  transform: rotate(-45deg) translateY(-1px);
+  transform: rotate(-45deg);
 }
 
 .habit-history-status.completed {
@@ -157,3 +237,30 @@
   border-color: white;
 }
 
+@media (max-width: 720px) {
+  .habit-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .habit-card {
+    grid-template-columns: 1fr;
+  }
+
+  .habit-card-actions {
+    justify-content: flex-start;
+  }
+
+  .habit-card-header {
+    grid-template-columns: 1fr;
+  }
+
+  .habit-history-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1180px) {
+  .habit-history-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

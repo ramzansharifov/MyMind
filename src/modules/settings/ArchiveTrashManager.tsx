@@ -6,7 +6,18 @@ import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isArchived, isTrashed, restoreEntity, trashEntity, type LifecycleEntity } from '../../shared/utils/archiveUtils';
 import { formatDate } from '../../shared/utils/dateUtils';
 
-type ManagedCollectionKey = 'movies' | 'todos' | 'calendarEvents' | 'journalEntries' | 'notes' | 'projects' | 'contacts' | 'goals' | 'inventory';
+type ManagedCollectionKey =
+  | 'movies'
+  | 'todos'
+  | 'habits'
+  | 'financeTransactions'
+  | 'calendarEvents'
+  | 'journalEntries'
+  | 'notes'
+  | 'projects'
+  | 'contacts'
+  | 'goals'
+  | 'inventory';
 type ArchiveTab = 'archive' | 'trash';
 type ManagedItem = LifecycleEntity & Record<string, unknown> & { createdAt?: string };
 
@@ -29,6 +40,8 @@ interface CollectionConfig {
 const managedCollections: CollectionConfig[] = [
   { key: 'movies', label: 'Movies', titleKeys: ['title'], detailKeys: ['originalTitle', 'notes'] },
   { key: 'todos', label: 'Todo', fallbackStatus: 'pending', setArchivedStatus: true, titleKeys: ['title'], detailKeys: ['description'] },
+  { key: 'habits', label: 'Habits', titleKeys: ['title'], detailKeys: ['description', 'category'] },
+  { key: 'financeTransactions', label: 'Finance', titleKeys: ['title'], detailKeys: ['sourceOrCategory', 'description'] },
   { key: 'calendarEvents', label: 'Calendar', titleKeys: ['title'], detailKeys: ['description', 'category'] },
   { key: 'journalEntries', label: 'Diary', titleKeys: ['title'], detailKeys: ['content', 'mood'] },
   { key: 'notes', label: 'Notes', titleKeys: ['title'], detailKeys: ['content', 'category'] },
@@ -54,7 +67,7 @@ export function ArchiveTrashManager({ data, onChange, onClose, onStatusMessage }
   function archiveItem(config: CollectionConfig, id: string) {
     updateCollection(
       config,
-      (items) => items.map((item) => (item.id === id ? archiveEntity(item, { setArchivedStatus: config.setArchivedStatus }) : item)),
+      (items) => items.map((item) => (item.id === id ? applyInactiveState(archiveEntity(item, { setArchivedStatus: config.setArchivedStatus }), config.key) : item)),
       'Item archived.',
     );
   }
@@ -62,7 +75,7 @@ export function ArchiveTrashManager({ data, onChange, onClose, onStatusMessage }
   function restoreItem(config: CollectionConfig, id: string) {
     updateCollection(
       config,
-      (items) => items.map((item) => (item.id === id ? restoreEntity(item, config.fallbackStatus) : item)),
+      (items) => items.map((item) => (item.id === id ? applyActiveState(restoreEntity(item, config.fallbackStatus), config.key) : item)),
       'Item restored.',
     );
   }
@@ -70,7 +83,7 @@ export function ArchiveTrashManager({ data, onChange, onClose, onStatusMessage }
   function moveToTrash(config: CollectionConfig, id: string) {
     updateCollection(
       config,
-      (items) => items.map((item) => (item.id === id ? trashEntity(item) : item)),
+      (items) => items.map((item) => (item.id === id ? applyInactiveState(trashEntity(item), config.key) : item)),
       'Item moved to trash.',
     );
   }
@@ -175,6 +188,12 @@ function getCollectionItems(data: AppData, key: ManagedCollectionKey) {
   if (key === 'todos') {
     return data.todos.items as unknown as ManagedItem[];
   }
+  if (key === 'habits') {
+    return data.habits.habits as unknown as ManagedItem[];
+  }
+  if (key === 'financeTransactions') {
+    return data.finance.transactions as unknown as ManagedItem[];
+  }
   const collection = data[key];
   if (!Array.isArray(collection)) {
     return [];
@@ -192,10 +211,36 @@ function setCollectionItems(data: AppData, key: ManagedCollectionKey, items: Man
       },
     };
   }
+  if (key === 'habits') {
+    return {
+      ...data,
+      habits: {
+        ...data.habits,
+        habits: items as unknown as AppData['habits']['habits'],
+      },
+    };
+  }
+  if (key === 'financeTransactions') {
+    return {
+      ...data,
+      finance: {
+        ...data.finance,
+        transactions: items as unknown as AppData['finance']['transactions'],
+      },
+    };
+  }
   return {
     ...data,
     [key]: items,
   } as AppData;
+}
+
+function applyInactiveState(item: ManagedItem, key: ManagedCollectionKey) {
+  return key === 'habits' ? { ...item, isActive: false } : item;
+}
+
+function applyActiveState(item: ManagedItem, key: ManagedCollectionKey) {
+  return key === 'habits' ? { ...item, isActive: true } : item;
 }
 
 function getFirstText(item: ManagedItem, keys: string[]) {

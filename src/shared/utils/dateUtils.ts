@@ -1,12 +1,25 @@
 export function todayDateOnly() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateOnly();
+}
+
+export function localDateOnly(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function millisecondsUntilNextLocalDay(date = new Date()) {
+  const nextDay = new Date(date);
+  nextDay.setHours(24, 0, 1, 0);
+  return Math.max(1000, nextDay.getTime() - date.getTime());
 }
 
 export function formatDate(value?: string | null) {
   if (!value) {
     return 'No date';
   }
-  const date = new Date(value);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : new Date(value);
   if (Number.isNaN(date.getTime())) {
     return 'No date';
   }

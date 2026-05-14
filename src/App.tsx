@@ -15,7 +15,8 @@ import { DEFAULT_TODO_GROUPS, todoItems } from './modules/todos/todoUtils';
 import { FinancePage } from './modules/finance/FinancePage';
 import type { FinanceData } from './modules/finance/types';
 import { HabitsPage } from './modules/habits/HabitsPage';
-import type { HabitData } from './modules/habits/types';
+import { isHabitScheduledForDate } from './modules/habits/habitUtils';
+import type { HabitData, HabitLog } from './modules/habits/types';
 import { CalendarPage } from './modules/calendar/CalendarPage';
 import type { CalendarEvent } from './modules/calendar/types';
 import { JournalPage } from './modules/journal/JournalPage';
@@ -37,11 +38,11 @@ import type { AppSettings } from './shared/types/common';
 import { I18nProvider, useI18n } from './shared/i18n/I18nProvider';
 import { ArchiveTrashManager } from './modules/settings/ArchiveTrashManager';
 import { cleanupExpiredTrash } from './shared/utils/appDataUtils';
-import { weekdayNumber } from './shared/utils/dateUtils';
+import { localDateOnly, weekdayNumber } from './shared/utils/dateUtils';
 
 interface AppReminder {
   id: string;
-  module: 'todos' | 'calendar';
+  module: 'todos' | 'calendar' | 'habits';
   sourceId: string;
   reminderId?: string;
   cycle?: string;
@@ -416,6 +417,7 @@ export function App() {
   const activeReminder = dueReminders[0] ?? null;
   const reminderBadges = {
     todos: dueReminders.filter((reminder) => reminder.module === 'todos').length,
+    habits: dueReminders.filter((reminder) => reminder.module === 'habits').length,
     calendar: dueReminders.filter((reminder) => reminder.module === 'calendar').length,
   };
 
@@ -429,6 +431,35 @@ export function App() {
           items: current.todos.items.map((todo) => (todo.id === reminder.sourceId ? { ...todo, reminderFiredAt: timestamp, updatedAt: timestamp } : todo)),
         },
       }));
+      return;
+    }
+    if (reminder.module === 'habits') {
+      setData((current) => {
+        const habit = current.habits.habits.find((item) => item.id === reminder.sourceId);
+        const date = localDateOnly();
+        const existing = current.habits.logs.find((log) => log.habitId === reminder.sourceId && log.date === date);
+        const nextLog: HabitLog = {
+          id: existing?.id ?? `habitlog-${reminder.sourceId}-${date}`,
+          habitId: reminder.sourceId,
+          habitTitle: habit?.title ?? reminder.title,
+          date,
+          isCompleted: existing?.isCompleted ?? false,
+          notes: existing?.notes ?? '',
+          reminderFiredAt: timestamp,
+          completedAt: existing?.completedAt ?? null,
+          createdAt: existing?.createdAt ?? timestamp,
+          updatedAt: timestamp,
+        };
+        return {
+          ...current,
+          habits: {
+            ...current.habits,
+            logs: existing
+              ? current.habits.logs.map((log) => (log.id === existing.id ? nextLog : log))
+              : [...current.habits.logs, nextLog],
+          },
+        };
+      });
       return;
     }
     setData((current) => ({
@@ -492,8 +523,13 @@ function normalizeData(data: AppData): AppData {
       })),
       logs: (data.habits?.logs ?? []).map((log) => ({
         ...log,
+        date: normalizeHabitLogDate(log),
         habitTitle: log.habitTitle ?? data.habits?.habits?.find((habit) => habit.id === log.habitId)?.title ?? '',
         notes: log.notes ?? '',
+        reminderFiredAt: log.reminderFiredAt ?? null,
+        completedAt: log.isCompleted ? log.completedAt ?? log.updatedAt ?? null : null,
+        createdAt: log.createdAt ?? log.updatedAt ?? new Date().toISOString(),
+        updatedAt: log.updatedAt ?? log.completedAt ?? log.createdAt ?? new Date().toISOString(),
       })),
     },
     todos: normalizeTodoData(data.todos),
@@ -576,7 +612,29 @@ function buildDueReminders(data: AppData, now: number): AppReminder[] {
     return [...exactReminders, ...relativeReminders];
   });
 
-  return [...todoReminders, ...calendarReminders];
+  const habitReminders = data.habits.habits
+    .filter((habit) => habit.isActive && habit.timeOfDay)
+    .map((habit) => {
+      const currentDate = new Date(now);
+      const date = localDateOnly(currentDate);
+      const log = data.habits.logs.find((item) => item.habitId === habit.id && item.date === date);
+      const [hours, minutes] = String(habit.timeOfDay).split(':').map(Number);
+      const dueAt = new Date(currentDate);
+      dueAt.setHours(hours || 0, minutes || 0, 0, 0);
+      return { habit, log, dueAt, isScheduledToday: isHabitScheduledForDate(habit, currentDate) };
+    })
+    .filter(({ isScheduledToday }) => isScheduledToday)
+    .filter(({ log }) => !log?.isCompleted && !log?.reminderFiredAt)
+    .filter(({ dueAt }) => dueAt.getTime() <= now)
+    .map(({ habit }) => ({
+      id: `habit-${habit.id}-${localDateOnly(new Date(now))}`,
+      module: 'habits' as const,
+      sourceId: habit.id,
+      title: habit.title,
+      body: habit.description || 'Habit reminder',
+    }));
+
+  return [...todoReminders, ...habitReminders, ...calendarReminders];
 }
 
 function nextCalendarTarget(date: string, recurrence: 'once' | 'yearly', recurrenceStartDate: string | null, now: number) {
@@ -619,6 +677,19 @@ function daysBetweenLocal(from: number, to: number) {
 
 function ReminderModal({ reminder, onDismiss, onSnooze }: { reminder: AppReminder; onDismiss: () => void; onSnooze: () => void }) {
   const { t } = useI18n();
+
+  useEffect(() => {
+    const audio = new Audio('/audio/reminder.mp3');
+    audio.volume = 0.72;
+    void audio.play().catch(() => {
+      // Some environments block autoplay until the first user interaction.
+    });
+    return () => {
+      audio.pause();
+      audio.currentTime = 0;
+    };
+  }, [reminder.id]);
+
   return (
     <div className="dialog-backdrop" role="presentation">
       <section className="confirm-dialog reminder-dialog" role="dialog" aria-modal="true" aria-labelledby="app-reminder-title">
@@ -693,6 +764,18 @@ function normalizeTodoData(todos: TodoData | TodoItem[] | undefined): TodoData {
     }),
     groups,
   };
+}
+
+function normalizeHabitLogDate(log: HabitLog) {
+  const source = log.isCompleted ? log.completedAt ?? log.updatedAt ?? log.date : log.date;
+  if (!source) {
+    return localDateOnly();
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(source)) {
+    return source;
+  }
+  const parsed = new Date(source);
+  return Number.isNaN(parsed.getTime()) ? localDateOnly() : localDateOnly(parsed);
 }
 
 function normalizeWorkoutData(workouts: WorkoutData | undefined): WorkoutData {

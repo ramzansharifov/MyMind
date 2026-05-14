@@ -17,7 +17,7 @@ import { StatCard } from '../../shared/components/StatCard';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { formatDate } from '../../shared/utils/dateUtils';
 import { formatCurrency } from '../../shared/utils/formatters';
-import { currentBalance, totalByType } from './financeUtils';
+import { currentBalance, totalByType, visibleTransactions } from './financeUtils';
 import type { FinanceData, FinanceTransaction } from './types';
 
 interface FinanceChartsSectionProps {
@@ -27,10 +27,11 @@ interface FinanceChartsSectionProps {
 
 export function FinanceChartsSection({ data, currency }: FinanceChartsSectionProps) {
   const { t } = useI18n();
-  const dailyData = buildDailyFinanceData(data.transactions, data.startingBalance);
-  const tagData = buildExpenseTagData(data.transactions);
-  const incomeTotal = totalByType(data.transactions, 'income');
-  const expenseTotal = totalByType(data.transactions, 'expense');
+  const transactions = visibleTransactions(data.transactions);
+  const dailyData = buildDailyFinanceData(transactions, data.startingBalance);
+  const tagData = buildExpenseTagData(transactions);
+  const incomeTotal = totalByType(transactions, 'income');
+  const expenseTotal = totalByType(transactions, 'expense');
 
   return (
     <section className="panel section-block workout-section-panel">
@@ -43,7 +44,7 @@ export function FinanceChartsSection({ data, currency }: FinanceChartsSectionPro
 
       <div className="stats-grid workout-chart-stats">
         <StatCard label="Starting balance" value={formatCurrency(data.startingBalance, currency)} />
-        <StatCard label="Balance" value={formatCurrency(currentBalance(data.transactions, data.startingBalance), currency)} />
+        <StatCard label="Balance" value={formatCurrency(currentBalance(transactions, data.startingBalance), currency)} />
         <StatCard label="Income" value={`+${formatCurrency(incomeTotal, currency)}`} />
         <StatCard label="Expenses" value={`-${formatCurrency(expenseTotal, currency)}`} />
         <StatCard label="Savings goals" value={data.savingsGoals.length} />
