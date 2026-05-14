@@ -183,6 +183,7 @@ const ru: Record<string, string> = {
   'Add food day': 'Добавить день питания',
   'Add nutrition day': 'Добавить день питания',
   'Save food day': 'Сохранить питание',
+  'Edit nutrition day': 'Редактировать день питания',
   'No meal notes.': 'Нет заметок о питании.',
   Meals: 'Приёмы пищи',
   'Water liters': 'Вода, литры',

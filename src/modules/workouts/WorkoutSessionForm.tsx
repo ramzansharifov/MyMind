@@ -127,15 +127,9 @@ export function WorkoutSessionForm({ plan, exercises, onCancel, onSave }: Workou
         </div>
       </div>
 
-      <div className="form-row-compact" style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
-        <label style={{ flex: 1 }}>
-          {t('Mood')} {mood}/10
-          <input type="range" min="1" max="10" value={mood} onChange={(event) => setMood(Number(event.target.value))} />
-        </label>
-        <label style={{ flex: 1 }}>
-          {t('Energy')} {energyLevel}/10
-          <input type="range" min="1" max="10" value={energyLevel} onChange={(event) => setEnergyLevel(Number(event.target.value))} />
-        </label>
+      <div className="workout-rating-grid">
+        <RatingScale label={t('Mood')} value={mood} onChange={setMood} />
+        <RatingScale label={t('Energy')} value={energyLevel} onChange={setEnergyLevel} />
       </div>
 
       <label>
@@ -143,6 +137,33 @@ export function WorkoutSessionForm({ plan, exercises, onCancel, onSave }: Workou
         <textarea rows={5} value={notes} onChange={(event) => setNotes(event.target.value)} />
       </label>
     </EntityForm>
+  );
+}
+
+function RatingScale({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  return (
+    <fieldset className="workout-rating-scale">
+      <legend>
+        <span>{label}</span>
+        <strong>{value}/10</strong>
+      </legend>
+      <div className="workout-rating-options" role="radiogroup" aria-label={label}>
+        {Array.from({ length: 10 }, (_, index) => {
+          const rating = index + 1;
+          return (
+            <button
+              key={rating}
+              type="button"
+              className={`workout-rating-option${rating <= value ? ' selected' : ''}${rating === value ? ' current' : ''}`}
+              aria-pressed={rating === value}
+              onClick={() => onChange(rating)}
+            >
+              {rating}
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }
 

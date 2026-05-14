@@ -152,6 +152,66 @@
   min-width: 0;
 }
 
+.workout-rating-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.workout-rating-scale {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 14px;
+}
+
+.workout-rating-scale legend {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workout-rating-scale legend strong {
+  color: var(--text);
+}
+
+.workout-rating-options {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(34px, 1fr));
+  gap: 6px;
+}
+
+.workout-rating-option {
+  display: inline-grid;
+  min-width: 0;
+  min-height: 38px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.workout-rating-option:hover,
+.workout-rating-option.selected {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-soft));
+  color: var(--text);
+}
+
+.workout-rating-option.current {
+  background: var(--accent);
+  color: #fff;
+}
+
 .workout-history-card {
   gap: 10px;
 }
@@ -243,13 +303,208 @@
   color: var(--muted);
 }
 
+.nutrition-row-card {
+  border-color: var(--border);
+  background: var(--surface-strong);
+}
+
+.nutrition-day-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+
+.nutrition-day-main {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+}
+
+.nutrition-day-heading {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.nutrition-day-heading h3 {
+  margin-top: 3px;
+  font-size: 20px;
+}
+
+.nutrition-water-pill,
+.nutrition-calorie-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  border: 1px solid color-mix(in srgb, var(--accent) 44%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface-soft));
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  padding: 5px 9px;
+}
+
+.nutrition-total-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.nutrition-total-tile {
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px 12px;
+}
+
+.nutrition-total-tile span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.nutrition-total-tile strong {
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1.1;
+}
+
 .nutrition-meal-list {
   display: grid;
-  gap: 6px;
-  margin-top: 4px;
-  border-left: 2px solid var(--line-soft);
-  padding-left: 12px;
-  font-size: 13px;
+  gap: 10px;
+  color: var(--text);
+}
+
+.nutrition-meal-card {
+  --meal-accent: var(--accent);
+  display: grid;
+  grid-template-columns: 5px minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--meal-accent) 36%, var(--border));
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.nutrition-meal-card.breakfast {
+  --meal-accent: #d59d31;
+}
+
+.nutrition-meal-card.lunch {
+  --meal-accent: var(--accent);
+}
+
+.nutrition-meal-card.dinner {
+  --meal-accent: #6f8fd6;
+}
+
+.nutrition-meal-card.snack {
+  --meal-accent: #8a72ca;
+}
+
+.nutrition-meal-accent {
+  background: var(--meal-accent);
+}
+
+.nutrition-meal-content {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+.nutrition-meal-heading {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.nutrition-meal-heading > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nutrition-meal-heading strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.nutrition-meal-heading span:not(.nutrition-calorie-pill) {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.nutrition-meal-content p {
+  margin: 0;
+  color: color-mix(in srgb, var(--text) 84%, var(--muted));
+  line-height: 1.45;
+}
+
+.nutrition-macro-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.nutrition-macro-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid color-mix(in srgb, var(--meal-accent) 28%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--meal-accent) 10%, var(--surface-soft));
+  color: var(--muted);
+  font-size: 12px;
+  padding: 5px 8px;
+}
+
+.nutrition-macro-row strong {
+  color: var(--text);
+}
+
+.nutrition-day-notes {
+  margin: 0;
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+  padding-left: 10px;
+}
+
+.nutrition-empty-meals {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  padding: 14px;
+}
+
+.nutrition-entry-meal-editor {
+  display: grid;
+  gap: 12px;
+}
+
+.nutrition-entry-meal-row {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 12px;
+}
+
+.nutrition-entry-macro-editor {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(110px, 1fr));
+  gap: 8px;
 }
 
 .nutrition-dish-selector {
@@ -343,3 +598,30 @@
   color: var(--muted);
 }
 
+@media (max-width: 900px) {
+  .workout-rating-grid,
+  .nutrition-day-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .nutrition-total-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nutrition-entry-macro-editor {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .nutrition-day-heading,
+  .nutrition-meal-heading {
+    display: grid;
+  }
+
+  .nutrition-total-grid,
+  .workout-rating-options,
+  .nutrition-entry-macro-editor {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -9,6 +9,7 @@ import { formatDate } from '../../shared/utils/dateUtils';
 import { createId } from '../../shared/utils/idGenerator';
 import { ChartsSection } from './ChartsSection';
 import { ExerciseForm } from './ExerciseForm';
+import { NutritionEntryForm } from './NutritionEntryForm';
 import { NutritionMealForm } from './NutritionMealForm';
 import { ProgressRecordForm } from './ProgressRecordForm';
 import { StartingPositionForm } from './StartingPositionForm';
@@ -41,6 +42,7 @@ type OpenForm =
   | { kind: 'session'; plan?: WorkoutPlan | null }
   | { kind: 'starting-position'; position?: StartingPosition | null }
   | { kind: 'progress-record'; record?: ProgressRecord | null }
+  | { kind: 'nutrition-entry'; entry: NutritionEntry }
   | { kind: 'nutrition-meal'; meal?: MealRecord | null }
   | null;
 
@@ -214,6 +216,14 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
 
   function deleteNutritionEntry(id: string) {
     onChange({ ...data, nutritionEntries: nutritionEntries.filter((item) => item.id !== id) });
+  }
+
+  function saveNutritionDay(entry: NutritionEntry) {
+    onChange({
+      ...data,
+      nutritionEntries: nutritionEntries.map((item) => (item.id === entry.id ? entry : item)),
+    });
+    setOpenForm(null);
   }
 
   const latestProgress = [...progressRecords].sort((a, b) => b.date.localeCompare(a.date))[0];
@@ -583,28 +593,58 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
                 fats: meals.reduce((sum, meal) => sum + (Number(meal.fats) || 0), 0),
                 calories: meals.reduce((sum, meal) => sum + (Number(meal.calories) || 0), 0),
               };
+              const totalMetrics = [
+                { label: t('protein'), value: `${totals.protein.toFixed(1)}g` },
+                { label: t('carbs'), value: `${totals.carbs.toFixed(1)}g` },
+                { label: t('fats'), value: `${totals.fats.toFixed(1)}g` },
+                { label: t('kcal'), value: String(Math.round(totals.calories)) },
+              ];
               return (
                 <article className="card nutrition-row-card" key={entry.id}>
-                  <div className="workout-record-layout">
-                    <div className="workout-record-main">
-                      <h3>{formatDate(entry.date)}</h3>
-                      <small>
-                        {t('Daily totals')}: {totals.protein.toFixed(1)}g {t('protein')} / {totals.carbs.toFixed(1)}g {t('carbs')} / {totals.fats.toFixed(1)}g {t('fats')} / {Math.round(totals.calories)} {t('kcal')}
-                      </small>
-                      <div className="nutrition-meal-list">
-                        {meals.map((meal) => (
-                          <div key={meal.id}>
-                            <strong>{t(meal.mealType || 'snack')}</strong> ({meal.time || t('Any time')}): {meal.customDescription || t('Detailed meal')}
-                            <br />
-                            <small className="muted-text">
-                                {(meal.protein ?? 0)}g P / {(meal.carbs ?? 0)}g C / {(meal.fats ?? 0)}g F / {(meal.calories ?? 0)} kcal
-                            </small>
+                  <div className="nutrition-day-layout">
+                    <div className="nutrition-day-main">
+                      <div className="nutrition-day-heading">
+                        <div>
+                          <span className="panel-kicker">{t('Daily totals')}</span>
+                          <h3>{formatDate(entry.date)}</h3>
+                        </div>
+                        {entry.water > 0 ? <span className="nutrition-water-pill">{t('Water')} {entry.water}L</span> : null}
+                      </div>
+                      <div className="nutrition-total-grid">
+                        {totalMetrics.map((metric) => (
+                          <div className="nutrition-total-tile" key={metric.label}>
+                            <span>{metric.label}</span>
+                            <strong>{metric.value}</strong>
                           </div>
                         ))}
-                        {meals.length === 0 ? <div>{t('No meals recorded.')}</div> : null}
                       </div>
+                      <div className="nutrition-meal-list">
+                        {meals.map((meal) => (
+                          <section className={`nutrition-meal-card ${meal.mealType || 'snack'}`} key={meal.id}>
+                            <div className="nutrition-meal-accent" aria-hidden="true" />
+                            <div className="nutrition-meal-content">
+                              <div className="nutrition-meal-heading">
+                                <div>
+                                  <strong>{t(meal.mealType || 'snack')}</strong>
+                                  <span>{meal.time || t('Any time')}</span>
+                                </div>
+                                <span className="nutrition-calorie-pill">{Math.round(meal.calories ?? 0)} {t('kcal')}</span>
+                              </div>
+                              <p>{meal.customDescription || t('Detailed meal')}</p>
+                              <div className="nutrition-macro-row">
+                                <span><strong>{meal.protein ?? 0}g</strong> {t('protein')}</span>
+                                <span><strong>{meal.carbs ?? 0}g</strong> {t('carbs')}</span>
+                                <span><strong>{meal.fats ?? 0}g</strong> {t('fats')}</span>
+                              </div>
+                            </div>
+                          </section>
+                        ))}
+                        {meals.length === 0 ? <div className="nutrition-empty-meals">{t('No meals recorded.')}</div> : null}
+                      </div>
+                      {entry.notes ? <p className="nutrition-day-notes">{entry.notes}</p> : null}
                     </div>
                     <div className="card-actions compact">
+                      <EditButton onClick={() => setOpenForm({ kind: 'nutrition-entry', entry })} />
                       <DeleteButton onConfirm={() => deleteNutritionEntry(entry.id)} confirmTitle="Delete this day's record?" />
                     </div>
                   </div>
@@ -640,6 +680,9 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
       ) : null}
       {openForm?.kind === 'progress-record' ? (
         <ProgressRecordForm record={openForm.record} onCancel={() => setOpenForm(null)} onSave={saveProgressRecord} />
+      ) : null}
+      {openForm?.kind === 'nutrition-entry' ? (
+        <NutritionEntryForm entry={openForm.entry} onCancel={() => setOpenForm(null)} onSave={saveNutritionDay} />
       ) : null}
       {openForm?.kind === 'nutrition-meal' ? (
         <NutritionMealForm meal={openForm.meal} onCancel={() => setOpenForm(null)} onSave={(meal) => saveNutritionEntry([meal])} />

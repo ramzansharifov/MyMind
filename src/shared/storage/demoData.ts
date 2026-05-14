@@ -65,13 +65,14 @@ export function fillWorkoutDemoGaps(workouts: AppData["workouts"] | undefined): 
   }
 
   const current = workouts as AppData["workouts"];
-  const shouldAddTrainingCatalog =
-    (current.exercises ?? []).length === 0 || (current.plans ?? []).length === 0 || (current.sessions ?? []).length === 0;
+  const shouldAddTrainingCatalog = !hasDemoTrainingCatalog(current);
+  const shouldAddProgressRecords = !hasDemoProgressRecords(current);
+  const shouldAddNutritionEntries = !hasDemoNutritionEntries(current);
   const didFill =
     shouldAddTrainingCatalog ||
     !current.startingPosition ||
-    (current.progressRecords ?? []).length === 0 ||
-    (current.nutritionEntries ?? []).length === 0;
+    shouldAddProgressRecords ||
+    shouldAddNutritionEntries;
 
   if (!didFill) {
     return { workouts: current, didFill: false };
@@ -84,13 +85,39 @@ export function fillWorkoutDemoGaps(workouts: AppData["workouts"] | undefined): 
         : (current.exerciseGroups ?? []),
       exercises: shouldAddTrainingCatalog ? [...(current.exercises ?? []), ...demo.exercises] : (current.exercises ?? []),
       plans: shouldAddTrainingCatalog ? [...(current.plans ?? []), ...demo.plans] : (current.plans ?? []),
-      sessions: (current.sessions ?? []).length === 0 ? demo.sessions : (current.sessions ?? []),
+      sessions: shouldAddTrainingCatalog ? [...(current.sessions ?? []), ...demo.sessions] : (current.sessions ?? []),
       startingPosition: current.startingPosition ?? demo.startingPosition,
-      progressRecords: (current.progressRecords ?? []).length === 0 ? demo.progressRecords : (current.progressRecords ?? []),
-      nutritionEntries: (current.nutritionEntries ?? []).length === 0 ? demo.nutritionEntries : (current.nutritionEntries ?? []),
+      progressRecords: shouldAddProgressRecords
+        ? [...(current.progressRecords ?? []), ...demo.progressRecords]
+        : (current.progressRecords ?? []),
+      nutritionEntries: shouldAddNutritionEntries
+        ? [...demo.nutritionEntries, ...(current.nutritionEntries ?? [])]
+        : (current.nutritionEntries ?? []),
     },
     didFill: true,
   };
+}
+
+function hasDemoTrainingCatalog(workouts: AppData["workouts"]) {
+  const exerciseNames = new Set((workouts.exercises ?? []).map((exercise) => exercise.name.trim().toLowerCase()));
+  const planTitles = new Set((workouts.plans ?? []).map((plan) => plan.title.trim().toLowerCase()));
+  const sessionNotes = (workouts.sessions ?? []).map((session) => session.notes);
+  return (
+    exerciseNames.has("zone 2 run") &&
+    exerciseNames.has("front plank") &&
+    planTitles.has("conditioning reset") &&
+    sessionNotes.some((notes) => notes.includes("completed and skipped chips"))
+  );
+}
+
+function hasDemoProgressRecords(workouts: AppData["workouts"]) {
+  return (workouts.progressRecords ?? []).some((record) => record.notes.includes("Latest checkpoint"));
+}
+
+function hasDemoNutritionEntries(workouts: AppData["workouts"]) {
+  return (workouts.nutritionEntries ?? []).some((entry) =>
+    (entry.meals ?? []).some((meal) => meal.customDescription.includes("Greek yogurt")),
+  );
 }
 
 function isLegacyWorkoutDemoData(workouts: AppData["workouts"] | undefined) {
