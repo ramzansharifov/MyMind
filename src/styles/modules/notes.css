@@ -28,6 +28,16 @@
   max-width: 1120px;
 }
 
+.note-editor-page {
+  margin-inline: auto;
+  width: min(100%, 1120px);
+}
+
+.note-rich-layout {
+  display: grid;
+  gap: 16px;
+}
+
 .note-editor-header,
 .note-reader-header {
   display: flex;
@@ -70,6 +80,7 @@
 .note-editor-toolbar {
   display: grid;
   gap: 8px;
+  align-self: start;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-soft);
@@ -137,7 +148,8 @@
 }
 
 .note-editor-toolbar select,
-.note-editor-toolbar input[type="color"] {
+.note-editor-toolbar input[type="color"],
+.note-editor-toolbar input[type="number"] {
   width: auto;
   min-width: 64px;
   padding: 4px;

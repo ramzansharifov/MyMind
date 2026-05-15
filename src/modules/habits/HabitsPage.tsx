@@ -28,6 +28,7 @@ export function HabitsPage({ data, onChange }: HabitsPageProps) {
   const active = activeHabits(data.habits);
   const todayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(today);
   const historyDays = useMemo(() => buildHabitHistoryDays(data.habits, data.logs, todayKey), [data.habits, data.logs, todayKey]);
+  const weekdayFormatter = useMemo(() => new Intl.DateTimeFormat(undefined, { weekday: 'long' }), []);
 
   useEffect(() => {
     let nextDayTimer = 0;
@@ -173,7 +174,7 @@ export function HabitsPage({ data, onChange }: HabitsPageProps) {
             {historyDays.map((day) => (
               <article className="card habit-history-day" key={day.date}>
                 <div className="section-heading">
-                  <h3>{formatDate(day.date)}</h3>
+                  <h3>{formatDate(day.date)} / {weekdayFormatter.format(new Date(`${day.date}T00:00:00`))}</h3>
                   <span className="rating-pill">{day.items.filter((item) => item.isCompleted).length}/{day.items.length}</span>
                 </div>
                 <div className="habit-history-grid">

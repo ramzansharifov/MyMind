@@ -41,6 +41,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
   const [ruleColor, setRuleColor] = useState('#3aa997');
   const [drawingColor, setDrawingColor] = useState('#3aa997');
   const [drawingStrokeWidth, setDrawingStrokeWidth] = useState(5);
+  const [fontSizeValue, setFontSizeValue] = useState('16');
   const [sheetRatio, setSheetRatio] = useState<SheetRatio>('4:3');
   const [selectedSheetId, setSelectedSheetId] = useState('');
   const [toolbarTab, setToolbarTab] = useState<ToolbarTab>('text');
@@ -115,13 +116,17 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
   }
 
   function applyFontSize(value: string) {
+    const nextSize = Number.parseInt(value, 10);
+    if (!Number.isFinite(nextSize) || nextSize < 8 || nextSize > 96) {
+      return;
+    }
     restoreSelection();
     editorRef.current?.focus();
     document.execCommand('fontSize', false, '4');
     const fonts = editorRef.current?.querySelectorAll('font[size="4"]');
     fonts?.forEach((font) => {
       const span = document.createElement('span');
-      span.style.fontSize = `${value}px`;
+      span.style.fontSize = `${nextSize}px`;
       span.innerHTML = font.innerHTML;
       font.replaceWith(span);
     });
@@ -385,7 +390,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
           </label>
         </div>
         {mode === 'rich' ? (
-          <>
+          <div className="note-rich-layout">
             <div className="note-editor-toolbar" aria-label={t('Editor toolbar')} onMouseDownCapture={saveSelection}>
               <div className="note-toolbar-tabs" role="tablist" aria-label={t('Editor tools')}>
                 {toolbarTabs.map((tab) => (
@@ -415,13 +420,18 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
                   </button>
                   <label className="note-select-control">
                     <Type size={16} aria-hidden="true" />
-                    <select defaultValue="16" onChange={(event) => applyFontSize(event.target.value)}>
-                      <option value="14">14</option>
-                      <option value="16">16</option>
-                      <option value="18">18</option>
-                      <option value="22">22</option>
-                      <option value="28">28</option>
-                    </select>
+                    <input
+                      aria-label={t('Font size')}
+                      inputMode="numeric"
+                      min="8"
+                      max="96"
+                      type="number"
+                      value={fontSizeValue}
+                      onChange={(event) => {
+                        setFontSizeValue(event.target.value);
+                        applyFontSize(event.target.value);
+                      }}
+                    />
                   </label>
                 </div>
                 ) : null}
@@ -500,7 +510,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
               onBlur={saveSelection}
               suppressContentEditableWarning
             />
-          </>
+          </div>
         ) : (
           <textarea
             className="markdown-note-editor"
