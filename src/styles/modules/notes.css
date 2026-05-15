@@ -376,6 +376,14 @@
   padding: 0;
 }
 
+.block-drag-handle {
+  cursor: grab;
+}
+
+.block-drag-handle:active {
+  cursor: grabbing;
+}
+
 .block-side-button:hover {
   border-color: var(--accent);
   color: var(--accent-strong);

@@ -31,7 +31,7 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { BackButton, EditButton } from '../../shared/components/ActionButtons';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { formatDate } from '../../shared/utils/dateUtils';
@@ -187,6 +187,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
   const activeBlock = blocks.find((block) => block.id === activeBlockId);
   const editorStats = useMemo(() => getEditorStats(blocks), [blocks]);
   const { t } = useI18n();
+  const selectionRef = useRef<Range | null>(null);
 
   useEffect(() => {
     if (activeBlockId && !blocks.some((block) => block.id === activeBlockId)) {
@@ -258,7 +259,22 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
   }
 
   function changeBlockType(id: string, type: BlockType) {
-    replaceBlock(id, type);
+    setBlocks((current) => current.map((block) => {
+      if (block.id !== id || block.type === type) {
+        return block;
+      }
+      const text = blockToPlainText(block);
+      const nextBlock = createBlock(type);
+      return {
+        ...nextBlock,
+        id,
+        content: ['text', 'code', 'quote', 'callout'].includes(type) ? (type === 'text' ? escapeHtml(text) : text) : nextBlock.content,
+        items: type === 'checklist' ? [{ id: createId('check'), text, checked: false }] : nextBlock.items,
+        settings: { ...nextBlock.settings, ...block.settings },
+      };
+    }));
+    setActiveBlockId(id);
+    setSettingsOpen(true);
   }
 
   function deleteBlock(id: string) {
@@ -267,8 +283,45 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
     setSettingsOpen(false);
   }
 
+  function moveBlock(id: string, targetId: string) {
+    if (id === targetId) {
+      return;
+    }
+    setBlocks((current) => {
+      const fromIndex = current.findIndex((block) => block.id === id);
+      const toIndex = current.findIndex((block) => block.id === targetId);
+      if (fromIndex < 0 || toIndex < 0) {
+        return current;
+      }
+      const next = [...current];
+      const [movedBlock] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, movedBlock);
+      return next;
+    });
+  }
+
+  function rememberSelection() {
+    const selection = window.getSelection();
+    const editorRoot = document.querySelector('.block-editor-shell');
+    if (!selection || selection.rangeCount === 0 || !editorRoot || !selection.anchorNode || !editorRoot.contains(selection.anchorNode)) {
+      return;
+    }
+    selectionRef.current = selection.getRangeAt(0).cloneRange();
+  }
+
+  function restoreSelection() {
+    const selection = window.getSelection();
+    if (!selection || !selectionRef.current) {
+      return;
+    }
+    selection.removeAllRanges();
+    selection.addRange(selectionRef.current);
+  }
+
   function applyCommand(command: string, value?: string) {
+    restoreSelection();
     document.execCommand(command, false, value);
+    rememberSelection();
   }
 
   function createLink() {
@@ -283,13 +336,15 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
     if (!Number.isFinite(nextSize) || nextSize < 8 || nextSize > 96) {
       return;
     }
+    restoreSelection();
     document.execCommand('fontSize', false, '4');
-    document.querySelectorAll('font[size="4"]').forEach((font) => {
+    document.querySelectorAll('.block-editor-shell font[size="4"]').forEach((font) => {
       const span = document.createElement('span');
       span.style.fontSize = `${nextSize}px`;
       span.innerHTML = font.innerHTML;
       font.replaceWith(span);
     });
+    rememberSelection();
   }
 
   function handleMenuAdd(type: BlockType) {
@@ -383,7 +438,8 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
                 blockMenu={blockMenu}
                 onAddBlock={handleMenuAdd}
                 onBlockMenuChange={setBlockMenu}
-                onDeleteBlock={deleteBlock}
+                onMoveBlock={moveBlock}
+                onRememberSelection={rememberSelection}
                 onSelectBlock={(id) => {
                   setActiveBlockId(id);
                   setSettingsOpen(true);
@@ -444,7 +500,16 @@ function NoteTopBar({
             <Code2 size={17} aria-hidden="true" />
             Markdown
           </button>
-          <button className="button primary" type={onSaveClick ? 'button' : 'submit'} onClick={onSaveClick}>
+          <button
+            className="button primary"
+            type={onSaveClick ? 'button' : 'submit'}
+            onMouseDown={() => {
+              if (document.activeElement instanceof HTMLElement) {
+                document.activeElement.blur();
+              }
+            }}
+            onClick={onSaveClick}
+          >
             <Save size={17} aria-hidden="true" />
             {t('Save')}
           </button>
@@ -537,7 +602,15 @@ function FormattingToolbar({
 }) {
   const { t } = useI18n();
   return (
-    <div className="note-editor-toolbar modern-note-toolbar" aria-label={t('Editor toolbar')}>
+    <div
+      className="note-editor-toolbar modern-note-toolbar"
+      aria-label={t('Editor toolbar')}
+      onMouseDown={(event) => {
+        if ((event.target as HTMLElement).closest('button')) {
+          event.preventDefault();
+        }
+      }}
+    >
       <div className="note-toolbar-tabs modern-note-tool-tabs" role="tablist" aria-label={t('Add blocks')}>
         {toolbarTabs.map((tab) => (
           <button
@@ -614,7 +687,8 @@ function BlockEditor({
   blockMenu,
   onAddBlock,
   onBlockMenuChange,
-  onDeleteBlock,
+  onMoveBlock,
+  onRememberSelection,
   onSelectBlock,
   onUpdateBlock,
 }: {
@@ -623,13 +697,25 @@ function BlockEditor({
   blockMenu: MenuState | null;
   onAddBlock: (type: BlockType) => void;
   onBlockMenuChange: (state: MenuState | null) => void;
-  onDeleteBlock: (id: string) => void;
+  onMoveBlock: (id: string, targetId: string) => void;
+  onRememberSelection: () => void;
   onSelectBlock: (id: string) => void;
   onUpdateBlock: (id: string, patch: Partial<EditorBlockData>) => void;
 }) {
   const { t } = useI18n();
   return (
-    <main className="block-editor-shell">
+    <main
+      className="block-editor-shell"
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.key === '/' && blocks.length === 0) {
+          event.preventDefault();
+          onBlockMenuChange({ kind: 'bottom' });
+        }
+      }}
+      onKeyUp={onRememberSelection}
+      onMouseUp={onRememberSelection}
+    >
       {blocks.length === 0 ? (
         <div className="block-editor-empty-state">
           <strong>Начните писать заметку...</strong>
@@ -653,8 +739,8 @@ function BlockEditor({
                 key={block.id}
                 menuKind={blockMenu?.kind}
                 onAddBlock={onAddBlock}
-                onDeleteBlock={onDeleteBlock}
                 onMenuChange={onBlockMenuChange}
+                onMoveBlock={onMoveBlock}
                 onSelect={onSelectBlock}
                 onUpdate={onUpdateBlock}
               />
@@ -679,8 +765,8 @@ function EditorBlock({
   isMenuOpen,
   menuKind,
   onAddBlock,
-  onDeleteBlock,
   onMenuChange,
+  onMoveBlock,
   onSelect,
   onUpdate,
 }: {
@@ -689,8 +775,8 @@ function EditorBlock({
   isMenuOpen: boolean;
   menuKind?: MenuState['kind'];
   onAddBlock: (type: BlockType) => void;
-  onDeleteBlock: (id: string) => void;
   onMenuChange: (state: MenuState | null) => void;
+  onMoveBlock: (id: string, targetId: string) => void;
   onSelect: (id: string) => void;
   onUpdate: (id: string, patch: Partial<EditorBlockData>) => void;
 }) {
@@ -707,9 +793,29 @@ function EditorBlock({
         background: block.settings.backgroundColor === 'transparent' ? undefined : block.settings.backgroundColor,
       }}
       onClick={() => onSelect(block.id)}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        const draggedId = event.dataTransfer.getData('text/plain');
+        if (draggedId) {
+          onMoveBlock(draggedId, block.id);
+        }
+      }}
     >
       <div className="editor-block-controls">
-        <span className="block-drag-handle" aria-label="Drag block" title="Перетаскивание блока">
+        <span
+          className="block-drag-handle"
+          draggable
+          aria-label="Drag block"
+          title="Перетаскивание блока"
+          onDragStart={(event) => {
+            event.dataTransfer.setData('text/plain', block.id);
+            event.dataTransfer.effectAllowed = 'move';
+          }}
+        >
           <GripVertical size={16} aria-hidden="true" />
         </span>
         <button className="block-side-button" type="button" aria-label="Add block below" onClick={(event) => { event.stopPropagation(); onMenuChange(isMenuOpen ? null : { kind: 'after', id: block.id }); }}>
@@ -719,7 +825,6 @@ function EditorBlock({
       {isMenuOpen ? <BlockInsertMenu onAdd={onAddBlock} variant={menuKind} /> : null}
       <BlockContent
         block={block}
-        onDeleteBlock={onDeleteBlock}
         onSlash={() => onMenuChange({ kind: 'replace', id: block.id })}
         onUpdate={onUpdate}
       />
@@ -729,17 +834,15 @@ function EditorBlock({
 
 function BlockContent({
   block,
-  onDeleteBlock,
   onSlash,
   onUpdate,
 }: {
   block: EditorBlockData;
-  onDeleteBlock: (id: string) => void;
   onSlash: () => void;
   onUpdate: (id: string, patch: Partial<EditorBlockData>) => void;
 }) {
   if (block.type === 'checklist') {
-    const items = block.items?.length ? block.items : [{ id: createId('check'), text: '', checked: false }];
+    const items = block.items ?? [];
     return (
       <div className={`block-checklist checkbox-${block.settings.checkboxStyle}`}>
         {items.map((item, index) => (
@@ -752,17 +855,19 @@ function BlockContent({
             <span
               contentEditable
               data-placeholder="Новый пункт..."
-              onInput={(event) => onUpdate(block.id, { items: items.map((current) => (current.id === item.id ? { ...current, text: event.currentTarget.textContent ?? '' } : current)) })}
+              onBlur={(event) => onUpdate(block.id, { items: items.map((current) => (current.id === item.id ? { ...current, text: event.currentTarget.textContent ?? '' } : current)) })}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
-                  onUpdate(block.id, { items: [...items.slice(0, index + 1), { id: createId('check'), text: '', checked: false }, ...items.slice(index + 1)] });
+                  const currentText = event.currentTarget.textContent ?? '';
+                  const updatedItems = items.map((current) => (current.id === item.id ? { ...current, text: currentText } : current));
+                  onUpdate(block.id, { items: [...updatedItems.slice(0, index + 1), { id: createId('check'), text: '', checked: false }, ...updatedItems.slice(index + 1)] });
                 }
-                if (event.key === 'Backspace' && !item.text && items.length > 1) {
+                if (event.key === 'Backspace' && !(event.currentTarget.textContent ?? '').trim() && items.length > 1) {
                   event.preventDefault();
                   onUpdate(block.id, { items: items.filter((current) => current.id !== item.id) });
                 }
-                if (event.key === '/') {
+                if (event.key === '/' && !(event.currentTarget.textContent ?? '').trim()) {
                   event.preventDefault();
                   onSlash();
                 }
@@ -828,7 +933,7 @@ function BlockContent({
                       contentEditable
                       data-padding={block.settings.cellPadding}
                       key={`${block.id}-${rowIndex}-${cellIndex}`}
-                      onInput={(event) => {
+                      onBlur={(event) => {
                         const tableRows = rows.map((currentRow) => [...currentRow]);
                         tableRows[rowIndex][cellIndex] = event.currentTarget.textContent ?? '';
                         onUpdate(block.id, { tableRows });
@@ -877,7 +982,7 @@ function BlockContent({
           <figcaption
             contentEditable
             data-placeholder="Подпись..."
-            onInput={(event) => onUpdate(block.id, { meta: { ...block.meta, caption: event.currentTarget.textContent ?? '' } })}
+            onBlur={(event) => onUpdate(block.id, { meta: { ...block.meta, caption: event.currentTarget.textContent ?? '' } })}
             suppressContentEditableWarning
           >
             {String(block.meta?.caption ?? '')}
@@ -894,8 +999,13 @@ function BlockContent({
         <code
           contentEditable
           data-placeholder="Введите код..."
-          onInput={(event) => onUpdate(block.id, { content: event.currentTarget.textContent ?? '' })}
-          onKeyDown={(event) => event.key === '/' && onSlash()}
+          onBlur={(event) => onUpdate(block.id, { content: event.currentTarget.textContent ?? '' })}
+          onKeyDown={(event) => {
+            if (event.key === '/' && !(event.currentTarget.textContent ?? '').trim()) {
+              event.preventDefault();
+              onSlash();
+            }
+          }}
           suppressContentEditableWarning
         >
           {block.content}
@@ -910,8 +1020,13 @@ function BlockContent({
         <span
           contentEditable
           data-placeholder="Введите цитату..."
-          onInput={(event) => onUpdate(block.id, { content: event.currentTarget.textContent ?? '' })}
-          onKeyDown={(event) => event.key === '/' && onSlash()}
+          onBlur={(event) => onUpdate(block.id, { content: event.currentTarget.textContent ?? '' })}
+          onKeyDown={(event) => {
+            if (event.key === '/' && !(event.currentTarget.textContent ?? '').trim()) {
+              event.preventDefault();
+              onSlash();
+            }
+          }}
           suppressContentEditableWarning
         >
           {block.content}
@@ -920,7 +1035,7 @@ function BlockContent({
           <cite
             contentEditable
             data-placeholder="Автор..."
-            onInput={(event) => onUpdate(block.id, { meta: { ...block.meta, author: event.currentTarget.textContent ?? '' } })}
+            onBlur={(event) => onUpdate(block.id, { meta: { ...block.meta, author: event.currentTarget.textContent ?? '' } })}
             suppressContentEditableWarning
           >
             {String(block.meta?.author ?? '')}
@@ -938,7 +1053,7 @@ function BlockContent({
           <strong
             contentEditable
             data-placeholder="Заголовок..."
-            onInput={(event) => onUpdate(block.id, { meta: { ...block.meta, title: event.currentTarget.textContent ?? '' } })}
+            onBlur={(event) => onUpdate(block.id, { meta: { ...block.meta, title: event.currentTarget.textContent ?? '' } })}
             suppressContentEditableWarning
           >
             {String(block.meta?.title ?? '')}
@@ -946,8 +1061,13 @@ function BlockContent({
           <span
             contentEditable
             data-placeholder="Введите текст..."
-            onInput={(event) => onUpdate(block.id, { content: event.currentTarget.textContent ?? '' })}
-            onKeyDown={(event) => event.key === '/' && onSlash()}
+            onBlur={(event) => onUpdate(block.id, { content: event.currentTarget.textContent ?? '' })}
+            onKeyDown={(event) => {
+              if (event.key === '/' && !(event.currentTarget.textContent ?? '').trim()) {
+                event.preventDefault();
+                onSlash();
+              }
+            }}
             suppressContentEditableWarning
           >
             {block.content}
@@ -963,7 +1083,7 @@ function BlockContent({
       contentEditable
       data-placeholder="Введите текст..."
       dangerouslySetInnerHTML={{ __html: block.content }}
-      onInput={(event) => onUpdate(block.id, { content: event.currentTarget.innerHTML })}
+      onBlur={(event) => onUpdate(block.id, { content: event.currentTarget.innerHTML })}
       onKeyDown={(event) => {
         if (event.key === '/' && !stripHtml(event.currentTarget.innerHTML)) {
           event.preventDefault();
@@ -1253,11 +1373,75 @@ function EditorStatusBar({ stats }: { stats: { words: number; chars: number; blo
   );
 }
 
+function blockToPlainText(block: EditorBlockData) {
+  if (block.type === 'checklist') {
+    return (block.items ?? []).map((item) => item.text).filter(Boolean).join('\n');
+  }
+  if (block.type === 'table') {
+    return (block.tableRows ?? []).map((row) => row.join('\t')).join('\n');
+  }
+  if (block.type === 'text') {
+    return stripHtml(block.content);
+  }
+  const metaText = [String(block.meta?.title ?? ''), String(block.meta?.author ?? ''), String(block.meta?.caption ?? '')].filter(Boolean).join(' ');
+  return [block.content, metaText].filter(Boolean).join(' ').trim();
+}
+
 function initialBlocks(note?: Note | null): EditorBlockData[] {
   if (!note?.content) {
     return [];
   }
+  const serializedBlocks = readSerializedBlocks(note.content);
+  if (serializedBlocks.length > 0) {
+    return serializedBlocks;
+  }
   return [createBlock('text', noteEditorHtml(note))];
+}
+
+function readSerializedBlocks(content: string): EditorBlockData[] {
+  const match = /<!--mymind-blocks:([\s\S]*?)-->/.exec(content);
+  if (!match) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(decodeURIComponent(match[1])) as Array<Partial<EditorBlockData>>;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .filter((block): block is Partial<EditorBlockData> & { id: string; type: BlockType } => Boolean(block.id && block.type && blockTypeOptions.some((option) => option.type === block.type)))
+      .map((block) => ({
+        id: block.id,
+        type: block.type,
+        content: typeof block.content === 'string' ? block.content : '',
+        items: block.type === 'checklist' ? normalizeChecklistItems(block.items) : undefined,
+        tableRows: block.type === 'table' ? normalizeTableRows(block.tableRows) : undefined,
+        meta: block.meta && typeof block.meta === 'object' ? block.meta : block.type === 'callout' || block.type === 'quote' || block.type === 'image' ? {} : undefined,
+        settings: { ...defaultBlockSettings, ...(block.settings ?? {}) },
+      }));
+  } catch {
+    return [];
+  }
+}
+
+function normalizeChecklistItems(items: EditorBlockData['items']) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return [{ id: createId('check'), text: '', checked: false }];
+  }
+  return items.map((item) => ({
+    id: item.id || createId('check'),
+    text: item.text ?? '',
+    checked: Boolean(item.checked),
+  }));
+}
+
+function normalizeTableRows(rows: EditorBlockData['tableRows']) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return emptyTableRows();
+  }
+  const normalized = rows.map((row) => (Array.isArray(row) ? row.map((cell) => String(cell ?? '')) : ['', '']));
+  const width = Math.max(1, ...normalized.map((row) => row.length));
+  return normalized.map((row) => [...row, ...new Array(width - row.length).fill('')]);
 }
 
 function createBlock(type: BlockType, content = ''): EditorBlockData {
@@ -1277,6 +1461,14 @@ function emptyTableRows(rows = 2, columns = 2) {
 }
 
 function blocksToHtml(blocks: EditorBlockData[]) {
+  const html = renderBlocksHtml(blocks);
+  if (blocks.length === 0) {
+    return html;
+  }
+  return `<!--mymind-blocks:${encodeURIComponent(JSON.stringify(blocks))}-->${html}`;
+}
+
+function renderBlocksHtml(blocks: EditorBlockData[]) {
   return blocks.map((block) => {
     const style = blockStyleToString(block.settings);
     if (block.type === 'text') {
