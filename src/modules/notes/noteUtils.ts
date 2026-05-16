@@ -1,5 +1,18 @@
 import type { Note } from './types';
 
+export const NOTE_SCHEMA_VERSION = 2;
+
+type MyMindEditorBlock = {
+  id?: string;
+  type?: string;
+  content?: unknown;
+  checked?: boolean;
+  rows?: unknown;
+  props?: Record<string, unknown>;
+};
+
+export type MyMindEditorContent = Array<Record<string, unknown>>;
+
 export function noteTags(notes: Note[]) {
   return Array.from(new Set(notes.flatMap((note) => note.tags))).sort();
 }
@@ -36,18 +49,46 @@ export function stripHtml(value: string) {
 }
 
 export function notePreview(note: Note, maxLength = 160) {
-  const text = notePlainText(note);
+  const text = getNotePlainText(note);
   return text.length > maxLength ? `${text.slice(0, maxLength).trim()}...` : text;
 }
 
 export function notePlainText(note: Note) {
+  return getNotePlainText(note);
+}
+
+export function getNotePlainText(note: Note) {
+  if (note.editorPlainText?.trim()) {
+    return note.editorPlainText.trim();
+  }
+  const editorText = editorContentToPlainText(getNoteEditorContent(note));
+  if (editorText) {
+    return editorText;
+  }
   if (note.contentFormat === 'markdown') {
     return stripMarkdown(note.content);
   }
   return stripHtml(note.content);
 }
 
+export function getNotePreview(note: Note, maxLength = 160) {
+  return notePreview(note, maxLength);
+}
+
+export function getNoteEditorContent(note?: Note | null): MyMindEditorContent {
+  if (Array.isArray(note?.editorContent)) {
+    return note.editorContent as MyMindEditorContent;
+  }
+  if (!note) {
+    return [];
+  }
+  return contentToBlockNoteFallback(note);
+}
+
 export function noteEditorHtml(note?: Note | null) {
+  if (note?.editorHtml) {
+    return note.editorHtml;
+  }
   if (!note?.content) {
     return '';
   }
@@ -64,6 +105,9 @@ export function noteEditorHtml(note?: Note | null) {
 }
 
 export function noteReaderHtml(note?: Note | null) {
+  if (note?.editorHtml) {
+    return note.editorHtml;
+  }
   if (!note?.content) {
     return '';
   }
@@ -173,6 +217,212 @@ export function escapeHtml(value: string) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+export function migrateNote(note: Note): Note {
+  if (note.schemaVersion === NOTE_SCHEMA_VERSION && Array.isArray(note.editorContent)) {
+    return {
+      ...note,
+      category: note.category ?? '',
+      tags: note.tags ?? [],
+      properties: note.properties ?? [],
+      assets: note.assets ?? [],
+      editorPlainText: note.editorPlainText ?? getNotePlainText(note),
+      content: note.content ?? note.editorPlainText ?? '',
+    };
+  }
+
+  const editorContent = getMigratedEditorContent(note);
+  const editorPlainText = editorContentToPlainText(editorContent) || legacyContentToPlainText(note);
+  const editorHtml = note.contentFormat === 'html' ? stripLegacyBlocksComment(note.content) : '';
+
+  return {
+    ...note,
+    category: note.category ?? '',
+    tags: note.tags ?? [],
+    properties: note.properties ?? [],
+    assets: note.assets ?? [],
+    schemaVersion: NOTE_SCHEMA_VERSION,
+    editorContent,
+    editorPlainText,
+    editorHtml,
+    content: editorHtml || editorPlainText || stripLegacyBlocksComment(note.content ?? ''),
+    contentFormat: editorHtml ? 'html' : 'plain',
+  };
+}
+
+export function editorContentToPlainText(content: unknown): string {
+  if (!Array.isArray(content)) {
+    return '';
+  }
+  const parts: string[] = [];
+
+  function walk(blocks: unknown[]) {
+    for (const block of blocks) {
+      if (!block || typeof block !== 'object') {
+        continue;
+      }
+      const current = block as Record<string, unknown>;
+      const blockText = inlineContentToText(current.content);
+      if (blockText) {
+        parts.push(blockText);
+      }
+      if (current.type === 'image' && typeof (current.props as Record<string, unknown> | undefined)?.caption === 'string') {
+        parts.push(String((current.props as Record<string, unknown>).caption));
+      }
+      if (Array.isArray(current.children)) {
+        walk(current.children);
+      }
+    }
+  }
+
+  walk(content);
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+export function legacyContentToPlainText(note: Note) {
+  if (note.contentFormat === 'markdown') {
+    return stripMarkdown(stripLegacyBlocksComment(note.content ?? ''));
+  }
+  return stripHtml(stripLegacyBlocksComment(note.content ?? ''));
+}
+
+function getMigratedEditorContent(note: Note): MyMindEditorContent {
+  const legacyBlocks = readLegacyBlocks(note.content ?? '');
+  if (legacyBlocks.length > 0) {
+    const migrated = legacyBlocksToBlockNote(legacyBlocks);
+    if (migrated.length > 0) {
+      return migrated;
+    }
+  }
+  return contentToBlockNoteFallback(note);
+}
+
+function contentToBlockNoteFallback(note: Note): MyMindEditorContent {
+  const plainText = legacyContentToPlainText(note);
+  if (!plainText) {
+    return [];
+  }
+  return textToParagraphBlocks(plainText);
+}
+
+function textToParagraphBlocks(value: string): MyMindEditorContent {
+  return value
+    .replace(/\r\n/g, '\n')
+    .split(/\n{2,}/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => ({
+      type: 'paragraph',
+      content: line,
+    }));
+}
+
+function legacyBlocksToBlockNote(blocks: MyMindEditorBlock[]): MyMindEditorContent {
+  const result: MyMindEditorContent = [];
+
+  for (const block of blocks) {
+    const type = block.type ?? 'text';
+    if (type === 'checklist') {
+      const items = Array.isArray(block.content) ? block.content : [];
+      if (items.length === 0) {
+        result.push({ type: 'checkListItem', content: '' });
+      } else {
+        for (const item of items) {
+          if (item && typeof item === 'object') {
+            const value = item as Record<string, unknown>;
+            result.push({
+              type: 'checkListItem',
+              props: { checked: Boolean(value.checked) },
+              content: String(value.text ?? value.content ?? ''),
+            });
+          } else {
+            result.push({ type: 'checkListItem', content: String(item ?? '') });
+          }
+        }
+      }
+      continue;
+    }
+
+    if (type === 'divider') {
+      result.push({ type: 'divider' });
+      continue;
+    }
+
+    if (type === 'quote') {
+      result.push({ type: 'quote', content: stripHtml(String(block.content ?? '')) });
+      continue;
+    }
+
+    if (type === 'code') {
+      result.push({ type: 'codeBlock', content: String(block.content ?? '') });
+      continue;
+    }
+
+    if (type === 'image') {
+      const props = block.props ?? {};
+      const url = String(props.url ?? props.src ?? block.content ?? '');
+      result.push({ type: 'image', props: { url, caption: String(props.caption ?? '') } });
+      continue;
+    }
+
+    if (type === 'table') {
+      const tableText = Array.isArray(block.rows) ? block.rows.map((row) => (Array.isArray(row) ? row.join('\t') : String(row))).join('\n') : '';
+      result.push({ type: 'paragraph', content: tableText || stripHtml(String(block.content ?? '')) });
+      continue;
+    }
+
+    const text = stripHtml(String(block.content ?? ''));
+    if (text) {
+      result.push({ type: 'paragraph', content: text });
+    }
+  }
+
+  return result;
+}
+
+function readLegacyBlocks(content: string): MyMindEditorBlock[] {
+  const match = /<!--mymind-blocks:([\s\S]*?)-->/.exec(content);
+  if (!match) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(decodeURIComponent(match[1]));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    try {
+      const parsed = JSON.parse(match[1]);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+}
+
+function stripLegacyBlocksComment(value: string) {
+  return value.replace(/<!--mymind-blocks:[\s\S]*?-->/g, '').trim();
+}
+
+function inlineContentToText(content: unknown): string {
+  if (!content) {
+    return '';
+  }
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return content.map(inlineContentToText).join('');
+  }
+  if (typeof content === 'object') {
+    const value = content as Record<string, unknown>;
+    if (typeof value.text === 'string') {
+      return value.text;
+    }
+    if (Array.isArray(value.content)) {
+      return value.content.map(inlineContentToText).join('');
+    }
+  }
+  return '';
 }
 
 function inlineMarkdown(value: string) {

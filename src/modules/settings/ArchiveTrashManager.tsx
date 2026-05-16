@@ -1,4 +1,4 @@
-import { Archive, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, ChevronDown, ChevronUp, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { AppData } from '../../App';
 import { CloseButton, DeleteButton } from '../../shared/components/ActionButtons';
@@ -56,6 +56,7 @@ export function ArchiveTrashManager({ data, onChange, onClose, onStatusMessage }
   const archiveRows = getRows(data, 'archive');
   const trashRows = getRows(data, 'trash');
   const [activeTab, setActiveTab] = useState<ArchiveTab>(trashRows.length > 0 ? 'trash' : 'archive');
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const rows = activeTab === 'archive' ? archiveRows : trashRows;
 
   function updateCollection(config: CollectionConfig, updater: (items: ManagedItem[]) => ManagedItem[], message: string) {
@@ -92,6 +93,10 @@ export function ArchiveTrashManager({ data, onChange, onClose, onStatusMessage }
     updateCollection(config, (items) => items.filter((item) => item.id !== id), 'Item permanently deleted.');
   }
 
+  function toggleExpanded(rowKey: string) {
+    setExpandedRows((current) => ({ ...current, [rowKey]: !current[rowKey] }));
+  }
+
   return (
     <div className="archive-window-backdrop">
       <section className="archive-window" role="dialog" aria-modal="true" aria-label={t('Archive and Trash')}>
@@ -121,47 +126,58 @@ export function ArchiveTrashManager({ data, onChange, onClose, onStatusMessage }
           </div>
         ) : (
           <div className="archive-list">
-            {rows.map((row) => (
-              <article className="archive-row" key={`${row.config.key}-${row.item.id}`}>
-                <div className="archive-row-main">
-                  <span className="chip">{t(row.config.label)}</span>
-                  <h3>{row.title}</h3>
-                  <p>{row.detail || t('No description.')}</p>
-                  <small>
-                    {t(row.state === 'archive' ? 'Archived' : 'In trash')}: {formatDate(row.date)}
-                    {row.state === 'trash' && row.item.trashExpiresAt ? ` / ${t('Expires')}: ${formatDate(row.item.trashExpiresAt)}` : ''}
-                  </small>
-                </div>
-                <div className="archive-row-actions">
-                  {row.state === 'trash' ? (
-                    <button className="button ghost" type="button" onClick={() => archiveItem(row.config, row.item.id)}>
-                      <Archive size={16} aria-hidden="true" />
-                      <span>{t('Archive')}</span>
-                    </button>
-                  ) : null}
-                  <button className="button ghost" type="button" onClick={() => restoreItem(row.config, row.item.id)}>
-                    <RotateCcw size={16} aria-hidden="true" />
-                    <span>{t('Restore')}</span>
-                  </button>
-                  {row.state === 'archive' ? (
-                    <DeleteButton
-                      iconOnly={false}
-                      label="Move to trash"
-                      confirmTitle="Move to trash?"
-                      confirmMessage="The item will stay in trash for 30 days before permanent deletion."
-                      onConfirm={() => moveToTrash(row.config, row.item.id)}
-                    />
-                  ) : null}
-                  <DeleteButton
-                    iconOnly={false}
-                    label="Delete forever"
-                    confirmTitle="Delete forever?"
-                    confirmMessage="This permanently removes the item from local JSON storage."
-                    onConfirm={() => deleteForever(row.config, row.item.id)}
-                  />
-                </div>
-              </article>
-            ))}
+            {rows.map((row) => {
+              const rowKey = `${row.config.key}-${row.item.id}`;
+              const isExpanded = Boolean(expandedRows[rowKey]);
+              const detail = row.detail || t('No description.');
+              return (
+                <article className="archive-row" key={rowKey}>
+                  <div className="archive-row-top">
+                    <div className="archive-row-heading">
+                      <span className="chip">{t(row.config.label)}</span>
+                      <h3>{row.title}</h3>
+                      <small>
+                        {t(row.state === 'archive' ? 'Archived' : 'In trash')}: {formatDate(row.date)}
+                        {row.state === 'trash' && row.item.trashExpiresAt ? ` / ${t('Expires')}: ${formatDate(row.item.trashExpiresAt)}` : ''}
+                      </small>
+                    </div>
+                    <div className="archive-row-actions">
+                      <button className="button ghost" type="button" onClick={() => toggleExpanded(rowKey)}>
+                        {isExpanded ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
+                        <span>{t(isExpanded ? 'Show less' : 'Show fully')}</span>
+                      </button>
+                      {row.state === 'trash' ? (
+                        <button className="button ghost" type="button" onClick={() => archiveItem(row.config, row.item.id)}>
+                          <Archive size={16} aria-hidden="true" />
+                          <span>{t('Archive')}</span>
+                        </button>
+                      ) : null}
+                      <button className="button ghost" type="button" onClick={() => restoreItem(row.config, row.item.id)}>
+                        <RotateCcw size={16} aria-hidden="true" />
+                        <span>{t('Restore')}</span>
+                      </button>
+                      {row.state === 'archive' ? (
+                        <DeleteButton
+                          iconOnly={false}
+                          label="Move to trash"
+                          confirmTitle="Move to trash?"
+                          confirmMessage="The item will stay in trash for 30 days before permanent deletion."
+                          onConfirm={() => moveToTrash(row.config, row.item.id)}
+                        />
+                      ) : null}
+                      <DeleteButton
+                        iconOnly={false}
+                        label="Delete forever"
+                        confirmTitle="Delete forever?"
+                        confirmMessage="This permanently removes the item from local JSON storage."
+                        onConfirm={() => deleteForever(row.config, row.item.id)}
+                      />
+                    </div>
+                  </div>
+                  <p className={`archive-row-detail${isExpanded ? ' expanded' : ''}`}>{detail}</p>
+                </article>
+              );
+            })}
           </div>
         )}
       </section>
@@ -247,11 +263,27 @@ function getFirstText(item: ManagedItem, keys: string[]) {
   for (const key of keys) {
     const value = item[key];
     if (typeof value === 'string' && value.trim()) {
-      return value;
+      return normalizePreviewText(value);
     }
     if (typeof value === 'number') {
       return String(value);
     }
   }
   return '';
+}
+
+function normalizePreviewText(value: string) {
+  return value
+    .replace(/<!--mymind-blocks:[\s\S]*?-->/g, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
 }

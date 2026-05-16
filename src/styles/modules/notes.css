@@ -185,6 +185,9 @@
 }
 
 .note-editor-toolbar {
+  position: sticky;
+  top: 10px;
+  z-index: 12;
   display: grid;
   gap: 8px;
   overflow: hidden;
@@ -246,8 +249,7 @@
 }
 
 .modern-note-format-row {
-  border-top: 1px solid var(--line-soft);
-  padding-top: 8px;
+  padding-top: 0;
 }
 
 .note-workbench {
@@ -296,7 +298,29 @@
   border-radius: 12px;
   background: color-mix(in srgb, var(--surface) 96%, white 4%);
   padding: 18px;
+  font-size: var(--block-font-size, 16px);
   box-shadow: none;
+}
+
+.editor-block[data-text-style="h1"] .block-text-content,
+.editor-block[data-text-style="h1"] .block-quote,
+.editor-block[data-text-style="h1"] .block-callout {
+  font-size: 1.65em;
+  font-weight: 850;
+}
+
+.editor-block[data-text-style="h2"] .block-text-content,
+.editor-block[data-text-style="h2"] .block-quote,
+.editor-block[data-text-style="h2"] .block-callout {
+  font-size: 1.38em;
+  font-weight: 780;
+}
+
+.editor-block[data-text-style="h3"] .block-text-content,
+.editor-block[data-text-style="h3"] .block-quote,
+.editor-block[data-text-style="h3"] .block-callout {
+  font-size: 1.16em;
+  font-weight: 720;
 }
 
 .editor-block[data-padding="s"] {
@@ -391,6 +415,7 @@
 
 .block-text-content {
   min-height: 44px;
+  background: var(--block-highlight, transparent);
   outline: none;
   line-height: 1.55;
 }
@@ -413,7 +438,7 @@
   gap: 10px;
 }
 
-.block-checklist label {
+.block-checklist-item {
   position: relative;
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
@@ -423,15 +448,8 @@
   color: var(--text);
 }
 
-.block-checklist input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.block-checklist label::before {
+.block-check-button {
+  position: relative;
   display: grid;
   width: 20px;
   height: 20px;
@@ -439,6 +457,7 @@
   border: 2px solid color-mix(in srgb, var(--accent) 72%, var(--border));
   border-radius: 999px;
   background: var(--surface-strong);
+  padding: 0;
   content: "";
   transition:
     background 0.16s ease,
@@ -446,20 +465,18 @@
     box-shadow 0.16s ease;
 }
 
-.block-checklist.checkbox-square label::before {
+.block-checklist.checkbox-square .block-check-button {
   border-radius: 6px;
 }
 
-.block-checklist label.checked::before {
+.block-checklist-item.checked .block-check-button {
   border-color: var(--checked-color, var(--positive));
   background: var(--checked-color, var(--positive));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--positive) 16%, transparent);
 }
 
-.block-checklist label.checked::after {
+.block-checklist-item.checked .block-check-button::after {
   position: absolute;
-  left: 6px;
-  top: 5px;
   width: 9px;
   height: 5px;
   border-bottom: 2px solid white;
@@ -473,6 +490,7 @@
   line-height: 1.5;
   outline: none;
   overflow-wrap: anywhere;
+  background: var(--block-highlight, transparent);
 }
 
 .block-add-line {
@@ -579,9 +597,21 @@
 
 .block-drawing-sheet {
   min-height: 240px;
+  position: relative;
+  overflow: hidden;
   border-radius: 10px;
   background: var(--sheet-bg, var(--surface-soft));
   outline: 1px solid var(--line-soft);
+}
+
+.block-drawing-sheet canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
 }
 
 .block-drawing-sheet.grid-on {
@@ -721,29 +751,37 @@
 
 .block-insert-menu {
   position: absolute;
-  z-index: 20;
+  z-index: 40;
   left: 14px;
-  top: 48px;
   display: grid;
-  width: min(310px, calc(100vw - 48px));
-  overflow: hidden;
+  width: min(260px, calc(100vw - 48px));
+  max-height: min(360px, calc(100vh - 48px));
+  overflow: auto;
   border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
-  border-radius: 12px;
+  border-radius: 10px;
   background: color-mix(in srgb, var(--surface) 96%, black 4%);
   box-shadow: 0 24px 70px var(--shadow-strong);
-  padding: 6px;
+  padding: 5px;
+}
+
+.block-insert-menu[data-placement="bottom"] {
+  top: 40px;
+}
+
+.block-insert-menu[data-placement="top"] {
+  bottom: 40px;
 }
 
 .block-insert-menu button {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 4px 10px;
+  gap: 2px 9px;
   align-items: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
   color: var(--text);
-  padding: 9px;
+  padding: 7px 8px;
   text-align: left;
 }
 
@@ -758,6 +796,8 @@
 
 .block-insert-menu small {
   color: var(--muted);
+  font-size: 12px;
+  line-height: 1.25;
 }
 
 .note-add-block-wrap {
@@ -767,8 +807,16 @@
 
 .note-add-block-wrap .block-insert-menu {
   left: 50%;
-  top: calc(100% + 8px);
   transform: translateX(-50%);
+}
+
+.note-add-block-wrap .block-insert-menu[data-placement="bottom"] {
+  top: calc(100% + 8px);
+}
+
+.note-add-block-wrap .block-insert-menu[data-placement="top"] {
+  top: auto;
+  bottom: calc(100% + 8px);
 }
 
 .note-add-block-main {
@@ -784,14 +832,29 @@
 
 .block-settings-panel {
   position: sticky;
-  top: 16px;
+  top: 86px;
+  z-index: 20;
   display: grid;
-  gap: 14px;
+  min-width: 0;
+  max-width: 100%;
+  max-height: calc(100vh - 104px);
+  overflow: auto;
+  gap: 10px;
   border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
-  border-radius: 14px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--surface) 96%, black 5%);
   box-shadow: 0 20px 64px var(--shadow);
-  padding: 16px;
+  padding: 12px;
+}
+
+.block-settings-panel .button,
+.block-settings-panel button,
+.block-settings-panel input {
+  max-width: 100%;
+}
+
+.block-settings-panel .button {
+  white-space: normal;
 }
 
 .block-settings-header {
@@ -800,7 +863,7 @@
   justify-content: space-between;
   gap: 10px;
   border-bottom: 1px solid var(--line-soft);
-  padding-bottom: 12px;
+  padding-bottom: 9px;
 }
 
 .block-settings-header h2,
@@ -808,10 +871,18 @@
   margin: 0;
 }
 
+.block-settings-header h2 {
+  font-size: 18px;
+}
+
+.settings-group h3 {
+  font-size: 15px;
+}
+
 .block-settings-panel label,
 .settings-group {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .settings-select-card {
@@ -857,17 +928,20 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
+  min-width: 0;
   color: var(--muted);
+  font-size: 13px;
 }
 
 .block-setting-row.stacked {
   align-items: stretch;
+  min-width: 0;
 }
 
 .block-setting-row input[type="color"] {
-  width: 38px;
-  height: 34px;
+  width: 34px;
+  height: 32px;
   border-radius: 8px;
   padding: 3px;
 }
@@ -876,7 +950,7 @@
 .block-setting-row input[type="text"],
 .block-setting-row.stacked input {
   width: 100%;
-  min-height: 36px;
+  min-height: 32px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
   background: var(--surface-soft);
@@ -937,17 +1011,21 @@
 }
 
 .block-segmented-control {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
 }
 
 .block-segmented-control button {
-  min-height: 34px;
+  min-width: 0;
+  min-height: 30px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
   background: var(--surface-soft);
   color: var(--text);
+  overflow-wrap: anywhere;
+  padding: 5px 8px;
 }
 
 .block-segmented-control button.active {
@@ -956,6 +1034,11 @@
 }
 
 .block-delete-button {
+  width: 100%;
+  justify-content: center;
+}
+
+.block-actions-group .button {
   width: 100%;
   justify-content: center;
 }

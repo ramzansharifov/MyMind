@@ -12,10 +12,14 @@
     "dist:win": "npm run build && electron-builder --win"
   },
   "dependencies": {
+    "@blocknote/core": "^0.51.0",
+    "@blocknote/mantine": "^0.51.0",
+    "@blocknote/react": "^0.51.0",
     "lucide-react": "^1.14.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "recharts": "^3.8.1"
+    "recharts": "^3.8.1",
+    "tldraw": "^5.0.1"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",

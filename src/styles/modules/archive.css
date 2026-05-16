@@ -80,38 +80,66 @@
 
 .archive-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 16px;
-  align-items: center;
+  gap: 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-soft);
   padding: 14px;
 }
 
-.archive-row-main {
+.archive-row-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+
+.archive-row-heading {
   display: grid;
   min-width: 0;
   gap: 6px;
 }
 
-.archive-row-main .chip {
+.archive-row-heading .chip {
   width: fit-content;
 }
 
-.archive-row-main h3,
-.archive-row-main p {
+.archive-row-heading h3 {
   overflow-wrap: anywhere;
 }
 
-.archive-row-main p,
-.archive-row-main small {
+.archive-row-heading small {
   color: var(--muted);
+}
+
+.archive-row-detail {
+  position: relative;
+  max-height: 92px;
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.archive-row-detail.expanded {
+  max-height: none;
+}
+
+.archive-row-detail:not(.expanded)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 36px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--surface-soft));
 }
 
 .archive-row-actions {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 8px;
@@ -119,5 +147,25 @@
 
 .archive-empty {
   min-height: 260px;
+}
+
+@media (max-width: 720px) {
+  .archive-window-backdrop {
+    padding: 10px;
+  }
+
+  .archive-window {
+    width: min(100%, calc(100vw - 20px));
+    max-height: calc(100vh - 20px);
+    padding: 12px;
+  }
+
+  .archive-row-top {
+    grid-template-columns: 1fr;
+  }
+
+  .archive-row-actions {
+    justify-content: flex-start;
+  }
 }
 

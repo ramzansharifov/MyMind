@@ -23,6 +23,7 @@ import { JournalPage } from './modules/journal/JournalPage';
 import type { JournalEntry } from './modules/journal/types';
 import { NotesPage } from './modules/notes/NotesPage';
 import type { Note } from './modules/notes/types';
+import { migrateNote } from './modules/notes/noteUtils';
 import { SettingsPage } from './modules/settings/SettingsPage';
 import { ProjectsPage } from './modules/projects/ProjectsPage';
 import type { Project } from './modules/projects/types';
@@ -533,6 +534,7 @@ function normalizeData(data: AppData): AppData {
       })),
     },
     todos: normalizeTodoData(data.todos),
+    notes: (data.notes ?? []).map(migrateNote),
     calendarEvents: (data.calendarEvents ?? []).map((event) => ({
       ...event,
       tags: event.tags ?? (event.category ? [event.category] : []),
