@@ -5,38 +5,23 @@ import {
   CheckSquare,
   Code2,
   Copy,
-  FileText,
   Grid3X3,
   Image as ImageIcon,
-  ListTodo,
-  MessageSquareQuote,
-  Minus,
   PanelRight,
   Plus,
   Save,
   Settings2,
-  Sparkles,
   Tags,
   Trash2,
   Type,
   X,
 } from 'lucide-react';
-import { useCallback, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
-import {
-  BlockNoteSchema,
-  defaultBlockSpecs,
-  filterSuggestionItems,
-  insertOrUpdateBlockForSlashMenu,
-  type Block,
-  type BlockNoteEditor,
-  type PartialBlock,
-} from '@blocknote/core';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { BlockNoteSchema, defaultBlockSpecs, filterSuggestionItems, type Block, type BlockNoteEditor, type PartialBlock } from '@blocknote/core';
 import { BlockNoteView } from '@blocknote/mantine';
-import { createReactBlockSpec, getDefaultReactSlashMenuItems, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react';
-import { Tldraw, TldrawImage, type TLEditorSnapshot } from 'tldraw';
+import { getDefaultReactSlashMenuItems, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
-import 'tldraw/tldraw.css';
 import { createId } from '../../shared/utils/idGenerator';
 import { editorContentToPlainText, getNoteEditorContent, NOTE_SCHEMA_VERSION } from './noteUtils';
 import type { Note, NoteProperty, NotePropertyType } from './types';
@@ -52,75 +37,27 @@ type AnyEditor = BlockNoteEditor<any, any, any>;
 type AnyBlock = Block<any, any, any>;
 type AnyPartialBlock = PartialBlock<any, any, any>;
 
-const EMPTY_DOCUMENT: AnyPartialBlock[] = [{ type: 'paragraph', content: '' }];
-const COLOR_PRESETS = ['default', '#f8fafc', '#4db6a8', '#7aa2ff', '#f0c36a', '#ef7d78', '#b884f4'];
-const DRAWING_ASPECT_RATIOS = ['1:1', '4:3', '16:9', 'A4'] as const;
-
-const DrawingSheetBlock = createReactBlockSpec(
-  {
-    type: 'drawingSheet',
-    propSchema: {
-      snapshot: { default: '' },
-      aspectRatio: { default: '16:9', values: ['1:1', '4:3', '16:9', 'A4'] },
-      grid: { default: true },
-      penColor: { default: '#4db6a8' },
-      lineWidth: { default: 3, values: [1, 2, 3, 4, 6, 8] },
-    },
-    content: 'none',
-  },
-  {
-    render: DrawingBlock,
-    toExternalHTML: DrawingBlockPreview,
-  },
-);
-
-const CalloutBlock = createReactBlockSpec(
-  {
-    type: 'callout',
-    propSchema: {
-      kind: { default: 'info', values: ['info', 'warning', 'success', 'idea', 'danger'] },
-      textColor: { default: 'default' },
-      backgroundColor: { default: 'default' },
-      accentColor: { default: '#b884f4' },
-    },
-    content: 'inline',
-  },
-  {
-    render: (props) => (
-      <div
-        className={`note-callout-block note-callout-${props.block.props.kind}`}
-        style={{
-          color: resolveCssColor(props.block.props.textColor),
-          backgroundColor: resolveCssColor(props.block.props.backgroundColor),
-          borderLeftColor: props.block.props.accentColor,
-        }}
-      >
-        <Sparkles size={18} />
-        <div ref={props.contentRef} className="note-callout-content" />
-      </div>
-    ),
-    toExternalHTML: (props) => (
-      <aside
-        className={`note-callout-block note-callout-${props.block.props.kind}`}
-        style={{
-          color: resolveCssColor(props.block.props.textColor),
-          backgroundColor: resolveCssColor(props.block.props.backgroundColor),
-          borderLeftColor: props.block.props.accentColor,
-        }}
-      >
-        <div ref={props.contentRef} />
-      </aside>
-    ),
-  },
-);
-
 const noteSchema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
-    drawingSheet: DrawingSheetBlock(),
-    callout: CalloutBlock(),
   },
 });
+
+const EMPTY_DOCUMENT: AnyPartialBlock[] = [{ type: 'paragraph' } as any];
+const COLOR_PRESETS = ['default', '#f8fafc', '#4db6a8', '#7aa2ff', '#f0c36a', '#ef7d78', '#b884f4'];
+const SUPPORTED_BLOCK_TYPES = new Set([
+  'paragraph',
+  'heading',
+  'bulletListItem',
+  'numberedListItem',
+  'checkListItem',
+  'table',
+  'image',
+  'video',
+  'audio',
+  'file',
+  'codeBlock',
+]);
 
 export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) {
   const initialContent = useMemo(() => sanitizeInitialContent(getNoteEditorContent(note)), [note?.id]);
@@ -134,6 +71,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
   const [dirty, setDirty] = useState(false);
   const [lastSavedLabel, setLastSavedLabel] = useState(note?.updatedAt ? 'загружено' : 'новая заметка');
   const [markdownText, setMarkdownText] = useState('');
+  const [editorRevision, setEditorRevision] = useState(0);
 
   const editor = useCreateBlockNote(
     {
@@ -155,6 +93,11 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
 
   const isReadMode = mode === 'read';
 
+  useEffect(() => {
+    setSelectedBlock(getCurrentBlock(editor));
+    setEditorRevision((current) => current + 1);
+  }, [editor]);
+
   const refreshSelectedBlock = useCallback(() => {
     const block = getCurrentBlock(editor);
     setSelectedBlock(block);
@@ -162,6 +105,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
 
   function handleEditorChange() {
     setDirty(true);
+    setEditorRevision((current) => current + 1);
     if (selectedBlock) {
       const freshBlock = findBlockById(editor.document as AnyBlock[], selectedBlock.id);
       setSelectedBlock(freshBlock ?? getCurrentBlock(editor));
@@ -242,6 +186,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
       parsed.length > 0 ? parsed : [{ type: 'paragraph', content: markdownText } as any],
     );
     setDirty(true);
+    setEditorRevision((current) => current + 1);
     setMode('edit');
   }
 
@@ -313,7 +258,7 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
                 onChange={handleEditorChange}
                 onSelectionChange={refreshSelectedBlock}
               />
-              <EditorStatusBar editor={editor} lastSavedLabel={lastSavedLabel} />
+              <EditorStatusBar editor={editor} revision={editorRevision} lastSavedLabel={lastSavedLabel} />
             </div>
             {!isReadMode ? (
               <NotePropertiesPanel
@@ -489,7 +434,12 @@ function PropertyValueInput({ property, onChange }: { property: NoteProperty; on
       type={property.type === 'number' ? 'number' : property.type === 'date' ? 'date' : property.type === 'url' ? 'url' : 'text'}
       value={String(property.value ?? '')}
       aria-label={property.name}
-      onChange={(event) => onChange({ ...property, value: property.type === 'number' ? Number(event.target.value) : event.target.value })}
+      onChange={(event) =>
+        onChange({
+          ...property,
+          value: property.type === 'number' ? (event.target.value === '' ? '' : Number(event.target.value)) : event.target.value,
+        })
+      }
     />
   );
 }
@@ -498,13 +448,9 @@ function QuickBlockToolbar({ onAddBlock }: { onAddBlock: (type: string) => void 
   const items = [
     ['paragraph', <Type size={17} />, 'Text'],
     ['checkListItem', <CheckSquare size={17} />, 'Checklist'],
-    ['divider', <Minus size={17} />, 'Разделитель'],
-    ['drawingSheet', <Brush size={17} />, 'Drawing sheet'],
     ['table', <Grid3X3 size={17} />, 'Table'],
     ['image', <ImageIcon size={17} />, 'Image'],
     ['codeBlock', <Code2 size={17} />, 'Code'],
-    ['quote', <MessageSquareQuote size={17} />, 'Quote'],
-    ['callout', <Sparkles size={17} />, 'Callout'],
   ] as const;
 
   return (
@@ -558,43 +504,7 @@ function CustomSlashMenu({ editor }: { editor: AnyEditor }) {
       triggerCharacter="/"
       getItems={async (query) =>
         filterSuggestionItems(
-          [
-            ...getDefaultReactSlashMenuItems(editor as any),
-            {
-              title: 'Drawing sheet',
-              subtext: 'Пустой лист для рисунка или схемы',
-              onItemClick: () =>
-                insertOrUpdateBlockForSlashMenu(editor, {
-                  type: 'drawingSheet',
-                  props: {
-                    snapshot: '',
-                    aspectRatio: '16:9',
-                    grid: true,
-                    penColor: '#4db6a8',
-                    lineWidth: 3,
-                  },
-                } as any),
-              aliases: ['drawing', 'draw', 'canvas', 'лист', 'рисунок'],
-              group: 'Media',
-              icon: <Brush size={18} />,
-            },
-            {
-              title: 'Callout',
-              subtext: 'Выделенная подсказка или идея',
-              onItemClick: () =>
-                insertOrUpdateBlockForSlashMenu(editor, {
-                  type: 'callout',
-                  content: '',
-                  props: {
-                    kind: 'info',
-                    accentColor: '#b884f4',
-                  },
-                } as any),
-              aliases: ['callout', 'note', 'idea', 'подсказка'],
-              group: 'Basic blocks',
-              icon: <Sparkles size={18} />,
-            },
-          ],
+          getDefaultReactSlashMenuItems(editor as any),
           query,
         )
       }
@@ -641,8 +551,7 @@ function NotePropertiesPanel({
   }
 
   function duplicateBlock() {
-    const cloned = JSON.parse(JSON.stringify(currentBlock));
-    delete cloned.id;
+    const cloned = stripBlockIds(JSON.parse(JSON.stringify(currentBlock)));
 
     editor.insertBlocks([cloned], currentBlock, 'after');
     onDirty();
@@ -676,35 +585,6 @@ function NotePropertiesPanel({
         />
       ) : null}
 
-      {block.type === 'drawingSheet' ? (
-        <>
-          <SettingChoiceRow
-            label="Соотношение сторон"
-            value={String((block.props as any).aspectRatio ?? '16:9')}
-            options={[...DRAWING_ASPECT_RATIOS]}
-            onChange={(value) => updateBlock({ aspectRatio: value })}
-          />
-          <SettingColorRow label="Цвет ручки" value={String((block.props as any).penColor ?? '#4db6a8')} onChange={(value) => updateBlock({ penColor: value })} />
-          <SettingChoiceRow
-            label="Толщина линии"
-            value={String((block.props as any).lineWidth ?? 3)}
-            options={['1', '2', '3', '4', '6', '8']}
-            onChange={(value) => updateBlock({ lineWidth: Number(value) })}
-          />
-          <label className="note-settings-toggle">
-            <input
-              type="checkbox"
-              checked={Boolean((block.props as any).grid)}
-              onChange={(event) => updateBlock({ grid: event.target.checked })}
-            />
-            Сетка
-          </label>
-          <button className="button danger ghost" type="button" onClick={() => updateBlock({ snapshot: '' })}>
-            Очистить лист
-          </button>
-        </>
-      ) : null}
-
       {block.type === 'codeBlock' ? (
         <label className="note-settings-input">
           Язык
@@ -724,18 +604,6 @@ function NotePropertiesPanel({
             Подпись
             <input value={String((block.props as any).caption ?? '')} onChange={(event) => updateBlock({ caption: event.target.value })} />
           </label>
-        </>
-      ) : null}
-
-      {block.type === 'callout' ? (
-        <>
-          <SettingChoiceRow
-            label="Тип подсказки"
-            value={String((block.props as any).kind ?? 'info')}
-            options={['info', 'warning', 'success', 'idea', 'danger']}
-            onChange={(value) => updateBlock({ kind: value })}
-          />
-          <SettingColorRow label="Акцент" value={String((block.props as any).accentColor ?? '#b884f4')} onChange={(value) => updateBlock({ accentColor: value })} />
         </>
       ) : null}
 
@@ -830,7 +698,8 @@ function MarkdownImportExportPanel({
   );
 }
 
-function EditorStatusBar({ editor, lastSavedLabel }: { editor: AnyEditor; lastSavedLabel: string }) {
+function EditorStatusBar({ editor, revision, lastSavedLabel }: { editor: AnyEditor; revision: number; lastSavedLabel: string }) {
+  void revision;
   const blocks = editor.document as AnyBlock[];
   const text = editorContentToPlainText(blocks);
   return (
@@ -843,82 +712,91 @@ function EditorStatusBar({ editor, lastSavedLabel }: { editor: AnyEditor; lastSa
   );
 }
 
-function DrawingBlock(props: any) {
-  const snapshot = parseSnapshot(props.block.props.snapshot);
-  const isEditable = props.editor.isEditable;
-
-  if (!isEditable) {
-    return (
-      <div className={`note-drawing-block ratio-${ratioClass(props.block.props.aspectRatio)}${props.block.props.grid ? ' has-grid' : ''}`}>
-        {snapshot ? <TldrawImage snapshot={snapshot as any} darkMode /> : <div className="note-drawing-empty">Пустой лист</div>}
-      </div>
-    );
-  }
-
-  return (
-    <div className={`note-drawing-block ratio-${ratioClass(props.block.props.aspectRatio)}${props.block.props.grid ? ' has-grid' : ''}`}>
-      <Tldraw
-        snapshot={snapshot as any}
-        onMount={(tlEditor) => {
-          const anyEditor = tlEditor as any;
-          anyEditor.setCurrentTool?.('draw');
-          anyEditor.setStyleForNextShapes?.('color', props.block.props.penColor);
-          anyEditor.setStyleForNextShapes?.('dash', 'draw');
-          let timer: number | undefined;
-          const saveSnapshot = () => {
-            window.clearTimeout(timer);
-            timer = window.setTimeout(() => {
-              const nextSnapshot = JSON.stringify(anyEditor.getSnapshot());
-              props.editor.updateBlock(props.block, {
-                props: {
-                  ...props.block.props,
-                  snapshot: nextSnapshot,
-                },
-              });
-            }, 500);
-          };
-          const unsubscribe = anyEditor.store?.listen?.(saveSnapshot, { source: 'user', scope: 'document' });
-          return () => {
-            window.clearTimeout(timer);
-            unsubscribe?.();
-          };
-        }}
-      />
-    </div>
-  );
-}
-
-function DrawingBlockPreview(props: any) {
-  const snapshot = parseSnapshot(props.block.props.snapshot);
-  return (
-    <div className={`note-drawing-block ratio-${ratioClass(props.block.props.aspectRatio)}${props.block.props.grid ? ' has-grid' : ''}`}>
-      {snapshot ? <TldrawImage snapshot={snapshot as any} darkMode /> : <div className="note-drawing-empty">Пустой лист</div>}
-    </div>
-  );
-}
-
 function sanitizeInitialContent(content: unknown): AnyPartialBlock[] {
   if (!Array.isArray(content) || content.length === 0) {
     return EMPTY_DOCUMENT;
   }
-  return content as AnyPartialBlock[];
+
+  const safeBlocks = content
+    .map((block) => sanitizeBlock(block))
+    .filter(Boolean) as AnyPartialBlock[];
+
+  return safeBlocks.length > 0 ? safeBlocks : EMPTY_DOCUMENT;
+}
+
+function sanitizeBlock(block: unknown): AnyPartialBlock | null {
+  if (!block || typeof block !== 'object') {
+    return null;
+  }
+
+  const source = block as Record<string, unknown>;
+  const type = typeof source.type === 'string' ? source.type : 'paragraph';
+
+  if (!SUPPORTED_BLOCK_TYPES.has(type)) {
+    return {
+      type: 'paragraph',
+      content: inlineContentToSafeString(source.content),
+    } as any;
+  }
+
+  const sanitized: Record<string, unknown> = {
+    type,
+  };
+
+  if ('content' in source && source.content !== '') {
+    sanitized.content = source.content;
+  }
+
+  if (source.props && typeof source.props === 'object') {
+    sanitized.props = source.props;
+  }
+
+  if (Array.isArray(source.children)) {
+    sanitized.children = source.children
+      .map((child) => sanitizeBlock(child))
+      .filter(Boolean);
+  }
+
+  return sanitized as AnyPartialBlock;
+}
+
+function inlineContentToSafeString(content: unknown): string {
+  if (!content) {
+    return '';
+  }
+
+  if (typeof content === 'string') {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content.map(inlineContentToSafeString).join('');
+  }
+
+  if (typeof content === 'object') {
+    const value = content as Record<string, unknown>;
+
+    if (typeof value.text === 'string') {
+      return value.text;
+    }
+
+    if (Array.isArray(value.content)) {
+      return value.content.map(inlineContentToSafeString).join('');
+    }
+  }
+
+  return '';
 }
 
 function createEmptyBlock(type: string): AnyPartialBlock {
-  if (type === 'drawingSheet') {
-    return { type: 'drawingSheet', props: { snapshot: '', aspectRatio: '16:9', grid: true, penColor: '#4db6a8', lineWidth: 3 } } as any;
-  }
-  if (type === 'callout') {
-    return { type: 'callout', content: '', props: { kind: 'info', accentColor: '#b884f4' } } as any;
-  }
   if (type === 'table') {
     return {
       type: 'table',
       content: {
         type: 'tableContent',
         rows: [
-          { cells: ['', ''] },
-          { cells: ['', ''] },
+          { cells: [[], []] },
+          { cells: [[], []] },
         ],
       },
     } as any;
@@ -926,7 +804,7 @@ function createEmptyBlock(type: string): AnyPartialBlock {
   if (type === 'image') {
     return { type: 'image' } as any;
   }
-  return { type, content: '' } as any;
+  return { type } as any;
 }
 
 function insertBlock(editor: AnyEditor, block: AnyPartialBlock) {
@@ -957,6 +835,18 @@ function findBlockById(blocks: AnyBlock[], id: string): AnyBlock | null {
     }
   }
   return null;
+}
+
+function stripBlockIds(block: AnyPartialBlock): AnyPartialBlock {
+  if (!block || typeof block !== 'object') {
+    return block;
+  }
+  const cloned = { ...block } as Record<string, unknown>;
+  delete cloned.id;
+  if (Array.isArray(cloned.children)) {
+    cloned.children = cloned.children.map((child) => stripBlockIds(child as AnyPartialBlock));
+  }
+  return cloned as AnyPartialBlock;
 }
 
 function uploadFile(file: File) {
@@ -1021,19 +911,4 @@ function resolveCssColor(value: unknown) {
     return undefined;
   }
   return String(value);
-}
-
-function parseSnapshot(value: unknown): TLEditorSnapshot | null {
-  if (!value || typeof value !== 'string') {
-    return null;
-  }
-  try {
-    return JSON.parse(value) as TLEditorSnapshot;
-  } catch {
-    return null;
-  }
-}
-
-function ratioClass(value: unknown) {
-  return String(value ?? '16:9').replace(':', '-').toLowerCase();
 }

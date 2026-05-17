@@ -77,7 +77,7 @@ export function getNotePreview(note: Note, maxLength = 160) {
 
 export function getNoteEditorContent(note?: Note | null): MyMindEditorContent {
   if (Array.isArray(note?.editorContent)) {
-    return note.editorContent as MyMindEditorContent;
+    return normalizeEditorContent(note.editorContent);
   }
   if (!note) {
     return [];
@@ -221,14 +221,17 @@ export function escapeHtml(value: string) {
 
 export function migrateNote(note: Note): Note {
   if (note.schemaVersion === NOTE_SCHEMA_VERSION && Array.isArray(note.editorContent)) {
+    const editorContent = normalizeEditorContent(note.editorContent);
+    const editorPlainText = note.editorPlainText?.trim() || editorContentToPlainText(editorContent) || getNotePlainText({ ...note, editorContent });
     return {
       ...note,
       category: note.category ?? '',
       tags: note.tags ?? [],
       properties: note.properties ?? [],
       assets: note.assets ?? [],
-      editorPlainText: note.editorPlainText ?? getNotePlainText(note),
-      content: note.content ?? note.editorPlainText ?? '',
+      editorContent,
+      editorPlainText,
+      content: note.content ?? editorPlainText,
     };
   }
 
@@ -280,6 +283,13 @@ export function editorContentToPlainText(content: unknown): string {
   return parts.join(' ').replace(/\s+/g, ' ').trim();
 }
 
+export function normalizeEditorContent(content: unknown): MyMindEditorContent {
+  if (!Array.isArray(content)) {
+    return [];
+  }
+  return content.map(normalizeEditorBlock).filter(Boolean) as MyMindEditorContent;
+}
+
 export function legacyContentToPlainText(note: Note) {
   if (note.contentFormat === 'markdown') {
     return stripMarkdown(stripLegacyBlocksComment(note.content ?? ''));
@@ -318,6 +328,38 @@ function textToParagraphBlocks(value: string): MyMindEditorContent {
     }));
 }
 
+function normalizeEditorBlock(block: unknown): Record<string, unknown> | null {
+  if (!block || typeof block !== 'object') {
+    return null;
+  }
+
+  const current = { ...(block as Record<string, unknown>) };
+  if (isTableContent(current.content)) {
+    current.content = {
+      ...current.content,
+      rows: current.content.rows.map((row) => ({
+        ...row,
+        cells: row.cells.map((cell) => (typeof cell === 'string' ? cell : cell)),
+      })),
+    };
+  }
+
+  if (Array.isArray(current.children)) {
+    current.children = current.children.map(normalizeEditorBlock).filter(Boolean);
+  }
+
+  return current;
+}
+
+function isTableContent(value: unknown): value is { rows: Array<{ cells: unknown[] }> } {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      Array.isArray((value as { rows?: unknown }).rows) &&
+      (value as { rows: unknown[] }).rows.every((row) => row && typeof row === 'object' && Array.isArray((row as { cells?: unknown }).cells)),
+  );
+}
+
 function legacyBlocksToBlockNote(blocks: MyMindEditorBlock[]): MyMindEditorContent {
   const result: MyMindEditorContent = [];
 
@@ -331,13 +373,15 @@ function legacyBlocksToBlockNote(blocks: MyMindEditorBlock[]): MyMindEditorConte
         for (const item of items) {
           if (item && typeof item === 'object') {
             const value = item as Record<string, unknown>;
+            const text = String(value.text ?? value.content ?? '');
             result.push({
               type: 'checkListItem',
               props: { checked: Boolean(value.checked) },
-              content: String(value.text ?? value.content ?? ''),
+              content: text,
             });
           } else {
-            result.push({ type: 'checkListItem', content: String(item ?? '') });
+            const text = String(item ?? '');
+            result.push({ type: 'checkListItem', content: text });
           }
         }
       }
@@ -350,12 +394,14 @@ function legacyBlocksToBlockNote(blocks: MyMindEditorBlock[]): MyMindEditorConte
     }
 
     if (type === 'quote') {
-      result.push({ type: 'quote', content: stripHtml(String(block.content ?? '')) });
+      const text = stripHtml(String(block.content ?? ''));
+      result.push({ type: 'quote', content: text });
       continue;
     }
 
     if (type === 'code') {
-      result.push({ type: 'codeBlock', content: String(block.content ?? '') });
+      const text = String(block.content ?? '');
+      result.push({ type: 'codeBlock', content: text });
       continue;
     }
 
@@ -368,7 +414,8 @@ function legacyBlocksToBlockNote(blocks: MyMindEditorBlock[]): MyMindEditorConte
 
     if (type === 'table') {
       const tableText = Array.isArray(block.rows) ? block.rows.map((row) => (Array.isArray(row) ? row.join('\t') : String(row))).join('\n') : '';
-      result.push({ type: 'paragraph', content: tableText || stripHtml(String(block.content ?? '')) });
+      const text = tableText || stripHtml(String(block.content ?? ''));
+      result.push({ type: 'paragraph', content: text });
       continue;
     }
 
