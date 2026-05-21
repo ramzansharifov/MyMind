@@ -22,6 +22,7 @@ export function NotesPage({ notes, onChange }: NotesPageProps) {
   const [pinnedOnly, setPinnedOnly] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [editorNote, setEditorNote] = useState<Note | null | undefined>(undefined);
+  const [editorInitialMode, setEditorInitialMode] = useState<'read' | 'edit'>('edit');
   const visibleNotes = notes.filter((note) => !isHiddenFromRegularLists(note));
   const searched = filterNotes(visibleNotes, query, '', '', false);
   const filtered = searched.filter((note) => {
@@ -74,7 +75,7 @@ export function NotesPage({ notes, onChange }: NotesPageProps) {
   }
 
   if (editorNote !== undefined) {
-    return <NoteEditorPage note={editorNote} onCancel={() => setEditorNote(undefined)} onSave={saveNote} />;
+    return <NoteEditorPage note={editorNote} initialMode={editorInitialMode} onCancel={() => setEditorNote(undefined)} onSave={saveNote} />;
   }
 
   return (
@@ -83,7 +84,13 @@ export function NotesPage({ notes, onChange }: NotesPageProps) {
         title="Notes"
         subtitle="Knowledge, ideas, references, and durable thinking that are not tied to a diary date."
         actions={
-          <AddButton label="Add note" onClick={() => setEditorNote(null)} />
+          <AddButton
+            label="Add note"
+            onClick={() => {
+              setEditorInitialMode('edit');
+              setEditorNote(null);
+            }}
+          />
         }
       />
       <CollapsibleFilters
@@ -140,8 +147,14 @@ export function NotesPage({ notes, onChange }: NotesPageProps) {
             <NoteCard
               note={note}
               key={note.id}
-              onOpen={() => setEditorNote(note)}
-              onEdit={() => setEditorNote(note)}
+              onOpen={() => {
+                setEditorInitialMode('read');
+                setEditorNote(note);
+              }}
+              onEdit={() => {
+                setEditorInitialMode('edit');
+                setEditorNote(note);
+              }}
               onPin={() => togglePin(note)}
               onArchive={() => archiveNote(note)}
               onTrash={() => moveNoteToTrash(note)}

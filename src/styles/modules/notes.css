@@ -1220,6 +1220,23 @@
   padding-bottom: 14px;
 }
 
+.note-read-only-header {
+  display: grid;
+  gap: 14px;
+}
+
+.note-read-only-header h1 {
+  margin: 0;
+  color: color-mix(in srgb, var(--text) 90%, var(--muted));
+  font-size: clamp(32px, 4vw, 46px);
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+.note-tag-row.read-only {
+  min-height: 34px;
+}
+
 .note-metadata {
   display: grid;
   gap: 10px;
@@ -1367,16 +1384,22 @@
 
 .mymind-blocknote-shell {
   min-width: 0;
-  min-height: 620px;
+  min-height: 420px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.mymind-blocknote-shell.read-only {
+  min-height: 220px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: color-mix(in srgb, var(--surface) 97%, white 3%);
   box-shadow: 0 14px 34px var(--shadow);
-}
-
-.mymind-blocknote-shell.read-only {
-  min-height: 320px;
+  padding: 22px;
 }
 
 .mymind-blocknote-shell .bn-container,
@@ -1386,12 +1409,121 @@
 }
 
 .mymind-blocknote-shell .bn-editor {
-  padding: 28px max(24px, 5vw);
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 0;
 }
 
 .mymind-blocknote-editor {
-  max-width: 960px;
+  max-width: 100%;
   margin-inline: auto;
+}
+
+.mymind-blocknote-shell .bn-block-group {
+  display: grid;
+  gap: 12px;
+}
+
+.mymind-blocknote-shell .bn-block-outer {
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 95%, white 5%);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--shadow) 54%, transparent);
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.mymind-blocknote-shell .bn-block-outer:hover,
+.mymind-blocknote-shell .bn-block-outer:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: color-mix(in srgb, var(--surface) 98%, white 2%);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--shadow) 70%, transparent);
+}
+
+.mymind-blocknote-shell .bn-block {
+  min-height: 58px;
+}
+
+.mymind-blocknote-shell .bn-block-content {
+  min-height: 58px;
+  align-items: center;
+  padding: 14px 18px;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="heading"] {
+  min-height: 68px;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="table"],
+.mymind-blocknote-shell .bn-block-content[data-content-type="image"],
+.mymind-blocknote-shell .bn-block-content[data-content-type="video"],
+.mymind-blocknote-shell .bn-block-content[data-content-type="audio"],
+.mymind-blocknote-shell .bn-block-content[data-content-type="file"],
+.mymind-blocknote-shell .bn-block-content[data-content-type="codeBlock"] {
+  align-items: stretch;
+  padding: 16px;
+}
+
+.mymind-blocknote-shell .bn-block-group .bn-block-group {
+  gap: 8px;
+  margin: 0 12px 12px 36px;
+}
+
+.mymind-blocknote-shell .bn-block-group .bn-block-group > .bn-block-outer {
+  background: color-mix(in srgb, var(--surface-soft) 80%, transparent);
+}
+
+.mymind-blocknote-shell .bn-trailing-block {
+  min-height: 110px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 20%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 30%, transparent);
+}
+
+.mymind-blocknote-shell .bn-side-menu {
+  margin-left: -8px;
+}
+
+.mymind-blocknote-shell.read-only .bn-editor {
+  gap: 14px;
+  padding: 0;
+}
+
+.mymind-blocknote-shell.read-only .mymind-blocknote-editor {
+  width: 100%;
+}
+
+.mymind-blocknote-shell.read-only .bn-block-group {
+  gap: 14px;
+}
+
+.mymind-blocknote-shell.read-only .bn-block-outer {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.mymind-blocknote-shell.read-only .bn-block-outer:hover,
+.mymind-blocknote-shell.read-only .bn-block-outer:focus-within {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.mymind-blocknote-shell.read-only .bn-block-content {
+  min-height: 52px;
+  padding: 16px 18px;
+}
+
+.mymind-blocknote-shell.read-only .bn-block-group .bn-block-group {
+  margin: 0 14px 14px 38px;
+}
+
+.mymind-blocknote-shell.read-only .bn-trailing-block {
+  display: none;
 }
 
 .note-callout-block {

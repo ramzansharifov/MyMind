@@ -8,7 +8,6 @@ import {
   Grid3X3,
   Image as ImageIcon,
   PanelRight,
-  Plus,
   Save,
   Settings2,
   Tags,
@@ -24,10 +23,11 @@ import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import { createId } from '../../shared/utils/idGenerator';
 import { editorContentToPlainText, getNoteEditorContent, NOTE_SCHEMA_VERSION } from './noteUtils';
-import type { Note, NoteProperty, NotePropertyType } from './types';
+import type { Note, NoteProperty } from './types';
 
 interface NoteEditorPageProps {
   note?: Note | null;
+  initialMode?: NoteMode;
   onCancel: () => void;
   onSave: (note: Note) => void;
 }
@@ -59,9 +59,9 @@ const SUPPORTED_BLOCK_TYPES = new Set([
   'codeBlock',
 ]);
 
-export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) {
+export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEditorPageProps) {
   const initialContent = useMemo(() => sanitizeInitialContent(getNoteEditorContent(note)), [note?.id]);
-  const [mode, setMode] = useState<NoteMode>('edit');
+  const [mode, setMode] = useState<NoteMode>(initialMode ?? (note ? 'read' : 'edit'));
   const [title, setTitle] = useState(note?.title ?? '');
   const [category, setCategory] = useState(note?.category ?? '');
   const [tagInput, setTagInput] = useState('');
@@ -209,6 +209,10 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
       />
 
       <div className="note-editor-title-area">
+        {isReadMode ? (
+          <ReadOnlyNoteHeader title={title} tags={tags} />
+        ) : (
+          <>
         <input
           className="note-title-input"
           value={title}
@@ -219,21 +223,12 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
           }}
         />
         <NoteMetadata
-          category={category}
           tags={tags}
           tagInput={tagInput}
           properties={properties}
-          onCategoryChange={(value) => {
-            setCategory(value);
-            setDirty(true);
-          }}
           onTagInputChange={setTagInput}
           onAddTag={addTag}
           onRemoveTag={removeTag}
-          onAddProperty={(type) => {
-            setProperties((current) => [...current, createEmptyProperty(type)]);
-            setDirty(true);
-          }}
           onChangeProperty={(property) => {
             setProperties((current) => current.map((item) => (item.id === property.id ? property : item)));
             setDirty(true);
@@ -243,6 +238,8 @@ export function NoteEditorPage({ note, onCancel, onSave }: NoteEditorPageProps) 
             setDirty(true);
           }}
         />
+          </>
+        )}
       </div>
 
       {mode === 'markdown' ? (
@@ -319,39 +316,45 @@ function NoteTopBar({
   );
 }
 
+function ReadOnlyNoteHeader({ title, tags }: { title: string; tags: string[] }) {
+  return (
+    <div className="note-read-only-header">
+      <h1>{title.trim() || 'Без названия'}</h1>
+      {tags.length > 0 ? (
+        <div className="note-tag-row read-only">
+          <Tags size={17} />
+          {tags.map((tag) => (
+            <span className="note-chip" key={tag}>
+              {tag}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function NoteMetadata({
-  category,
   tags,
   tagInput,
   properties,
-  onCategoryChange,
   onTagInputChange,
   onAddTag,
   onRemoveTag,
-  onAddProperty,
   onChangeProperty,
   onRemoveProperty,
 }: {
-  category: string;
   tags: string[];
   tagInput: string;
   properties: NoteProperty[];
-  onCategoryChange: (value: string) => void;
   onTagInputChange: (value: string) => void;
   onAddTag: (value?: string) => void;
   onRemoveTag: (value: string) => void;
-  onAddProperty: (type: NotePropertyType) => void;
   onChangeProperty: (property: NoteProperty) => void;
   onRemoveProperty: (id: string) => void;
 }) {
-  const [propertyMenuOpen, setPropertyMenuOpen] = useState(false);
-
   return (
     <div className="note-metadata">
-      <label className="note-chip-input">
-        <span>Категория</span>
-        <input value={category} placeholder="Категория" onChange={(event) => onCategoryChange(event.target.value)} />
-      </label>
       <div className="note-tag-row">
         <Tags size={17} />
         {tags.map((tag) => (
@@ -373,28 +376,6 @@ function NoteMetadata({
           }}
           onBlur={() => onAddTag()}
         />
-      </div>
-      <div className="note-property-menu-wrap">
-        <button className="button ghost" type="button" onClick={() => setPropertyMenuOpen((current) => !current)}>
-          <Plus size={18} />
-          Добавить поле
-        </button>
-        {propertyMenuOpen ? (
-          <div className="note-property-menu">
-            {(['text', 'number', 'date', 'select', 'multiSelect', 'checkbox', 'url'] as NotePropertyType[]).map((type) => (
-              <button
-                type="button"
-                key={type}
-                onClick={() => {
-                  onAddProperty(type);
-                  setPropertyMenuOpen(false);
-                }}
-              >
-                {propertyTypeLabel(type)}
-              </button>
-            ))}
-          </div>
-        ) : null}
       </div>
       {properties.length > 0 ? (
         <div className="note-properties-row">
@@ -856,28 +837,6 @@ function uploadFile(file: File) {
     reader.onerror = () => reject(reader.error ?? new Error('Не удалось загрузить файл'));
     reader.readAsDataURL(file);
   });
-}
-
-function createEmptyProperty(type: NotePropertyType): NoteProperty {
-  return {
-    id: createId('note_property'),
-    name: propertyTypeLabel(type),
-    type,
-    value: type === 'checkbox' ? false : '',
-  };
-}
-
-function propertyTypeLabel(type: NotePropertyType) {
-  const labels: Record<NotePropertyType, string> = {
-    text: 'Текст',
-    number: 'Число',
-    date: 'Дата',
-    select: 'Выбор',
-    multiSelect: 'Мультивыбор',
-    checkbox: 'Чекбокс',
-    url: 'Ссылка',
-  };
-  return labels[type];
 }
 
 function blockTypeLabel(type: string) {
