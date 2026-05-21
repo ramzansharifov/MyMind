@@ -27,6 +27,12 @@ export interface AppSettings {
   seedDataCreated: boolean;
   createdAt: string;
   updatedAt: string;
+  weatherCity?: {
+    name: string;
+    latitude: number;
+    longitude: number;
+    country?: string;
+  } | null;
 }
 
 export type ModuleKey =

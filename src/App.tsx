@@ -400,7 +400,15 @@ export function App() {
         );
       case 'dashboard':
       default:
-        return <DashboardPage data={data} currency={settings.currency} onNavigate={setActiveModule} />;
+        return (
+          <DashboardPage
+            data={data}
+            currency={settings.currency}
+            onNavigate={setActiveModule}
+            settings={settings}
+            onSettingsChange={saveSettings}
+          />
+        );
     }
   }, [activeModule, data, dataDirectory, isLoading, settings, statusMessage]);
 

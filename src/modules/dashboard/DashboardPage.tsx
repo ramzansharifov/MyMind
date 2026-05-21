@@ -4,21 +4,30 @@ import type { AppData } from '../../App';
 import { GlobalSearch } from '../../shared/components/GlobalSearch';
 import { StatCard } from '../../shared/components/StatCard';
 import { useI18n } from '../../shared/i18n/I18nProvider';
-import type { ModuleKey } from '../../shared/types/common';
+import type { AppSettings, ModuleKey } from '../../shared/types/common';
 import { isHiddenFromRegularLists } from '../../shared/utils/archiveUtils';
 import { formatDate, isWithinDays, todayDateOnly } from '../../shared/utils/dateUtils';
 import { formatCurrency } from '../../shared/utils/formatters';
 import { currentBalance, totalByType } from '../finance/financeUtils';
 import { todayHabits } from '../habits/habitUtils';
 import { todayTodos } from '../todos/todoUtils';
+import { WeatherPanel } from './WeatherPanel';
 
 interface DashboardPageProps {
   data: AppData;
   currency: string;
   onNavigate: (module: ModuleKey) => void;
+  settings: AppSettings;
+  onSettingsChange: (settings: AppSettings) => Promise<void>;
 }
 
-export function DashboardPage({ data, currency, onNavigate }: DashboardPageProps) {
+export function DashboardPage({
+  data,
+  currency,
+  onNavigate,
+  settings,
+  onSettingsChange,
+}: DashboardPageProps) {
   const { t } = useI18n();
   const today = todayDateOnly();
   const activeTodos = data.todos.items.filter((todo) => !isHiddenFromRegularLists(todo));
@@ -75,6 +84,8 @@ export function DashboardPage({ data, currency, onNavigate }: DashboardPageProps
         <StatCard label="Pinned notes" value={activeNotes.filter((note) => note.pinned || note.pinnedAt).length} detail={`${activeNotes.length} total notes`} />
         <StatCard label="Recent entries" value={recentEntries.length} detail="Diary" />
       </div>
+
+      <WeatherPanel settings={settings} onSettingsChange={onSettingsChange} />
 
       <div className="dashboard-layout section-block">
         <section className="panel command-panel">

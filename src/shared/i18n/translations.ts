@@ -686,6 +686,18 @@ const ru: Record<string, string> = {
   'This will also remove habit logs for this habit.': 'Это также удалит отметки этой привычки.',
   'This will clear local demo collections from JSON storage.': 'Это очистит локальные демо-коллекции в JSON-хранилище.',
   Close: 'Закрыть',
+  'Weather Forecast': 'Прогноз погоды',
+  'Search city...': 'Поиск города...',
+  'Change city': 'Сменить город',
+  'Feels like': 'Ощущается как',
+  'Wind': 'Ветер',
+  'Humidity': 'Влажность',
+  'Configure Weather': 'Настройка погоды',
+  'Enter city name': 'Введите название города',
+  'Select your city': 'Выберите ваш город',
+  'No cities found': 'Города не найдены',
+  'Loading weather...': 'Загрузка погоды...',
+  'Weather data loaded': 'Данные о погоде обновлены',
 };
 
 Object.assign(ru, {
