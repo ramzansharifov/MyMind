@@ -31,7 +31,7 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type FC, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FC, type KeyboardEvent, type MouseEvent } from 'react';
 import { BlockNoteSchema, defaultBlockSpecs, filterSuggestionItems, type Block, type BlockNoteEditor, type PartialBlock } from '@blocknote/core';
 import { BlockNoteView } from '@blocknote/mantine';
 import { getDefaultReactSlashMenuItems, SideMenu, SideMenuController, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react';
@@ -53,9 +53,34 @@ type AnyEditor = BlockNoteEditor<any, any, any>;
 type AnyBlock = Block<any, any, any>;
 type AnyPartialBlock = PartialBlock<any, any, any>;
 
+const LIST_BLOCK_TYPE_NAMES = ['bulletListItem', 'numberedListItem', 'checkListItem'];
+const BLOCKS_WITH_LIBRARY_ENTER = new Set([...LIST_BLOCK_TYPE_NAMES, 'toggleListItem']);
+
+const noteBlockSpecs = Object.fromEntries(
+  Object.entries(defaultBlockSpecs).map(([name, spec]) => {
+    if ((spec as any).config?.content !== 'inline' || name === 'codeBlock' || BLOCKS_WITH_LIBRARY_ENTER.has(name)) {
+      return [name, spec];
+    }
+
+    return [
+      name,
+      {
+        ...(spec as any),
+        implementation: {
+          ...(spec as any).implementation,
+          meta: {
+            ...((spec as any).implementation?.meta ?? {}),
+            hardBreakShortcut: 'enter',
+          },
+        },
+      },
+    ];
+  }),
+) as typeof defaultBlockSpecs;
+
 const noteSchema = BlockNoteSchema.create({
   blockSpecs: {
-    ...defaultBlockSpecs,
+    ...noteBlockSpecs,
   },
 });
 
@@ -78,7 +103,7 @@ const SUPPORTED_BLOCK_TYPES = new Set([
   'file',
   'codeBlock',
 ]);
-const LIST_BLOCK_TYPES = new Set(['bulletListItem', 'numberedListItem', 'checkListItem']);
+const LIST_BLOCK_TYPES = new Set(LIST_BLOCK_TYPE_NAMES);
 const TOGGLE_HEADING_LEVELS = [1, 2, 3] as const;
 
 export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEditorPageProps) {
@@ -119,6 +144,11 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
     setSelectedBlock(getCurrentBlock(editor));
     setEditorRevision((current) => current + 1);
   }, [editor]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => syncVisualListGroups(editor));
+    return () => window.cancelAnimationFrame(frame);
+  }, [editor, editorRevision, mode]);
 
   const refreshSelectedBlock = useCallback(() => {
     const block = getCurrentBlock(editor);
@@ -501,8 +531,32 @@ function BlockNoteEditorShell({
   onChange: () => void;
   onSelectionChange: () => void;
 }) {
+  function handleEditorKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (readOnly || event.key !== 'Enter' || event.altKey || event.ctrlKey || event.metaKey) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    if (!target?.closest('.mymind-blocknote-editor')) {
+      return;
+    }
+
+    const currentBlock = getCurrentBlock(editor);
+    if (!currentBlock || BLOCKS_WITH_LIBRARY_ENTER.has(currentBlock.type)) {
+      return;
+    }
+
+    if (!insertHardBreak(editor)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    onChange();
+  }
+
   return (
-    <div className={`mymind-blocknote-shell${readOnly ? ' read-only' : ''}`}>
+    <div className={`mymind-blocknote-shell${readOnly ? ' read-only' : ''}`} onKeyDownCapture={handleEditorKeyDown}>
       <BlockNoteView
         editor={editor}
         theme="dark"
@@ -1053,6 +1107,40 @@ function countVisualBlocks(blocks: AnyBlock[]) {
   return count;
 }
 
+function syncVisualListGroups(editor: AnyEditor) {
+  const root = document.querySelector('.mymind-blocknote-editor');
+  if (!root) {
+    return;
+  }
+
+  const blockOuters = Array.from(root.querySelectorAll<HTMLElement>('.bn-block-outer[data-id]'));
+  const blockById = new Map((editor.document as AnyBlock[]).map((block, index) => [block.id, { block, index }]));
+
+  for (const outer of blockOuters) {
+    outer.classList.remove('note-list-group-item', 'note-list-group-continuation', 'note-list-group-has-next');
+
+    const id = outer.dataset.id;
+    const entry = id ? blockById.get(id) : undefined;
+    if (!entry || !LIST_BLOCK_TYPES.has(entry.block.type)) {
+      continue;
+    }
+
+    const blocks = editor.document as AnyBlock[];
+    const previous = blocks[entry.index - 1];
+    const next = blocks[entry.index + 1];
+    const continuesPrevious = Boolean(previous && previous.type === entry.block.type);
+    const hasNext = Boolean(next && next.type === entry.block.type);
+
+    outer.classList.add('note-list-group-item');
+    if (continuesPrevious) {
+      outer.classList.add('note-list-group-continuation');
+    }
+    if (hasNext) {
+      outer.classList.add('note-list-group-has-next');
+    }
+  }
+}
+
 function sanitizeInitialContent(content: unknown): AnyPartialBlock[] {
   if (!Array.isArray(content) || content.length === 0) {
     return EMPTY_DOCUMENT;
@@ -1164,6 +1252,29 @@ function insertBlock(editor: AnyEditor, block: AnyPartialBlock) {
     return;
   }
   editor.replaceBlocks(editor.document as AnyBlock[], [block]);
+}
+
+function insertHardBreak(editor: AnyEditor) {
+  const currentBlock = getCurrentBlock(editor);
+  if (!currentBlock || currentBlock.content === undefined) {
+    return false;
+  }
+
+  try {
+    editor.focus();
+    editor.transact((tr) => {
+      const marks =
+        tr.storedMarks ??
+        tr.selection.$head
+          .marks()
+          .filter((mark: any) => (editor as any).extensionManager?.splittableMarks?.includes(mark.type.name));
+
+      tr.replaceSelectionWith(tr.doc.type.schema.nodes.hardBreak.create()).ensureMarks(marks);
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function getCurrentBlock(editor: AnyEditor): AnyBlock | null {
