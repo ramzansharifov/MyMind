@@ -1325,6 +1325,47 @@
   white-space: pre-wrap;
 }
 
+.note-read-markdown {
+  display: grid;
+  gap: 10px;
+}
+
+.note-read-markdown > * {
+  margin: 0;
+}
+
+.note-read-markdown h1,
+.note-read-markdown h2,
+.note-read-markdown h3 {
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.note-read-markdown ul,
+.note-read-markdown ol {
+  margin: 0;
+  padding-left: 24px;
+}
+
+.note-read-markdown blockquote {
+  margin: 0;
+  padding-left: 14px;
+  border-left: 3px solid var(--accent);
+  color: color-mix(in srgb, var(--text) 88%, var(--muted));
+}
+
+.note-read-markdown pre {
+  overflow: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface) 72%, black 28%);
+  padding: 12px;
+}
+
+.note-read-markdown code {
+  font-family: var(--font-mono, monospace);
+}
+
 .note-read-divider {
   width: 100%;
   border: 0;
@@ -2352,40 +2393,6 @@
   color: var(--muted);
   padding: 9px 12px;
   font-size: 13px;
-}
-
-.note-markdown-panel {
-  display: grid;
-  gap: 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface) 96%, white 4%);
-  box-shadow: 0 14px 34px var(--shadow);
-  padding: 18px;
-}
-
-.note-markdown-panel h3 {
-  margin: 0 0 6px;
-}
-
-.note-markdown-panel textarea {
-  min-height: min(64vh, 680px);
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  background: color-mix(in srgb, black 12%, var(--surface));
-  color: var(--text);
-  padding: 16px;
-  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-  font-size: 15px;
-  line-height: 1.6;
-  resize: vertical;
-}
-
-.note-markdown-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
 @media (max-width: 1260px) {

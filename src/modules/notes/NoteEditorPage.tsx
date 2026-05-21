@@ -38,8 +38,8 @@ import { getDefaultReactSlashMenuItems, SideMenu, SideMenuController, Suggestion
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import { createId } from '../../shared/utils/idGenerator';
-import { DRAWING_BLOCK_DIRTY_EVENT, DRAWING_BLOCK_SELECTED_EVENT, drawingBlockSpec, getCurrentDrawingData } from './blocks/drawing';
-import { editorContentToPlainText, getNoteEditorContent, NOTE_SCHEMA_VERSION } from './noteUtils';
+import { DRAWING_BLOCK_DIRTY_EVENT, DRAWING_BLOCK_SELECTED_EVENT, drawingBlockSpec, getCurrentDrawingData, setCurrentDrawingData } from './blocks/drawing';
+import { editorContentToPlainText, getNoteEditorContent, markdownToHtml, NOTE_SCHEMA_VERSION } from './noteUtils';
 import type { Note, NoteProperty } from './types';
 
 interface NoteEditorPageProps {
@@ -49,7 +49,7 @@ interface NoteEditorPageProps {
   onSave: (note: Note) => void;
 }
 
-type NoteMode = 'read' | 'edit' | 'markdown';
+type NoteMode = 'read' | 'edit';
 type AnyEditor = BlockNoteEditor<any, any, any>;
 type AnyBlock = Block<any, any, any>;
 type AnyPartialBlock = PartialBlock<any, any, any>;
@@ -113,7 +113,7 @@ const LIST_BLOCK_TYPES = new Set(LIST_BLOCK_TYPE_NAMES);
 const TOGGLE_HEADING_LEVELS = [1, 2, 3] as const;
 
 export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEditorPageProps) {
-  const initialContent = useMemo(() => sanitizeInitialContent(getNoteEditorContent(note)), [note?.id]);
+  const initialContent = useMemo(() => prepareInitialEditorContent(sanitizeInitialContent(getNoteEditorContent(note))), [note?.id]);
   const [mode, setMode] = useState<NoteMode>(initialMode ?? (note ? 'read' : 'edit'));
   const [title, setTitle] = useState(note?.title ?? '');
   const [category, setCategory] = useState(note?.category ?? '');
@@ -123,7 +123,6 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
   const [selectedBlock, setSelectedBlock] = useState<AnyBlock | null>(null);
   const [dirty, setDirty] = useState(false);
   const [lastSavedLabel, setLastSavedLabel] = useState(note?.updatedAt ? 'загружено' : 'новая заметка');
-  const [markdownText, setMarkdownText] = useState('');
   const [editorRevision, setEditorRevision] = useState(0);
 
   const editor = useCreateBlockNote(
@@ -251,28 +250,6 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
     setDirty(true);
   }
 
-  async function openMarkdownMode() {
-    const markdown = await editor.blocksToMarkdownLossy(editor.document as any);
-    setMarkdownText(markdown);
-    setMode('markdown');
-  }
-
-  async function importMarkdown() {
-    const confirmed = window.confirm('Импорт Markdown заменит текущее содержимое заметки. Продолжить?');
-    if (!confirmed) {
-      return;
-    }
-    const parsed = await editor.tryParseMarkdownToBlocks(markdownText);
-
-    editor.replaceBlocks(
-      editor.document as AnyBlock[],
-      parsed.length > 0 ? parsed : [{ type: 'paragraph', content: markdownText } as any],
-    );
-    setDirty(true);
-    setEditorRevision((current) => current + 1);
-    setMode('edit');
-  }
-
   return (
     <section className="note-editor-page">
       <NoteTopBar
@@ -280,14 +257,7 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
         dirty={dirty}
         lastSavedLabel={lastSavedLabel}
         onBack={onCancel}
-        onModeChange={(nextMode) => {
-          if (nextMode === 'markdown') {
-            void openMarkdownMode();
-            return;
-          }
-
-          setMode(nextMode);
-        }}
+        onModeChange={setMode}
         onSave={() => void saveNote()}
       />
 
@@ -325,36 +295,32 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
         )}
       </div>
 
-      {mode === 'markdown' ? (
-        <MarkdownImportExportPanel value={markdownText} onChange={setMarkdownText} onImport={() => void importMarkdown()} onBack={() => setMode('edit')} />
-      ) : (
-        <>
-          {mode === 'edit' ? <QuickBlockToolbar onAddBlock={addBlock} /> : null}
-          <div className={`note-editor-layout${isReadMode ? ' read-mode' : ''}`}>
-            <div className="note-editor-main">
-              {isReadMode ? (
-                <ReadOnlyBlocks blocks={mergeDrawingBlockData(editor.document as AnyBlock[])} />
-              ) : (
-                <BlockNoteEditorShell
-                  editor={editor}
-                  readOnly={false}
-                  onChange={handleEditorChange}
-                  onSelectionChange={refreshSelectedBlock}
-                />
-              )}
-              <EditorStatusBar editor={editor} revision={editorRevision} lastSavedLabel={lastSavedLabel} />
-            </div>
-            {!isReadMode ? (
-              <NotePropertiesPanel
+      <>
+        {mode === 'edit' ? <QuickBlockToolbar onAddBlock={addBlock} /> : null}
+        <div className={`note-editor-layout${isReadMode ? ' read-mode' : ''}`}>
+          <div className="note-editor-main">
+            {isReadMode ? (
+              <ReadOnlyBlocks blocks={mergeDrawingBlockData(editor.document as AnyBlock[])} />
+            ) : (
+              <BlockNoteEditorShell
                 editor={editor}
-                block={selectedBlock}
-                onBlockChange={(block) => setSelectedBlock(block)}
-                onDirty={() => setDirty(true)}
+                readOnly={false}
+                onChange={handleEditorChange}
+                onSelectionChange={refreshSelectedBlock}
               />
-            ) : null}
+            )}
+            <EditorStatusBar editor={editor} revision={editorRevision} lastSavedLabel={lastSavedLabel} />
           </div>
-        </>
-      )}
+          {!isReadMode ? (
+            <NotePropertiesPanel
+              editor={editor}
+              block={selectedBlock}
+              onBlockChange={(block) => setSelectedBlock(block)}
+              onDirty={() => setDirty(true)}
+            />
+          ) : null}
+        </div>
+      </>
     </section>
   );
 }
@@ -388,10 +354,6 @@ function NoteTopBar({
         <button className={`button ghost${mode === 'edit' ? ' active' : ''}`} type="button" onClick={() => onModeChange('edit')}>
           <Brush size={18} />
           Визуальный редактор
-        </button>
-        <button className={`button ghost${mode === 'markdown' ? ' active' : ''}`} type="button" onClick={() => onModeChange('markdown')}>
-          <Code2 size={18} />
-          Markdown
         </button>
         <button className="button accent note-save-button" type="button" onClick={onSave}>
           <Save size={18} />
@@ -489,6 +451,17 @@ function renderReadOnlyBlock(block: AnyBlock): ReactNode {
   }
 
   if (block.type === 'codeBlock') {
+    const language = String((block.props as any).language ?? '').toLowerCase();
+    if (language === 'markdown' || language === 'md') {
+      return (
+        <div
+          className="note-read-block note-read-markdown"
+          key={block.id}
+          dangerouslySetInnerHTML={{ __html: markdownToHtml(inlineContentToSafeString(block.content)) }}
+        />
+      );
+    }
+
     return (
       <pre className="note-read-block note-read-code" key={block.id}>
         <code>{inlineContentToSafeString(block.content)}</code>
@@ -697,6 +670,7 @@ function QuickBlockToolbar({ onAddBlock }: { onAddBlock: (type: string) => void 
     ['codeBlock', <Code2 size={17} />, 'Code'],
   ] as const;
   const moreItems = [
+    ['markdown', <Code2 size={16} />, 'Markdown'],
     ['quote', <Quote size={16} />, 'Quote'],
     ['toggle', <ChevronDown size={16} />, 'Toggle'],
     ['divider', <Minus size={17} />, 'Divider'],
@@ -825,6 +799,15 @@ function CustomSlashMenu({ editor }: { editor: AnyEditor }) {
               icon: <Brush size={18} />,
               onItemClick: () => insertOrUpdateBlockForSlashMenu(editor as any, createEmptyBlock('drawing') as any),
             },
+            {
+              key: 'markdown' as any,
+              title: 'Markdown',
+              subtext: 'Write a markdown block',
+              aliases: ['md', 'markdown'],
+              group: 'Basic blocks',
+              icon: <Code2 size={18} />,
+              onItemClick: () => insertOrUpdateBlockForSlashMenu(editor as any, createEmptyBlock('markdown') as any),
+            },
           ],
           query,
         )
@@ -862,16 +845,14 @@ function NotePropertiesPanel({
   const currentBlock = block;
 
   function updateBlock(patch: Record<string, unknown>) {
-    const currentProps = currentBlock.props as Record<string, unknown>;
-    const preservedDrawingData =
-      currentBlock.type === 'drawing'
-        ? { drawingData: getCurrentDrawingData(currentBlock.id, String((currentBlock.props as any).drawingData ?? '')) }
-        : {};
+    const currentProps = { ...(currentBlock.props as Record<string, unknown>) };
+    if (currentBlock.type === 'drawing') {
+      delete currentProps.drawingData;
+    }
 
     editor.updateBlock(currentBlock, {
       props: {
         ...currentProps,
-        ...preservedDrawingData,
         ...patch,
       } as any,
     });
@@ -956,6 +937,8 @@ function NotePropertiesPanel({
             ? { type: 'bulletListItem', props: getCommonBlockProps(item) }
             : value === 'toggle'
               ? { type: 'toggleListItem', props: getCommonBlockProps(item) }
+              : value === 'markdown'
+                ? { type: 'codeBlock', props: { ...getCommonBlockProps(item), language: 'markdown' } }
               : type === 'heading'
                 ? { type: 'heading', props: { ...getCommonBlockProps(item), level: Number(level || 1), isToggleable: false } }
                 : { type, props: getCommonBlockProps(item) };
@@ -1062,6 +1045,7 @@ function NotePropertiesPanel({
               <option value="heading-3">Heading 3</option>
               <option value="quote">Quote</option>
               <option value="codeBlock">Code</option>
+              <option value="markdown">Markdown</option>
             </select>
           </label>
           {LIST_BLOCK_TYPES.has(block.type) ? (
@@ -1338,36 +1322,6 @@ function SettingChoiceRow({
   );
 }
 
-function MarkdownImportExportPanel({
-  value,
-  onChange,
-  onImport,
-  onBack,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  onImport: () => void;
-  onBack: () => void;
-}) {
-  return (
-    <div className="note-markdown-panel">
-      <div>
-        <h3>Markdown import / export</h3>
-        <p className="muted-text">Markdown удобен для обмена текстом, но сложные блоки, изображения и рисунки могут быть преобразованы в обычный текст.</p>
-      </div>
-      <textarea value={value} onChange={(event) => onChange(event.target.value)} />
-      <div className="note-markdown-actions">
-        <button className="button ghost" type="button" onClick={onBack}>
-          Вернуться к редактору
-        </button>
-        <button className="button accent" type="button" onClick={onImport}>
-          Импортировать Markdown
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function EditorStatusBar({ editor, revision, lastSavedLabel }: { editor: AnyEditor; revision: number; lastSavedLabel: string }) {
   void revision;
   const blocks = editor.document as AnyBlock[];
@@ -1451,6 +1405,31 @@ function mergeDrawingBlockData(blocks: AnyBlock[]): AnyBlock[] {
 
     return nextBlock;
   });
+}
+
+function prepareInitialEditorContent(blocks: AnyPartialBlock[]): AnyPartialBlock[] {
+  return blocks.map((block) => prepareInitialEditorBlock(block));
+}
+
+function prepareInitialEditorBlock(block: AnyPartialBlock): AnyPartialBlock {
+  const source = block as Record<string, any>;
+  const props = source.props && typeof source.props === 'object' ? { ...source.props } : undefined;
+  const blockId = typeof source.id === 'string' ? source.id : source.type === 'drawing' ? createId('drawing-block') : undefined;
+
+  if (source.type === 'drawing' && props) {
+    const drawingData = String(props.drawingData ?? '');
+    if (blockId && drawingData) {
+      setCurrentDrawingData(blockId, drawingData);
+    }
+    delete props.drawingData;
+  }
+
+  return {
+    ...source,
+    ...(blockId ? { id: blockId } : {}),
+    ...(props ? { props } : {}),
+    ...(Array.isArray(source.children) ? { children: source.children.map((child) => prepareInitialEditorBlock(child as AnyPartialBlock)) } : {}),
+  } as AnyPartialBlock;
 }
 
 function sanitizeInitialContent(content: unknown): AnyPartialBlock[] {
@@ -1554,8 +1533,11 @@ function createEmptyBlock(type: string): AnyPartialBlock {
   if (type === 'divider') {
     return { type: 'divider' } as any;
   }
+  if (type === 'markdown') {
+    return { type: 'codeBlock', props: { language: 'markdown' } } as any;
+  }
   if (type === 'drawing') {
-    return { type: 'drawing', props: { drawingData: '', strokeColor: '#e8edf5', strokeWidth: 3, canvasHeight: DEFAULT_DRAWING_HEIGHT } } as any;
+    return { type: 'drawing', props: { strokeColor: '#e8edf5', strokeWidth: 3, canvasHeight: DEFAULT_DRAWING_HEIGHT } } as any;
   }
   return { type } as any;
 }
@@ -1643,6 +1625,7 @@ function blockTypeLabel(type: string) {
     checkListItem: 'Чек-лист',
     quote: 'Цитата',
     codeBlock: 'Код',
+    markdown: 'Markdown',
     divider: 'Разделитель',
     table: 'Таблица',
     image: 'Изображение',
@@ -1658,6 +1641,10 @@ function supportsTextColor(type: string) {
 }
 
 function getSidebarBlockTypeValue(block: AnyBlock) {
+  if (block.type === 'codeBlock' && ['markdown', 'md'].includes(String((block.props as any).language ?? '').toLowerCase())) {
+    return 'markdown';
+  }
+
   if (LIST_BLOCK_TYPES.has(block.type)) {
     return 'list';
   }
