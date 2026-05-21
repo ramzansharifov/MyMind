@@ -1620,6 +1620,32 @@
   min-height: 68px;
 }
 
+.mymind-blocknote-shell .bn-block-content[data-content-type="bulletListItem"],
+.mymind-blocknote-shell .bn-block-content[data-content-type="numberedListItem"],
+.mymind-blocknote-shell .bn-block-content[data-content-type="checkListItem"] {
+  min-height: 48px;
+  align-items: center;
+  padding-block: 10px;
+  line-height: 1.5;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="bulletListItem"]::before,
+.mymind-blocknote-shell .bn-block-content[data-content-type="numberedListItem"]::before {
+  align-self: center;
+  align-items: center;
+  height: 22px;
+  line-height: 1;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="checkListItem"] > div:has(> input) {
+  align-self: center;
+  height: 22px;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="checkListItem"] > div > input {
+  height: 18px;
+}
+
 .mymind-blocknote-shell .bn-block-content[data-content-type="table"],
 .mymind-blocknote-shell .bn-block-content[data-content-type="image"],
 .mymind-blocknote-shell .bn-block-content[data-content-type="video"],
@@ -1637,6 +1663,25 @@
 
 .mymind-blocknote-shell .bn-block-group .bn-block-group > .bn-block-outer {
   background: color-mix(in srgb, var(--surface-soft) 80%, transparent);
+}
+
+.mymind-blocknote-shell .bn-block-outer[data-prev-type="bulletListItem"]:has(> .bn-block > .bn-block-content[data-content-type="bulletListItem"]),
+.mymind-blocknote-shell .bn-block-outer[data-prev-type="numberedListItem"]:has(> .bn-block > .bn-block-content[data-content-type="numberedListItem"]),
+.mymind-blocknote-shell .bn-block-outer[data-prev-type="checkListItem"]:has(> .bn-block > .bn-block-content[data-content-type="checkListItem"]) {
+  margin-top: -24px;
+  border-top-color: transparent;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--shadow) 42%, transparent);
+}
+
+.mymind-blocknote-shell .bn-block-outer:has(+ .bn-block-outer[data-prev-type="bulletListItem"]):has(> .bn-block > .bn-block-content[data-content-type="bulletListItem"]),
+.mymind-blocknote-shell .bn-block-outer:has(+ .bn-block-outer[data-prev-type="numberedListItem"]):has(> .bn-block > .bn-block-content[data-content-type="numberedListItem"]),
+.mymind-blocknote-shell .bn-block-outer:has(+ .bn-block-outer[data-prev-type="checkListItem"]):has(> .bn-block > .bn-block-content[data-content-type="checkListItem"]) {
+  border-bottom-color: color-mix(in srgb, var(--accent) 10%, var(--border));
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  box-shadow: none;
 }
 
 .mymind-blocknote-shell .bn-trailing-block {

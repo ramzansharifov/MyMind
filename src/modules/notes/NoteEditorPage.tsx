@@ -7,7 +7,6 @@ import {
   BookOpen,
   Brush,
   ChevronDown,
-  CheckSquare,
   Code2,
   Copy,
   File as FileIcon,
@@ -18,7 +17,6 @@ import {
   Italic,
   Link,
   List,
-  ListOrdered,
   Music,
   Minus,
   PanelRight,
@@ -80,6 +78,8 @@ const SUPPORTED_BLOCK_TYPES = new Set([
   'file',
   'codeBlock',
 ]);
+const LIST_BLOCK_TYPES = new Set(['bulletListItem', 'numberedListItem', 'checkListItem']);
+const TOGGLE_HEADING_LEVELS = [1, 2, 3] as const;
 
 export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEditorPageProps) {
   const initialContent = useMemo(() => sanitizeInitialContent(getNoteEditorContent(note)), [note?.id]);
@@ -450,16 +450,14 @@ function PropertyValueInput({ property, onChange }: { property: NoteProperty; on
 function QuickBlockToolbar({ onAddBlock }: { onAddBlock: (type: string) => void }) {
   const primaryItems = [
     ['paragraph', <Type size={17} />, 'Text'],
-    ['checkListItem', <CheckSquare size={17} />, 'Checklist'],
+    ['list', <List size={17} />, 'List'],
     ['table', <Grid3X3 size={17} />, 'Table'],
     ['image', <ImageIcon size={17} />, 'Image'],
     ['codeBlock', <Code2 size={17} />, 'Code'],
   ] as const;
   const moreItems = [
     ['quote', <Quote size={16} />, 'Quote'],
-    ['bulletListItem', <List size={16} />, 'Bullet list'],
-    ['numberedListItem', <ListOrdered size={16} />, 'Numbered list'],
-    ['toggleListItem', <ChevronDown size={16} />, 'Toggle list'],
+    ['toggle', <ChevronDown size={16} />, 'Toggle'],
     ['divider', <Minus size={17} />, 'Divider'],
     ['video', <Video size={16} />, 'Video'],
     ['audio', <Music size={16} />, 'Audio'],
@@ -636,7 +634,12 @@ function NotePropertiesPanel({
   const selectedBlocks = editor.getSelection()?.blocks ?? [currentBlock];
   const selectedBlocksHaveContent = selectedBlocks.some((item) => item.content !== undefined);
   const currentTextAlignment = String((currentBlock.props as any).textAlignment ?? 'left');
-  const blockTypeValue = block.type === 'heading' ? `heading-${String((block.props as any).level ?? 1)}` : block.type;
+  const blockTypeValue = getSidebarBlockTypeValue(block);
+  const listMarkerValue = LIST_BLOCK_TYPES.has(block.type) ? block.type : 'bulletListItem';
+  const togglePresentationValue =
+    block.type === 'heading' && (block.props as any).isToggleable
+      ? `heading-${String((block.props as any).level ?? 1)}`
+      : 'toggleListItem';
 
   function preventToolbarBlur(event: MouseEvent) {
     event.preventDefault();
@@ -665,10 +668,57 @@ function NotePropertiesPanel({
     editor.transact(() => {
       for (const item of selectedBlocks) {
         const patch =
-          type === 'heading'
-            ? { type: 'heading', props: { level: Number(level || 1), isToggleable: false } }
-            : { type };
+          value === 'list'
+            ? { type: 'bulletListItem', props: getCommonBlockProps(item) }
+            : value === 'toggle'
+              ? { type: 'toggleListItem', props: getCommonBlockProps(item) }
+              : type === 'heading'
+                ? { type: 'heading', props: { ...getCommonBlockProps(item), level: Number(level || 1), isToggleable: false } }
+                : { type, props: getCommonBlockProps(item) };
         editor.updateBlock(item, patch as any);
+      }
+    });
+
+    onBlockChange(findBlockById(editor.document as AnyBlock[], currentBlock.id) ?? getCurrentBlock(editor));
+    onDirty();
+  }
+
+  function setListMarkerType(value: string) {
+    editor.focus();
+    editor.transact(() => {
+      for (const item of selectedBlocks) {
+        if (LIST_BLOCK_TYPES.has(item.type)) {
+          editor.updateBlock(item, { type: value, props: getCommonBlockProps(item) } as any);
+        }
+      }
+    });
+
+    onBlockChange(findBlockById(editor.document as AnyBlock[], currentBlock.id) ?? getCurrentBlock(editor));
+    onDirty();
+  }
+
+  function setTogglePresentation(value: string) {
+    editor.focus();
+    editor.transact(() => {
+      for (const item of selectedBlocks) {
+        if (item.type !== 'toggleListItem' && !(item.type === 'heading' && (item.props as any).isToggleable)) {
+          continue;
+        }
+
+        if (value === 'toggleListItem') {
+          editor.updateBlock(item, { type: 'toggleListItem', props: getCommonBlockProps(item) } as any);
+          continue;
+        }
+
+        const [, level] = value.split('-');
+        editor.updateBlock(item, {
+          type: 'heading',
+          props: {
+            ...getCommonBlockProps(item),
+            level: Number(level || 1),
+            isToggleable: true,
+          },
+        } as any);
       }
     });
 
@@ -721,14 +771,38 @@ function NotePropertiesPanel({
             Тип блока
             <select value={blockTypeValue} onChange={(event) => setBlockType(event.target.value)}>
               <option value="paragraph">Paragraph</option>
+              <option value="list">List</option>
+              <option value="toggle">Toggle</option>
               <option value="heading-1">Heading 1</option>
               <option value="heading-2">Heading 2</option>
               <option value="heading-3">Heading 3</option>
-              <option value="bulletListItem">Bullet list</option>
-              <option value="numberedListItem">Numbered list</option>
-              <option value="checkListItem">Checklist</option>
+              <option value="quote">Quote</option>
+              <option value="codeBlock">Code</option>
             </select>
           </label>
+          {LIST_BLOCK_TYPES.has(block.type) ? (
+            <label className="note-settings-input">
+              Marker type
+              <select value={listMarkerValue} onChange={(event) => setListMarkerType(event.target.value)}>
+                <option value="bulletListItem">Bullet</option>
+                <option value="numberedListItem">Numbered</option>
+                <option value="checkListItem">Checkbox</option>
+              </select>
+            </label>
+          ) : null}
+          {block.type === 'toggleListItem' || (block.type === 'heading' && (block.props as any).isToggleable) ? (
+            <label className="note-settings-input">
+              Toggle type
+              <select value={togglePresentationValue} onChange={(event) => setTogglePresentation(event.target.value)}>
+                <option value="toggleListItem">List toggle</option>
+                {TOGGLE_HEADING_LEVELS.map((level) => (
+                  <option value={`heading-${level}`} key={level}>
+                    Heading toggle {level}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <div className="note-sidebar-tool-grid">
             <button className={activeStyles.bold ? 'active' : ''} type="button" title="Bold" onMouseDown={preventToolbarBlur} onClick={() => toggleTextStyle('bold')}>
               <Bold size={16} />
@@ -953,14 +1027,30 @@ function EditorStatusBar({ editor, revision, lastSavedLabel }: { editor: AnyEdit
   void revision;
   const blocks = editor.document as AnyBlock[];
   const text = editorContentToPlainText(blocks);
+  const visualBlocks = countVisualBlocks(blocks);
   return (
     <div className="note-editor-statusbar">
       <span>Слов: {text ? text.split(/\s+/).length : 0}</span>
       <span>Символов: {text.length}</span>
-      <span>Блоков: {blocks.length}</span>
+      <span>Блоков: {visualBlocks}</span>
       <span>Последнее сохранение: {lastSavedLabel}</span>
     </div>
   );
+}
+
+function countVisualBlocks(blocks: AnyBlock[]) {
+  let count = 0;
+  let previousType = '';
+
+  for (const block of blocks) {
+    const isContinuation = LIST_BLOCK_TYPES.has(block.type) && block.type === previousType;
+    if (!isContinuation) {
+      count += 1;
+    }
+    previousType = block.type;
+  }
+
+  return count;
 }
 
 function sanitizeInitialContent(content: unknown): AnyPartialBlock[] {
@@ -1040,6 +1130,12 @@ function inlineContentToSafeString(content: unknown): string {
 }
 
 function createEmptyBlock(type: string): AnyPartialBlock {
+  if (type === 'list') {
+    return { type: 'bulletListItem' } as any;
+  }
+  if (type === 'toggle') {
+    return { type: 'toggleListItem' } as any;
+  }
   if (type === 'table') {
     return {
       type: 'table',
@@ -1131,11 +1227,36 @@ function blockTypeLabel(type: string) {
 }
 
 function supportsTextColor(type: string) {
-  return ['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'checkListItem', 'quote', 'callout'].includes(type);
+  return ['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem', 'quote', 'callout'].includes(type);
+}
+
+function getSidebarBlockTypeValue(block: AnyBlock) {
+  if (LIST_BLOCK_TYPES.has(block.type)) {
+    return 'list';
+  }
+
+  if (block.type === 'toggleListItem' || (block.type === 'heading' && (block.props as any).isToggleable)) {
+    return 'toggle';
+  }
+
+  if (block.type === 'heading') {
+    return `heading-${String((block.props as any).level ?? 1)}`;
+  }
+
+  return block.type;
+}
+
+function getCommonBlockProps(block: AnyBlock) {
+  const props = block.props as Record<string, unknown>;
+  return {
+    textColor: props.textColor ?? 'default',
+    backgroundColor: props.backgroundColor ?? 'default',
+    textAlignment: props.textAlignment ?? 'left',
+  };
 }
 
 function supportsBackgroundColor(type: string) {
-  return ['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'checkListItem', 'quote', 'callout', 'image'].includes(type);
+  return ['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem', 'quote', 'callout', 'image'].includes(type);
 }
 
 function colorLabel(value: BlockNoteColor) {
