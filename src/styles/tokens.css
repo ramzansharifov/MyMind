@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   color-scheme: dark;
   --bg: #0e1117;
   --surface: #171b23;
@@ -24,8 +24,8 @@
   --shadow-strong: rgba(0, 0, 0, 0.42);
   --backdrop: rgba(4, 7, 12, 0.68);
   --scrollbar-track: transparent;
-  --scrollbar-thumb: rgba(154, 165, 179, 0.5);
-  --scrollbar-thumb-hover: rgba(58, 169, 151, 0.78);
+  --scrollbar-thumb: color-mix(in srgb, var(--accent) 30%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--accent) 70%, transparent);
   --radius-control: 8px;
   --radius-panel: 8px;
   --space-1: 4px;
@@ -76,8 +76,8 @@
   --shadow-strong: rgba(25, 37, 45, 0.18);
   --backdrop: rgba(12, 18, 24, 0.32);
   --scrollbar-track: transparent;
-  --scrollbar-thumb: rgba(102, 113, 124, 0.48);
-  --scrollbar-thumb-hover: rgba(37, 124, 112, 0.72);
+  --scrollbar-thumb: color-mix(in srgb, var(--accent) 25%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--accent) 65%, transparent);
   background: var(--bg);
   color: var(--text);
 }
