@@ -1,24 +1,42 @@
 import {
   ArrowLeft,
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  Bold,
   BookOpen,
   Brush,
+  ChevronDown,
   CheckSquare,
   Code2,
   Copy,
+  File as FileIcon,
   Grid3X3,
   Image as ImageIcon,
+  IndentDecrease,
+  IndentIncrease,
+  Italic,
+  Link,
+  List,
+  ListOrdered,
+  Music,
+  Minus,
   PanelRight,
+  Quote,
   Save,
   Settings2,
+  Strikethrough,
   Tags,
   Trash2,
   Type,
+  Underline,
+  Video,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FC, type MouseEvent } from 'react';
 import { BlockNoteSchema, defaultBlockSpecs, filterSuggestionItems, type Block, type BlockNoteEditor, type PartialBlock } from '@blocknote/core';
 import { BlockNoteView } from '@blocknote/mantine';
-import { getDefaultReactSlashMenuItems, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react';
+import { getDefaultReactSlashMenuItems, SideMenu, SideMenuController, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import { createId } from '../../shared/utils/idGenerator';
@@ -44,13 +62,17 @@ const noteSchema = BlockNoteSchema.create({
 });
 
 const EMPTY_DOCUMENT: AnyPartialBlock[] = [{ type: 'paragraph' } as any];
-const COLOR_PRESETS = ['default', '#f8fafc', '#4db6a8', '#7aa2ff', '#f0c36a', '#ef7d78', '#b884f4'];
+const COLOR_PRESETS = ['default', 'gray', 'brown', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink'] as const;
+type BlockNoteColor = (typeof COLOR_PRESETS)[number];
 const SUPPORTED_BLOCK_TYPES = new Set([
   'paragraph',
   'heading',
+  'quote',
   'bulletListItem',
   'numberedListItem',
   'checkListItem',
+  'toggleListItem',
+  'divider',
   'table',
   'image',
   'video',
@@ -426,22 +448,46 @@ function PropertyValueInput({ property, onChange }: { property: NoteProperty; on
 }
 
 function QuickBlockToolbar({ onAddBlock }: { onAddBlock: (type: string) => void }) {
-  const items = [
+  const primaryItems = [
     ['paragraph', <Type size={17} />, 'Text'],
     ['checkListItem', <CheckSquare size={17} />, 'Checklist'],
     ['table', <Grid3X3 size={17} />, 'Table'],
     ['image', <ImageIcon size={17} />, 'Image'],
     ['codeBlock', <Code2 size={17} />, 'Code'],
   ] as const;
+  const moreItems = [
+    ['quote', <Quote size={16} />, 'Quote'],
+    ['bulletListItem', <List size={16} />, 'Bullet list'],
+    ['numberedListItem', <ListOrdered size={16} />, 'Numbered list'],
+    ['toggleListItem', <ChevronDown size={16} />, 'Toggle list'],
+    ['divider', <Minus size={17} />, 'Divider'],
+    ['video', <Video size={16} />, 'Video'],
+    ['audio', <Music size={16} />, 'Audio'],
+    ['file', <FileIcon size={16} />, 'File'],
+  ] as const;
 
   return (
     <div className="note-quick-toolbar">
-      {items.map(([type, icon, label]) => (
+      {primaryItems.map(([type, icon, label]) => (
         <button className="button ghost" type="button" key={type} onClick={() => onAddBlock(type)}>
           {icon}
           {label}
         </button>
       ))}
+      <details className="note-more-blocks">
+        <summary className="button ghost">
+          <ChevronDown size={17} />
+          More blocks
+        </summary>
+        <div className="note-more-blocks-menu">
+          {moreItems.map(([type, icon, label]) => (
+            <button type="button" key={type} onClick={() => onAddBlock(type)}>
+              {icon}
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      </details>
     </div>
   );
 }
@@ -463,20 +509,39 @@ function BlockNoteEditorShell({
         editor={editor}
         theme="dark"
         editable={!readOnly}
-        formattingToolbar={!readOnly}
-        linkToolbar={!readOnly}
+        formattingToolbar={false}
+        linkToolbar={false}
         slashMenu={false}
-        sideMenu={!readOnly}
+        sideMenu={false}
         filePanel={!readOnly}
         tableHandles={!readOnly}
         emojiPicker={false}
         onChange={onChange}
         onSelectionChange={onSelectionChange}
       >
-        {!readOnly ? <CustomSlashMenu editor={editor} /> : null}
+        {!readOnly ? (
+          <>
+            <CustomSlashMenu editor={editor} />
+            <SideMenuController
+              sideMenu={NoteBlockSideMenu}
+              floatingUIOptions={{
+                useFloatingOptions: { placement: 'bottom-start' },
+                elementProps: { className: 'note-block-side-menu-popover' },
+              }}
+            />
+          </>
+        ) : null}
       </BlockNoteView>
     </div>
   );
+}
+
+function NoteBlockSideMenu(props: { dragHandleMenu?: FC }) {
+  return <SideMenu {...props} dragHandleMenu={EmptyDragHandleMenu} />;
+}
+
+function EmptyDragHandleMenu() {
+  return null;
 }
 
 function CustomSlashMenu({ editor }: { editor: AnyEditor }) {
@@ -504,6 +569,9 @@ function NotePropertiesPanel({
   onBlockChange: (block: AnyBlock | null) => void;
   onDirty: () => void;
 }) {
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkTarget, setLinkTarget] = useState<{ from: number; to: number; text: string } | null>(null);
+
   if (!block) {
     return (
       <aside className="note-settings-panel">
@@ -539,8 +607,104 @@ function NotePropertiesPanel({
   }
 
   function deleteBlock() {
-    editor.removeBlocks([currentBlock]);
+    const selectedBlocks = editor.getSelection()?.blocks;
+    const blocksToRemove = selectedBlocks && selectedBlocks.some((item) => item.id === currentBlock.id) ? selectedBlocks : [currentBlock];
+
+    editor.removeBlocks(blocksToRemove);
     onBlockChange(getCurrentBlock(editor));
+    onDirty();
+  }
+
+  function updateTableHeaders(patch: Record<string, unknown>) {
+    editor.updateBlock(currentBlock, {
+      content: {
+        ...((currentBlock as any).content ?? {}),
+        ...patch,
+      },
+    } as any);
+
+    const updated = findBlockById(editor.document as AnyBlock[], currentBlock.id);
+    onBlockChange(updated ?? currentBlock);
+    onDirty();
+  }
+
+  const tableContent = (block as any).content ?? {};
+  const tableHeadersEnabled = Boolean((editor as any).settings?.tables?.headers);
+  const hasHeaderRow = Boolean(tableContent.headerRows);
+  const hasHeaderColumn = Boolean(tableContent.headerCols);
+  const activeStyles = editor.getActiveStyles() as Record<string, unknown>;
+  const selectedBlocks = editor.getSelection()?.blocks ?? [currentBlock];
+  const selectedBlocksHaveContent = selectedBlocks.some((item) => item.content !== undefined);
+  const currentTextAlignment = String((currentBlock.props as any).textAlignment ?? 'left');
+  const blockTypeValue = block.type === 'heading' ? `heading-${String((block.props as any).level ?? 1)}` : block.type;
+
+  function preventToolbarBlur(event: MouseEvent) {
+    event.preventDefault();
+  }
+
+  function toggleTextStyle(style: 'bold' | 'italic' | 'underline' | 'strike') {
+    editor.focus();
+    editor.toggleStyles({ [style]: true } as any);
+    onDirty();
+  }
+
+  function setTextAlignment(textAlignment: 'left' | 'center' | 'right') {
+    editor.focus();
+    for (const item of selectedBlocks) {
+      if ('textAlignment' in (item.props as Record<string, unknown>)) {
+        editor.updateBlock(item, { props: { textAlignment } } as any);
+      }
+    }
+    onBlockChange(findBlockById(editor.document as AnyBlock[], currentBlock.id) ?? currentBlock);
+    onDirty();
+  }
+
+  function setBlockType(value: string) {
+    const [type, level] = value.split('-');
+    editor.focus();
+    editor.transact(() => {
+      for (const item of selectedBlocks) {
+        const patch =
+          type === 'heading'
+            ? { type: 'heading', props: { level: Number(level || 1), isToggleable: false } }
+            : { type };
+        editor.updateBlock(item, patch as any);
+      }
+    });
+
+    onBlockChange(findBlockById(editor.document as AnyBlock[], currentBlock.id) ?? getCurrentBlock(editor));
+    onDirty();
+  }
+
+  function captureLinkTarget() {
+    const target = editor.transact((tr) => ({
+      from: tr.selection.from,
+      to: tr.selection.to,
+      text: tr.doc.textBetween(tr.selection.from, tr.selection.to).trim(),
+    }));
+
+    setLinkTarget(target);
+  }
+
+  function applyLink() {
+    const url = linkUrl.trim();
+    if (!url || !linkTarget) {
+      return;
+    }
+
+    editor.transact((tr) => {
+      const linkMark = (editor as any).pmSchema.mark('link', { href: url });
+
+      if (linkTarget.from === linkTarget.to || !linkTarget.text) {
+        tr.insertText(url, linkTarget.from, linkTarget.to).addMark(linkTarget.from, linkTarget.from + url.length, linkMark);
+        return;
+      }
+
+      tr.addMark(linkTarget.from, linkTarget.to, linkMark);
+    });
+
+    setLinkUrl('');
+    setLinkTarget(null);
     onDirty();
   }
 
@@ -550,21 +714,86 @@ function NotePropertiesPanel({
         <h3>Настройки блока</h3>
         <PanelRight size={18} />
       </div>
-      <div className="note-settings-section">
-        <strong>{blockTypeLabel(block.type)}</strong>
+      {selectedBlocksHaveContent ? (
+        <div className="note-settings-section note-drag-menu-section">
+          <h4>Форматирование</h4>
+          <label className="note-settings-input">
+            Тип блока
+            <select value={blockTypeValue} onChange={(event) => setBlockType(event.target.value)}>
+              <option value="paragraph">Paragraph</option>
+              <option value="heading-1">Heading 1</option>
+              <option value="heading-2">Heading 2</option>
+              <option value="heading-3">Heading 3</option>
+              <option value="bulletListItem">Bullet list</option>
+              <option value="numberedListItem">Numbered list</option>
+              <option value="checkListItem">Checklist</option>
+            </select>
+          </label>
+          <div className="note-sidebar-tool-grid">
+            <button className={activeStyles.bold ? 'active' : ''} type="button" title="Bold" onMouseDown={preventToolbarBlur} onClick={() => toggleTextStyle('bold')}>
+              <Bold size={16} />
+            </button>
+            <button className={activeStyles.italic ? 'active' : ''} type="button" title="Italic" onMouseDown={preventToolbarBlur} onClick={() => toggleTextStyle('italic')}>
+              <Italic size={16} />
+            </button>
+            <button className={activeStyles.underline ? 'active' : ''} type="button" title="Underline" onMouseDown={preventToolbarBlur} onClick={() => toggleTextStyle('underline')}>
+              <Underline size={16} />
+            </button>
+            <button className={activeStyles.strike ? 'active' : ''} type="button" title="Strike" onMouseDown={preventToolbarBlur} onClick={() => toggleTextStyle('strike')}>
+              <Strikethrough size={16} />
+            </button>
+            <button className={currentTextAlignment === 'left' ? 'active' : ''} type="button" title="Align left" onMouseDown={preventToolbarBlur} onClick={() => setTextAlignment('left')}>
+              <AlignLeft size={16} />
+            </button>
+            <button className={currentTextAlignment === 'center' ? 'active' : ''} type="button" title="Align center" onMouseDown={preventToolbarBlur} onClick={() => setTextAlignment('center')}>
+              <AlignCenter size={16} />
+            </button>
+            <button className={currentTextAlignment === 'right' ? 'active' : ''} type="button" title="Align right" onMouseDown={preventToolbarBlur} onClick={() => setTextAlignment('right')}>
+              <AlignRight size={16} />
+            </button>
+            <button type="button" title="Indent" onMouseDown={preventToolbarBlur} onClick={() => { editor.focus(); editor.nestBlock(); onDirty(); }}>
+              <IndentIncrease size={16} />
+            </button>
+            <button type="button" title="Outdent" onMouseDown={preventToolbarBlur} onClick={() => { editor.focus(); editor.unnestBlock(); onDirty(); }}>
+              <IndentDecrease size={16} />
+            </button>
+            <button type="button" title="Link" onMouseDown={preventToolbarBlur} onClick={captureLinkTarget}>
+              <Link size={16} />
+            </button>
+          </div>
+          {linkTarget ? (
+            <div className="note-link-field">
+              <input value={linkUrl} placeholder="https://example.com" onChange={(event) => setLinkUrl(event.target.value)} />
+              <button className="button ghost" type="button" onClick={applyLink}>
+                Применить
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="note-settings-section note-drag-menu-section">
+        {supportsTextColor(block.type) || supportsBackgroundColor(block.type) ? (
+          <div className="note-menu-group">
+            {supportsTextColor(block.type) ? (
+              <SettingColorRow
+                label="Цвет текста"
+                kind="text"
+                value={String((block.props as any).textColor ?? 'default')}
+                onChange={(value) => updateBlock({ textColor: value })}
+              />
+            ) : null}
+            {supportsBackgroundColor(block.type) ? (
+              <SettingColorRow
+                label="Цвет фона"
+                kind="background"
+                value={String((block.props as any).backgroundColor ?? 'default')}
+                onChange={(value) => updateBlock({ backgroundColor: value })}
+              />
+            ) : null}
+          </div>
+        ) : null}
       </div>
-
-      {supportsTextColor(block.type) ? (
-        <SettingColorRow label="Цвет текста" value={String((block.props as any).textColor ?? 'default')} onChange={(value) => updateBlock({ textColor: value })} />
-      ) : null}
-
-      {supportsBackgroundColor(block.type) ? (
-        <SettingColorRow
-          label="Цвет фона"
-          value={String((block.props as any).backgroundColor ?? 'default')}
-          onChange={(value) => updateBlock({ backgroundColor: value })}
-        />
-      ) : null}
 
       {block.type === 'codeBlock' ? (
         <label className="note-settings-input">
@@ -588,39 +817,80 @@ function NotePropertiesPanel({
         </>
       ) : null}
 
-      <div className="note-settings-section">
-        <h4>Действия</h4>
-        <button className="button ghost full-width" type="button" onClick={duplicateBlock}>
+      {block.type === 'table' && tableHeadersEnabled ? (
+        <div className="note-settings-section note-drag-menu-section">
+          <h4>Таблица</h4>
+          <div className="note-menu-list">
+            <button
+              className={`note-menu-row${hasHeaderRow ? ' active' : ''}`}
+              type="button"
+              onClick={() => updateTableHeaders({ headerRows: hasHeaderRow ? undefined : 1 })}
+            >
+              Строка заголовка
+            </button>
+            <button
+              className={`note-menu-row${hasHeaderColumn ? ' active' : ''}`}
+              type="button"
+              onClick={() => updateTableHeaders({ headerCols: hasHeaderColumn ? undefined : 1 })}
+            >
+              Колонка заголовка
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="note-settings-section note-bottom-actions">
+        <button className="button ghost compact-action" type="button" onClick={duplicateBlock}>
           <Copy size={17} />
           Дублировать
         </button>
-        <button className="button danger full-width" type="button" onClick={deleteBlock}>
+        <button className="button danger compact-action" type="button" onClick={deleteBlock}>
           <Trash2 size={17} />
-          Удалить блок
+          Удалить
         </button>
       </div>
     </aside>
   );
 }
 
-function SettingColorRow({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function SettingColorRow({
+  label,
+  kind,
+  value,
+  onChange,
+}: {
+  label: string;
+  kind: 'text' | 'background';
+  value: string;
+  onChange: (value: string) => void;
+}) {
   return (
-    <div className="note-settings-section">
-      <span className="note-settings-label">{label}</span>
+    <details className="note-color-details">
+      <summary>
+        <span>{label}</span>
+        <span
+          className="note-color-current"
+          style={{ backgroundColor: resolveCssColor(value, kind) }}
+          aria-label={colorLabel((COLOR_PRESETS.includes(value as BlockNoteColor) ? value : 'default') as BlockNoteColor)}
+        >
+          {kind === 'text' ? <span style={{ color: resolveCssColor(value, 'text') }}>A</span> : null}
+        </span>
+      </summary>
       <div className="note-color-row">
         {COLOR_PRESETS.map((color) => (
           <button
             className={`note-color-swatch${value === color ? ' active' : ''}`}
             type="button"
             key={color}
-            style={{ backgroundColor: resolveCssColor(color) }}
-            aria-label={color === 'default' ? 'По умолчанию' : color}
+            style={{ backgroundColor: resolveCssColor(color, kind) }}
+            aria-label={colorLabel(color)}
             onClick={() => onChange(color)}
-          />
+          >
+            {kind === 'text' ? <span style={{ color: resolveCssColor(color, 'text') }}>A</span> : null}
+          </button>
         ))}
-        <input type="color" value={value === 'default' ? '#f8fafc' : value} onChange={(event) => onChange(event.target.value)} />
       </div>
-    </div>
+    </details>
   );
 }
 
@@ -785,6 +1055,9 @@ function createEmptyBlock(type: string): AnyPartialBlock {
   if (type === 'image') {
     return { type: 'image' } as any;
   }
+  if (type === 'divider') {
+    return { type: 'divider' } as any;
+  }
   return { type } as any;
 }
 
@@ -865,9 +1138,30 @@ function supportsBackgroundColor(type: string) {
   return ['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'checkListItem', 'quote', 'callout', 'image'].includes(type);
 }
 
-function resolveCssColor(value: unknown) {
+function colorLabel(value: BlockNoteColor) {
+  const labels: Record<BlockNoteColor, string> = {
+    default: 'По умолчанию',
+    gray: 'Серый',
+    brown: 'Коричневый',
+    red: 'Красный',
+    orange: 'Оранжевый',
+    yellow: 'Жёлтый',
+    green: 'Зелёный',
+    blue: 'Синий',
+    purple: 'Фиолетовый',
+    pink: 'Розовый',
+  };
+  return labels[value];
+}
+
+function resolveCssColor(value: unknown, kind: 'text' | 'background' = 'background') {
   if (!value || value === 'default') {
-    return undefined;
+    return kind === 'text' ? 'var(--text)' : 'var(--surface-soft)';
   }
+
+  if (typeof value === 'string' && COLOR_PRESETS.includes(value as BlockNoteColor)) {
+    return `var(--bn-colors-highlights-${value}-${kind})`;
+  }
+
   return String(value);
 }
