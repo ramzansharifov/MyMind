@@ -31,13 +31,14 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type FC, type KeyboardEvent, type MouseEvent } from 'react';
-import { BlockNoteSchema, defaultBlockSpecs, filterSuggestionItems, type Block, type BlockNoteEditor, type PartialBlock } from '@blocknote/core';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FC, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { BlockNoteSchema, defaultBlockSpecs, filterSuggestionItems, insertOrUpdateBlockForSlashMenu, type Block, type BlockNoteEditor, type PartialBlock } from '@blocknote/core';
 import { BlockNoteView } from '@blocknote/mantine';
 import { getDefaultReactSlashMenuItems, SideMenu, SideMenuController, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import { createId } from '../../shared/utils/idGenerator';
+import { DRAWING_BLOCK_DIRTY_EVENT, DRAWING_BLOCK_SELECTED_EVENT, drawingBlockSpec, getCurrentDrawingData } from './blocks/drawing';
 import { editorContentToPlainText, getNoteEditorContent, NOTE_SCHEMA_VERSION } from './noteUtils';
 import type { Note, NoteProperty } from './types';
 
@@ -81,12 +82,16 @@ const noteBlockSpecs = Object.fromEntries(
 const noteSchema = BlockNoteSchema.create({
   blockSpecs: {
     ...noteBlockSpecs,
+    drawing: drawingBlockSpec(),
   },
 });
 
 const EMPTY_DOCUMENT: AnyPartialBlock[] = [{ type: 'paragraph' } as any];
 const COLOR_PRESETS = ['default', 'gray', 'brown', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink'] as const;
 type BlockNoteColor = (typeof COLOR_PRESETS)[number];
+const DRAWING_COLOR_PRESETS = ['#e8edf5', '#f6c6c6', '#ffd8a8', '#f7e08c', '#a8e6cf', '#9ed9d5', '#b8c7ff', '#d6b4f4'] as const;
+const DRAWING_WIDTH_PRESETS = [2, 3, 5, 8, 12] as const;
+const DEFAULT_DRAWING_HEIGHT = 420;
 const SUPPORTED_BLOCK_TYPES = new Set([
   'paragraph',
   'heading',
@@ -102,6 +107,7 @@ const SUPPORTED_BLOCK_TYPES = new Set([
   'audio',
   'file',
   'codeBlock',
+  'drawing',
 ]);
 const LIST_BLOCK_TYPES = new Set(LIST_BLOCK_TYPE_NAMES);
 const TOGGLE_HEADING_LEVELS = [1, 2, 3] as const;
@@ -150,6 +156,31 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
     return () => window.cancelAnimationFrame(frame);
   }, [editor, editorRevision, mode]);
 
+  useEffect(() => {
+    function handleDrawingDirty() {
+      setDirty(true);
+    }
+
+    function handleDrawingSelected(event: Event) {
+      const blockId = (event as CustomEvent<{ blockId?: string }>).detail?.blockId;
+      if (!blockId) {
+        return;
+      }
+
+      const block = findBlockById(editor.document as AnyBlock[], blockId);
+      if (block) {
+        setSelectedBlock(block);
+      }
+    }
+
+    window.addEventListener(DRAWING_BLOCK_DIRTY_EVENT, handleDrawingDirty);
+    window.addEventListener(DRAWING_BLOCK_SELECTED_EVENT, handleDrawingSelected);
+    return () => {
+      window.removeEventListener(DRAWING_BLOCK_DIRTY_EVENT, handleDrawingDirty);
+      window.removeEventListener(DRAWING_BLOCK_SELECTED_EVENT, handleDrawingSelected);
+    };
+  }, [editor]);
+
   const refreshSelectedBlock = useCallback(() => {
     const block = getCurrentBlock(editor);
     setSelectedBlock(block);
@@ -165,7 +196,7 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
   }
 
   async function saveNote() {
-    const blocks = editor.document as AnyBlock[];
+    const blocks = mergeDrawingBlockData(editor.document as AnyBlock[]);
     const plainText = editorContentToPlainText(blocks);
     const html = await editor.blocksToHTMLLossy(blocks as any);
     const timestamp = new Date().toISOString();
@@ -301,12 +332,16 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
           {mode === 'edit' ? <QuickBlockToolbar onAddBlock={addBlock} /> : null}
           <div className={`note-editor-layout${isReadMode ? ' read-mode' : ''}`}>
             <div className="note-editor-main">
-              <BlockNoteEditorShell
-                editor={editor}
-                readOnly={isReadMode}
-                onChange={handleEditorChange}
-                onSelectionChange={refreshSelectedBlock}
-              />
+              {isReadMode ? (
+                <ReadOnlyBlocks blocks={mergeDrawingBlockData(editor.document as AnyBlock[])} />
+              ) : (
+                <BlockNoteEditorShell
+                  editor={editor}
+                  readOnly={false}
+                  onChange={handleEditorChange}
+                  onSelectionChange={refreshSelectedBlock}
+                />
+              )}
               <EditorStatusBar editor={editor} revision={editorRevision} lastSavedLabel={lastSavedLabel} />
             </div>
             {!isReadMode ? (
@@ -384,6 +419,182 @@ function ReadOnlyNoteHeader({ title, tags }: { title: string; tags: string[] }) 
       ) : null}
     </div>
   );
+}
+
+function ReadOnlyBlocks({ blocks }: { blocks: AnyBlock[] }) {
+  return (
+    <div className="note-read-content">
+      {renderReadOnlyBlocks(blocks)}
+    </div>
+  );
+}
+
+function renderReadOnlyBlocks(blocks: AnyBlock[]) {
+  const output = [];
+  let index = 0;
+
+  while (index < blocks.length) {
+    const block = blocks[index];
+
+    if (block.type === 'bulletListItem' || block.type === 'numberedListItem' || block.type === 'checkListItem') {
+      const group = [];
+      const listType = block.type;
+      while (index < blocks.length && blocks[index].type === listType) {
+        group.push(blocks[index]);
+        index += 1;
+      }
+
+      const ListTag = listType === 'numberedListItem' ? 'ol' : 'ul';
+      output.push(
+        <ListTag className={`note-read-list ${listType}`} key={block.id}>
+          {group.map((item) => (
+            <li key={item.id}>
+              {listType === 'checkListItem' ? <input type="checkbox" checked={Boolean((item.props as any).checked)} readOnly /> : null}
+              <span>{renderInlineContent(item.content)}</span>
+            </li>
+          ))}
+        </ListTag>,
+      );
+      continue;
+    }
+
+    output.push(renderReadOnlyBlock(block));
+    index += 1;
+  }
+
+  return output;
+}
+
+function renderReadOnlyBlock(block: AnyBlock): ReactNode {
+  const children = Array.isArray(block.children) && block.children.length > 0 ? <div className="note-read-children">{renderReadOnlyBlocks(block.children as AnyBlock[])}</div> : null;
+
+  if (block.type === 'heading') {
+    const level = Math.min(3, Math.max(1, Number((block.props as any).level ?? 1)));
+    const HeadingTag = `h${level + 1}` as 'h2' | 'h3' | 'h4';
+    return (
+      <section className="note-read-block" key={block.id}>
+        <HeadingTag>{renderInlineContent(block.content)}</HeadingTag>
+        {children}
+      </section>
+    );
+  }
+
+  if (block.type === 'quote') {
+    return (
+      <blockquote className="note-read-block note-read-quote" key={block.id}>
+        {renderInlineContent(block.content)}
+        {children}
+      </blockquote>
+    );
+  }
+
+  if (block.type === 'codeBlock') {
+    return (
+      <pre className="note-read-block note-read-code" key={block.id}>
+        <code>{inlineContentToSafeString(block.content)}</code>
+      </pre>
+    );
+  }
+
+  if (block.type === 'divider') {
+    return <hr className="note-read-divider" key={block.id} />;
+  }
+
+  if (block.type === 'table') {
+    return <ReadOnlyTable block={block} key={block.id} />;
+  }
+
+  if (block.type === 'image') {
+    const url = String((block.props as any).url ?? '');
+    return (
+      <figure className="note-read-block note-read-media" key={block.id}>
+        {url ? <img src={url} alt={String((block.props as any).caption ?? 'Image')} /> : <div className="note-read-empty">Image</div>}
+        {(block.props as any).caption ? <figcaption>{String((block.props as any).caption)}</figcaption> : null}
+      </figure>
+    );
+  }
+
+  if (block.type === 'drawing') {
+    const drawingData = getCurrentDrawingData(block.id, String((block.props as any).drawingData ?? ''));
+    const canvasHeight = clampNumber(Number((block.props as any).canvasHeight ?? DEFAULT_DRAWING_HEIGHT), 220, 900);
+    return (
+      <div className="note-read-block note-read-drawing" key={block.id} style={{ '--note-drawing-height': `${canvasHeight}px` } as CSSProperties}>
+        {isValidDrawingData(drawingData) ? <img src={drawingData} alt="Drawing" /> : <div className="note-read-empty">No drawing yet</div>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="note-read-block" key={block.id}>
+      <p>{renderInlineContent(block.content)}</p>
+      {children}
+    </div>
+  );
+}
+
+function ReadOnlyTable({ block }: { block: AnyBlock }) {
+  const rows = Array.isArray((block as any).content?.rows) ? (block as any).content.rows : [];
+  return (
+    <div className="note-read-block note-read-table-wrap">
+      <table className="note-read-table">
+        <tbody>
+          {rows.map((row: any, rowIndex: number) => (
+            <tr key={rowIndex}>
+              {(row.cells ?? []).map((cell: unknown, cellIndex: number) => (
+                <td key={cellIndex}>{renderInlineContent(cell)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function renderInlineContent(content: unknown): ReactNode {
+  if (!content) {
+    return null;
+  }
+
+  if (typeof content === 'string') {
+    return content;
+  }
+
+  if (!Array.isArray(content)) {
+    return inlineContentToSafeString(content);
+  }
+
+  return content.map((item, index) => renderInlineItem(item, index));
+}
+
+function renderInlineItem(item: unknown, index: number): ReactNode {
+  if (!item || typeof item !== 'object') {
+    return String(item ?? '');
+  }
+
+  const value = item as Record<string, any>;
+  if (value.type === 'link') {
+    return (
+      <a href={String(value.href ?? '#')} key={index} target="_blank" rel="noreferrer">
+        {renderInlineContent(value.content)}
+      </a>
+    );
+  }
+
+  const text = typeof value.text === 'string' ? value.text : inlineContentToSafeString(value.content);
+  const styles = value.styles ?? {};
+  let node: ReactNode = text;
+
+  if (styles.bold) node = <strong>{node}</strong>;
+  if (styles.italic) node = <em>{node}</em>;
+  if (styles.underline) node = <u>{node}</u>;
+  if (styles.strike) node = <s>{node}</s>;
+
+  return <span key={index}>{node}</span>;
+}
+
+function isValidDrawingData(value: string) {
+  return value.startsWith('data:image/png;base64,') || value.startsWith('data:image/webp;base64,') || value.startsWith('data:image/jpeg;base64,');
 }
 
 function NoteMetadata({
@@ -489,6 +700,7 @@ function QuickBlockToolbar({ onAddBlock }: { onAddBlock: (type: string) => void 
     ['quote', <Quote size={16} />, 'Quote'],
     ['toggle', <ChevronDown size={16} />, 'Toggle'],
     ['divider', <Minus size={17} />, 'Divider'],
+    ['drawing', <Brush size={16} />, 'Drawing'],
     ['video', <Video size={16} />, 'Video'],
     ['audio', <Music size={16} />, 'Audio'],
     ['file', <FileIcon size={16} />, 'File'],
@@ -602,7 +814,18 @@ function CustomSlashMenu({ editor }: { editor: AnyEditor }) {
       triggerCharacter="/"
       getItems={async (query) =>
         filterSuggestionItems(
-          getDefaultReactSlashMenuItems(editor as any),
+          [
+            ...getDefaultReactSlashMenuItems(editor as any),
+            {
+              key: 'drawing' as any,
+              title: 'Drawing',
+              subtext: 'Sketch directly in the note',
+              aliases: ['draw', 'canvas', 'sketch'],
+              group: 'Basic blocks',
+              icon: <Brush size={18} />,
+              onItemClick: () => insertOrUpdateBlockForSlashMenu(editor as any, createEmptyBlock('drawing') as any),
+            },
+          ],
           query,
         )
       }
@@ -639,9 +862,16 @@ function NotePropertiesPanel({
   const currentBlock = block;
 
   function updateBlock(patch: Record<string, unknown>) {
+    const currentProps = currentBlock.props as Record<string, unknown>;
+    const preservedDrawingData =
+      currentBlock.type === 'drawing'
+        ? { drawingData: getCurrentDrawingData(currentBlock.id, String((currentBlock.props as any).drawingData ?? '')) }
+        : {};
+
     editor.updateBlock(currentBlock, {
       props: {
-        ...(currentBlock.props as Record<string, unknown>),
+        ...currentProps,
+        ...preservedDrawingData,
         ...patch,
       } as any,
     });
@@ -923,6 +1153,67 @@ function NotePropertiesPanel({
         ) : null}
       </div>
 
+      {block.type === 'drawing' ? (
+        <div className="note-settings-section note-drawing-settings-section">
+          <h4>Drawing</h4>
+          <div className="note-drawing-color-row" aria-label="Stroke color">
+            {DRAWING_COLOR_PRESETS.map((color) => (
+              <button
+                className={`note-drawing-color-swatch${String((block.props as any).strokeColor ?? '#e8edf5') === color ? ' active' : ''}`}
+                type="button"
+                key={color}
+                style={{ backgroundColor: color }}
+                aria-label={color}
+                onClick={() => updateBlock({ strokeColor: color })}
+              />
+            ))}
+          </div>
+          <label className="note-settings-input">
+            Thickness
+            <input
+              type="range"
+              min="1"
+              max="16"
+              step="1"
+              value={Number((block.props as any).strokeWidth ?? 3)}
+              onChange={(event) => updateBlock({ strokeWidth: Number(event.target.value) })}
+            />
+          </label>
+          <div className="note-drawing-width-row">
+            {DRAWING_WIDTH_PRESETS.map((width) => (
+              <button
+                className={Number((block.props as any).strokeWidth ?? 3) === width ? 'active' : ''}
+                type="button"
+                key={width}
+                onClick={() => updateBlock({ strokeWidth: width })}
+              >
+                {width}px
+              </button>
+            ))}
+          </div>
+          <label className="note-settings-input">
+            Height, px
+            <input
+              type="number"
+              min="220"
+              max="900"
+              step="20"
+              value={Number((block.props as any).canvasHeight ?? DEFAULT_DRAWING_HEIGHT)}
+              onChange={(event) => updateBlock({ canvasHeight: clampNumber(Number(event.target.value), 220, 900) })}
+            />
+          </label>
+          <input
+            className="note-drawing-height-slider"
+            type="range"
+            min="220"
+            max="900"
+            step="20"
+            value={Number((block.props as any).canvasHeight ?? DEFAULT_DRAWING_HEIGHT)}
+            onChange={(event) => updateBlock({ canvasHeight: Number(event.target.value) })}
+          />
+        </div>
+      ) : null}
+
       {block.type === 'codeBlock' ? (
         <label className="note-settings-input">
           Язык
@@ -1141,6 +1432,27 @@ function syncVisualListGroups(editor: AnyEditor) {
   }
 }
 
+function mergeDrawingBlockData(blocks: AnyBlock[]): AnyBlock[] {
+  return blocks.map((block) => {
+    const nextBlock = {
+      ...block,
+      props:
+        block.type === 'drawing'
+          ? {
+              ...(block.props as Record<string, unknown>),
+              drawingData: getCurrentDrawingData(block.id, String((block.props as any).drawingData ?? '')),
+            }
+          : block.props,
+    } as AnyBlock;
+
+    if (Array.isArray(block.children) && block.children.length > 0) {
+      nextBlock.children = mergeDrawingBlockData(block.children as AnyBlock[]) as any;
+    }
+
+    return nextBlock;
+  });
+}
+
 function sanitizeInitialContent(content: unknown): AnyPartialBlock[] {
   if (!Array.isArray(content) || content.length === 0) {
     return EMPTY_DOCUMENT;
@@ -1242,6 +1554,9 @@ function createEmptyBlock(type: string): AnyPartialBlock {
   if (type === 'divider') {
     return { type: 'divider' } as any;
   }
+  if (type === 'drawing') {
+    return { type: 'drawing', props: { drawingData: '', strokeColor: '#e8edf5', strokeWidth: 3, canvasHeight: DEFAULT_DRAWING_HEIGHT } } as any;
+  }
   return { type } as any;
 }
 
@@ -1331,6 +1646,7 @@ function blockTypeLabel(type: string) {
     divider: 'Разделитель',
     table: 'Таблица',
     image: 'Изображение',
+    drawing: 'Доска для рисования',
     drawingSheet: 'Лист для рисования',
     callout: 'Подсказка',
   };
@@ -1396,4 +1712,12 @@ function resolveCssColor(value: unknown, kind: 'text' | 'background' = 'backgrou
   }
 
   return String(value);
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+
+  return Math.min(max, Math.max(min, value));
 }

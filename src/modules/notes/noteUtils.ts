@@ -273,6 +273,9 @@ export function editorContentToPlainText(content: unknown): string {
       if (current.type === 'image' && typeof (current.props as Record<string, unknown> | undefined)?.caption === 'string') {
         parts.push(String((current.props as Record<string, unknown>).caption));
       }
+      if (current.type === 'drawing') {
+        parts.push('Drawing board');
+      }
       if (Array.isArray(current.children)) {
         walk(current.children);
       }

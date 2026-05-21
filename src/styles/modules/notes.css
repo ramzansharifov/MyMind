@@ -1243,6 +1243,151 @@
   gap: 14px;
 }
 
+.note-read-content {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border));
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 28px 34px;
+  color: var(--text);
+}
+
+.note-read-block,
+.note-read-list,
+.note-read-table-wrap,
+.note-read-drawing,
+.note-read-media {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--text);
+}
+
+.note-read-block p,
+.note-read-block h2,
+.note-read-block h3,
+.note-read-block h4,
+.note-read-quote {
+  margin: 0;
+}
+
+.note-read-block h2 {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+}
+
+.note-read-block h3 {
+  font-size: 2rem;
+}
+
+.note-read-block h4 {
+  font-size: 1.5rem;
+}
+
+.note-read-list {
+  display: grid;
+  gap: 6px;
+  padding-left: 44px;
+  margin: 0;
+}
+
+.note-read-list li {
+  padding-left: 4px;
+}
+
+.note-read-list.checkListItem {
+  list-style: none;
+  padding-left: 22px;
+}
+
+.note-read-list.checkListItem li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.note-read-quote {
+  padding-left: 16px;
+  border-left: 3px solid var(--accent);
+  color: color-mix(in srgb, var(--text) 88%, var(--muted));
+}
+
+.note-read-code {
+  overflow: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface) 72%, black 28%);
+  padding: 14px;
+  font-family: var(--font-mono, monospace);
+  white-space: pre-wrap;
+}
+
+.note-read-divider {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.note-read-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+}
+
+.note-read-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.note-read-table td {
+  border: 1px solid var(--line-soft);
+  padding: 10px 12px;
+}
+
+.note-read-media,
+.note-read-drawing {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.note-read-media img,
+.note-read-drawing img {
+  display: block;
+  width: 100%;
+  max-height: min(62vh, 620px);
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.note-read-drawing img {
+  height: var(--note-drawing-height, 420px);
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 12%, transparent) 1px, transparent 1px) 0 0 / 20px 20px,
+    #151922;
+  border: 1px solid var(--line-soft);
+}
+
+.note-read-empty {
+  display: grid;
+  place-items: center;
+  min-height: var(--note-drawing-height, 220px);
+  width: 100%;
+  border: 1px dashed color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 6px;
+  color: var(--muted);
+}
+
+.note-read-children {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
 .note-read-only-header h1 {
   margin: 0;
   color: color-mix(in srgb, var(--text) 90%, var(--muted));
@@ -1648,12 +1793,153 @@
 
 .mymind-blocknote-shell .bn-block-content[data-content-type="table"],
 .mymind-blocknote-shell .bn-block-content[data-content-type="image"],
+.mymind-blocknote-shell .bn-block-content[data-content-type="drawing"],
 .mymind-blocknote-shell .bn-block-content[data-content-type="video"],
 .mymind-blocknote-shell .bn-block-content[data-content-type="audio"],
 .mymind-blocknote-shell .bn-block-content[data-content-type="file"],
 .mymind-blocknote-shell .bn-block-content[data-content-type="codeBlock"] {
   align-items: stretch;
   padding: 16px;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="drawing"] {
+  min-height: 420px;
+}
+
+.note-simple-drawing-block {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-height: calc(var(--note-drawing-height, 420px) + 56px);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 82%, black 18%);
+  padding: 8px;
+}
+
+.note-simple-drawing-block.read-only {
+  min-height: var(--note-drawing-height, 420px);
+  place-items: center;
+}
+
+.note-simple-drawing-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.note-simple-drawing-toolbar button {
+  min-height: 30px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface) 88%, white 12%);
+  color: var(--text);
+  font: inherit;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.note-simple-drawing-toolbar button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+
+.note-simple-drawing-toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.note-drawing-settings-section {
+  gap: 12px;
+}
+
+.note-drawing-settings-section h4 {
+  margin: 0;
+}
+
+.note-drawing-color-row,
+.note-drawing-width-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.note-drawing-color-swatch {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--surface) 78%, transparent);
+  cursor: pointer;
+}
+
+.note-drawing-color-swatch.active {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent),
+    inset 0 0 0 2px color-mix(in srgb, var(--surface) 78%, transparent);
+}
+
+.note-drawing-width-row button {
+  min-height: 28px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface) 88%, white 8%);
+  color: var(--text);
+  padding: 4px 9px;
+  cursor: pointer;
+}
+
+.note-drawing-width-row button.active,
+.note-drawing-width-row button:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+}
+
+.note-drawing-height-slider {
+  width: 100%;
+}
+
+.note-simple-drawing-canvas {
+  width: 100%;
+  height: var(--note-drawing-height, 420px);
+  min-height: 220px;
+  display: block;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 16%, transparent) 1px, transparent 1px) 0 0 / 20px 20px,
+    #151922;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.mymind-blocknote-shell.read-only .note-simple-drawing-canvas {
+  cursor: default;
+}
+
+.note-simple-drawing-empty {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 240px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 6px;
+  color: var(--muted);
+}
+
+.note-drawing-preview {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 220px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 52%, transparent);
+  color: var(--muted);
+  text-align: center;
 }
 
 .mymind-blocknote-shell .bn-block-group .bn-block-group {
