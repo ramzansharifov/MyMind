@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EmptyState } from '../../shared/components/EmptyState';
@@ -7,8 +7,10 @@ import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
 import { filterNotes, noteCategories, noteTags } from './noteUtils';
 import { NoteCard } from './NoteCard';
-import { NoteEditorPage } from './NoteEditorPage';
 import type { Note } from './types';
+import '../../styles/modules/notes.css';
+
+const NoteEditorPage = lazy(() => import('./NoteEditorPage').then((module) => ({ default: module.NoteEditorPage })));
 
 interface NotesPageProps {
   notes: Note[];
@@ -75,7 +77,11 @@ export function NotesPage({ notes, onChange }: NotesPageProps) {
   }
 
   if (editorNote !== undefined) {
-    return <NoteEditorPage note={editorNote} initialMode={editorInitialMode} onCancel={() => setEditorNote(undefined)} onSave={saveNote} />;
+    return (
+      <Suspense fallback={<section className="loading-panel">Loading editor...</section>}>
+        <NoteEditorPage note={editorNote} initialMode={editorInitialMode} onCancel={() => setEditorNote(undefined)} onSave={saveNote} />
+      </Suspense>
+    );
   }
 
   return (

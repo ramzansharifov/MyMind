@@ -1,45 +1,46 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { AppShell } from './shared/components/AppShell';
 import { storageClient } from './shared/storage/storageClient';
 import type { CollectionName } from './shared/storage/storageTypes';
 import type { ModuleKey } from './shared/types/common';
 import { createDemoData, fillWorkoutDemoGaps, isAppDataEmpty } from './shared/storage/demoData';
-import { DashboardPage } from './modules/dashboard/DashboardPage';
-import { MoviesPage } from './modules/movies/MoviesPage';
 import type { Movie } from './modules/movies/types';
-import { WorkoutsPage } from './modules/workouts/WorkoutsPage';
 import type { MealRecord, NutritionEntry, WorkoutData } from './modules/workouts/types';
-import { TodosPage } from './modules/todos/TodosPage';
 import type { TodoData, TodoItem } from './modules/todos/types';
 import { DEFAULT_TODO_GROUPS, todoItems } from './modules/todos/todoUtils';
-import { FinancePage } from './modules/finance/FinancePage';
 import type { FinanceData } from './modules/finance/types';
-import { HabitsPage } from './modules/habits/HabitsPage';
 import { isHabitScheduledForDate } from './modules/habits/habitUtils';
 import type { HabitData, HabitLog } from './modules/habits/types';
-import { CalendarPage } from './modules/calendar/CalendarPage';
 import type { CalendarEvent } from './modules/calendar/types';
-import { JournalPage } from './modules/journal/JournalPage';
 import type { JournalEntry } from './modules/journal/types';
-import { NotesPage } from './modules/notes/NotesPage';
 import type { Note } from './modules/notes/types';
 import { migrateNote } from './modules/notes/noteUtils';
-import { SettingsPage } from './modules/settings/SettingsPage';
-import { ProjectsPage } from './modules/projects/ProjectsPage';
 import type { Project } from './modules/projects/types';
-import { ContactsPage } from './modules/contacts/ContactsPage';
 import type { Contact } from './modules/contacts/types';
-import { HealthPage } from './modules/health/HealthPage';
 import type { HealthData } from './modules/health/types';
-import { GoalsPage } from './modules/goals/GoalsPage';
 import type { Goal } from './modules/goals/types';
-import { InventoryPage } from './modules/inventory/InventoryPage';
 import type { InventoryItem } from './modules/inventory/types';
 import type { AppSettings } from './shared/types/common';
 import { I18nProvider, useI18n } from './shared/i18n/I18nProvider';
-import { ArchiveTrashManager } from './modules/settings/ArchiveTrashManager';
 import { cleanupExpiredTrash } from './shared/utils/appDataUtils';
 import { localDateOnly, weekdayNumber } from './shared/utils/dateUtils';
+
+const DashboardPage = lazy(() => import('./modules/dashboard/DashboardPage').then((module) => ({ default: module.DashboardPage })));
+const MoviesPage = lazy(() => import('./modules/movies/MoviesPage').then((module) => ({ default: module.MoviesPage })));
+const WorkoutsPage = lazy(() => import('./modules/workouts/WorkoutsPage').then((module) => ({ default: module.WorkoutsPage })));
+const TodosPage = lazy(() => import('./modules/todos/TodosPage').then((module) => ({ default: module.TodosPage })));
+const FinancePage = lazy(() => import('./modules/finance/FinancePage').then((module) => ({ default: module.FinancePage })));
+const HabitsPage = lazy(() => import('./modules/habits/HabitsPage').then((module) => ({ default: module.HabitsPage })));
+const CalendarPage = lazy(() => import('./modules/calendar/CalendarPage').then((module) => ({ default: module.CalendarPage })));
+const JournalPage = lazy(() => import('./modules/journal/JournalPage').then((module) => ({ default: module.JournalPage })));
+const NotesPage = lazy(() => import('./modules/notes/NotesPage').then((module) => ({ default: module.NotesPage })));
+const SettingsPage = lazy(() => import('./modules/settings/SettingsPage').then((module) => ({ default: module.SettingsPage })));
+const ProjectsPage = lazy(() => import('./modules/projects/ProjectsPage').then((module) => ({ default: module.ProjectsPage })));
+const ContactsPage = lazy(() => import('./modules/contacts/ContactsPage').then((module) => ({ default: module.ContactsPage })));
+const HealthPage = lazy(() => import('./modules/health/HealthPage').then((module) => ({ default: module.HealthPage })));
+const GoalsPage = lazy(() => import('./modules/goals/GoalsPage').then((module) => ({ default: module.GoalsPage })));
+const InventoryPage = lazy(() => import('./modules/inventory/InventoryPage').then((module) => ({ default: module.InventoryPage })));
+const ArchiveTrashManager = lazy(() => import('./modules/settings/ArchiveTrashManager').then((module) => ({ default: module.ArchiveTrashManager })));
 
 interface AppReminder {
   id: string;
@@ -66,6 +67,8 @@ export interface AppData {
   goals: Goal[];
   inventory: InventoryItem[];
 }
+
+type AppCollectionName = Exclude<CollectionName, 'app_settings'>;
 
 const emptyData: AppData = {
   movies: [],
@@ -104,103 +107,170 @@ const defaultSettings: AppSettings = {
   updatedAt: new Date().toISOString(),
 };
 
+const dataCollections: AppCollectionName[] = [
+  'movies',
+  'workouts',
+  'todos',
+  'finance',
+  'habits',
+  'calendar_events',
+  'journal_entries',
+  'notes',
+  'projects',
+  'contacts',
+  'health',
+  'goals',
+  'inventory',
+];
+
+const reminderCollections: AppCollectionName[] = ['todos', 'habits', 'calendar_events'];
+
+const moduleCollections: Record<ModuleKey, AppCollectionName[]> = {
+  dashboard: dataCollections,
+  movies: ['movies'],
+  workouts: ['workouts'],
+  todos: ['todos'],
+  finance: ['finance'],
+  habits: ['habits'],
+  calendar: ['calendar_events'],
+  journal: ['journal_entries'],
+  notes: ['notes'],
+  projects: ['projects'],
+  contacts: ['contacts'],
+  health: ['health'],
+  goals: ['goals'],
+  inventory: ['inventory'],
+  settings: dataCollections,
+};
+
 export function App() {
   const [activeModule, setActiveModule] = useState<ModuleKey>('dashboard');
   const [data, setData] = useState<AppData>(emptyData);
   const [dataDirectory, setDataDirectory] = useState('');
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadedCollections, setLoadedCollections] = useState<Set<AppCollectionName>>(() => new Set());
+  const [loadingCollections, setLoadingCollections] = useState<Set<AppCollectionName>>(() => new Set());
   const [statusMessage, setStatusMessage] = useState('');
   const [isArchiveManagerOpen, setIsArchiveManagerOpen] = useState(false);
   const [snoozedReminders, setSnoozedReminders] = useState<Record<string, number>>({});
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const lastSavedDataRef = useRef<AppData | null>(null);
+  const saveGenerationRef = useRef(0);
+  const loadedCollectionsRef = useRef<Set<AppCollectionName>>(new Set());
+  const loadingCollectionsRef = useRef<Map<AppCollectionName, Promise<void>>>(new Map());
+  const isHydratingRef = useRef(false);
 
   async function loadData() {
+    isHydratingRef.current = true;
     setIsLoading(true);
+    loadedCollectionsRef.current = new Set();
+    loadingCollectionsRef.current = new Map();
+    setLoadedCollections(new Set());
+    setLoadingCollections(new Set());
+    setData(emptyData);
+    lastSavedDataRef.current = emptyData;
     try {
-      const [
-        movies,
-        workouts,
-        todos,
-        finance,
-        habits,
-        calendarEvents,
-        journalEntries,
-        notes,
-        projects,
-        contacts,
-        health,
-        goals,
-        inventory,
-        appSettings,
-        directory,
-      ] = await Promise.all([
-        storageClient.getAll('movies'),
-        storageClient.getAll('workouts'),
-        storageClient.getAll('todos'),
-        storageClient.getAll('finance'),
-        storageClient.getAll('habits'),
-        storageClient.getAll('calendar_events'),
-        storageClient.getAll('journal_entries'),
-        storageClient.getAll('notes'),
-        storageClient.getAll('projects'),
-        storageClient.getAll('contacts'),
-        storageClient.getAll('health'),
-        storageClient.getAll('goals'),
-        storageClient.getAll('inventory'),
-        storageClient.getAll('app_settings'),
-        storageClient.getDataDirectory(),
-      ]);
-
-      const normalizedData = normalizeData({
-        movies,
-        workouts,
-        todos,
-        finance,
-        habits,
-        calendarEvents,
-        journalEntries,
-        notes,
-        projects,
-        contacts,
-        health,
-        goals,
-        inventory,
-      });
-      const cleanupResult = cleanupExpiredTrash(normalizedData);
-      let nextData = cleanupResult.data;
-      if (isAppDataEmpty(nextData)) {
-        const seeded = createDemoData();
-        await saveWholeData(seeded);
-        setData(seeded);
-        setStatusMessage('Demo data created because all collections were empty.');
-      } else {
-        const workoutDemo = fillWorkoutDemoGaps(nextData.workouts);
-        if (workoutDemo.didFill) {
-          nextData = { ...nextData, workouts: workoutDemo.workouts };
-        }
-        if (cleanupResult.removed > 0 || workoutDemo.didFill) {
-          await saveWholeData(nextData);
-          setStatusMessage(
-            [
-              cleanupResult.removed > 0 ? `Trash cleanup removed ${cleanupResult.removed} expired items.` : '',
-              workoutDemo.didFill ? 'Workout demo data added.' : '',
-            ]
-              .filter(Boolean)
-              .join(' '),
-          );
-        }
-        setData(nextData);
-      }
+      const [appSettings, directory] = await Promise.all([storageClient.getAll('app_settings'), storageClient.getDataDirectory()]);
       setDataDirectory(directory);
       const mergedSettings = { ...defaultSettings, ...appSettings, dataDirectory: directory };
       setSettings(mergedSettings);
-      setActiveModule(mergedSettings.startModule ?? 'dashboard');
+      const startModule = mergedSettings.startModule ?? 'dashboard';
+      setActiveModule(startModule);
+      setIsLoading(false);
+      isHydratingRef.current = false;
+      void loadCollections([...reminderCollections, ...moduleCollections[startModule]], { runWorkspaceMaintenance: startModule === 'dashboard' });
     } catch (error) {
       console.error('Failed to load data:', error);
       setStatusMessage('Error loading data. Check console for details.');
-    } finally {
+      isHydratingRef.current = false;
       setIsLoading(false);
+    }
+  }
+
+  async function loadCollections(collections: AppCollectionName[], options?: { runWorkspaceMaintenance?: boolean }) {
+    const uniqueCollections = Array.from(new Set(collections));
+    const pending = uniqueCollections.filter((collectionName) => !loadedCollectionsRef.current.has(collectionName));
+    if (pending.length === 0) {
+      if (options?.runWorkspaceMaintenance) {
+        await runWorkspaceMaintenance();
+      }
+      return;
+    }
+
+    for (const collectionName of pending) {
+      if (!loadingCollectionsRef.current.has(collectionName)) {
+        const loading = loadCollection(collectionName);
+        loadingCollectionsRef.current.set(collectionName, loading);
+      }
+    }
+
+    setLoadingCollections(new Set(loadingCollectionsRef.current.keys()));
+
+    try {
+      await Promise.all(pending.map((collectionName) => loadingCollectionsRef.current.get(collectionName)));
+      if (options?.runWorkspaceMaintenance) {
+        await runWorkspaceMaintenance();
+      }
+    } catch (error) {
+      console.error('Failed to load module data:', error);
+      setStatusMessage('Error loading module data. Check console for details.');
+    }
+  }
+
+  async function loadCollection(collectionName: AppCollectionName) {
+    try {
+      const value = await storageClient.getAll(collectionName);
+      const normalizedValue = normalizeCollectionValue(collectionName, value);
+      setData((current) => {
+        const nextData = setDataCollection(current, collectionName, normalizedValue);
+        const previousBaseline = lastSavedDataRef.current ?? current;
+        lastSavedDataRef.current = setDataCollection(previousBaseline, collectionName, normalizedValue);
+        return nextData;
+      });
+      loadedCollectionsRef.current.add(collectionName);
+      setLoadedCollections(new Set(loadedCollectionsRef.current));
+    } finally {
+      loadingCollectionsRef.current.delete(collectionName);
+      setLoadingCollections(new Set(loadingCollectionsRef.current.keys()));
+    }
+  }
+
+  async function runWorkspaceMaintenance() {
+    if (!dataCollections.every((collectionName) => loadedCollectionsRef.current.has(collectionName))) {
+      return;
+    }
+
+    const currentData = lastSavedDataRef.current ?? data;
+    const cleanupResult = cleanupExpiredTrash(currentData);
+    let nextData = cleanupResult.data;
+    if (isAppDataEmpty(nextData)) {
+      const seeded = createDemoData();
+      await saveWholeData(seeded);
+      lastSavedDataRef.current = seeded;
+      setData(seeded);
+      loadedCollectionsRef.current = new Set(dataCollections);
+      setLoadedCollections(new Set(loadedCollectionsRef.current));
+      setStatusMessage('Demo data created because all collections were empty.');
+      return;
+    }
+
+    const workoutDemo = fillWorkoutDemoGaps(nextData.workouts);
+    if (workoutDemo.didFill) {
+      nextData = { ...nextData, workouts: workoutDemo.workouts };
+    }
+    if (cleanupResult.removed > 0 || workoutDemo.didFill) {
+      await saveWholeData(nextData);
+      lastSavedDataRef.current = nextData;
+      setData(nextData);
+      setStatusMessage(
+        [
+          cleanupResult.removed > 0 ? `Trash cleanup removed ${cleanupResult.removed} expired items.` : '',
+          workoutDemo.didFill ? 'Workout demo data added.' : '',
+        ]
+          .filter(Boolean)
+          .join(' '),
+      );
     }
   }
 
@@ -222,6 +292,24 @@ export function App() {
     ]);
   }
 
+  async function saveChangedData(nextData: AppData, previousData: AppData) {
+    await Promise.all([
+      nextData.movies !== previousData.movies ? storageClient.saveAll('movies', nextData.movies) : null,
+      nextData.workouts !== previousData.workouts ? storageClient.saveAll('workouts', nextData.workouts) : null,
+      nextData.todos !== previousData.todos ? storageClient.saveAll('todos', nextData.todos) : null,
+      nextData.finance !== previousData.finance ? storageClient.saveAll('finance', nextData.finance) : null,
+      nextData.habits !== previousData.habits ? storageClient.saveAll('habits', nextData.habits) : null,
+      nextData.calendarEvents !== previousData.calendarEvents ? storageClient.saveAll('calendar_events', nextData.calendarEvents) : null,
+      nextData.journalEntries !== previousData.journalEntries ? storageClient.saveAll('journal_entries', nextData.journalEntries) : null,
+      nextData.notes !== previousData.notes ? storageClient.saveAll('notes', nextData.notes) : null,
+      nextData.projects !== previousData.projects ? storageClient.saveAll('projects', nextData.projects) : null,
+      nextData.contacts !== previousData.contacts ? storageClient.saveAll('contacts', nextData.contacts) : null,
+      nextData.health !== previousData.health ? storageClient.saveAll('health', nextData.health) : null,
+      nextData.goals !== previousData.goals ? storageClient.saveAll('goals', nextData.goals) : null,
+      nextData.inventory !== previousData.inventory ? storageClient.saveAll('inventory', nextData.inventory) : null,
+    ].filter(Boolean));
+  }
+
   async function saveSettings(nextSettings: AppSettings) {
     const updated = { ...nextSettings, updatedAt: new Date().toISOString() };
     setSettings(updated);
@@ -235,12 +323,14 @@ export function App() {
     }
     const seeded = createDemoData();
     await saveWholeData(seeded);
+    lastSavedDataRef.current = seeded;
     setData(seeded);
     setStatusMessage('Demo data recreated.');
   }
 
   async function clearDemoData() {
     await saveWholeData(emptyData);
+    lastSavedDataRef.current = emptyData;
     setData(emptyData);
     setStatusMessage('Demo data cleared.');
   }
@@ -293,6 +383,13 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+    void loadCollections(moduleCollections[activeModule], { runWorkspaceMaintenance: activeModule === 'dashboard' || activeModule === 'settings' });
+  }, [activeModule, isLoading]);
+
+  useEffect(() => {
     document.documentElement.dataset.theme = settings.themeMode;
   }, [settings.themeMode]);
 
@@ -332,6 +429,12 @@ export function App() {
   const page = useMemo(() => {
     if (isLoading) {
       return <section className="loading-panel">Loading local JSON workspace...</section>;
+    }
+    const requiredCollections = moduleCollections[activeModule] ?? [];
+    const isModuleDataReady = requiredCollections.every((collectionName) => loadedCollections.has(collectionName));
+    if (!isModuleDataReady) {
+      const activeLoads = requiredCollections.filter((collectionName) => loadingCollections.has(collectionName)).length;
+      return <section className="loading-panel">Loading module data{activeLoads ? ` (${activeLoads})` : ''}...</section>;
     }
 
     switch (activeModule) {
@@ -410,13 +513,35 @@ export function App() {
           />
         );
     }
-  }, [activeModule, data, dataDirectory, isLoading, settings, statusMessage]);
+  }, [activeModule, data, dataDirectory, isLoading, loadedCollections, loadingCollections, settings, statusMessage]);
 
   useEffect(() => {
-    if (isLoading) {
+    if (isLoading || isHydratingRef.current) {
       return;
     }
-    void saveWholeData(data);
+    const previousData = lastSavedDataRef.current;
+    if (!previousData || previousData === data) {
+      lastSavedDataRef.current = data;
+      return;
+    }
+
+    const generation = saveGenerationRef.current + 1;
+    saveGenerationRef.current = generation;
+
+    const timeoutId = window.setTimeout(() => {
+      void saveChangedData(data, previousData)
+        .then(() => {
+          if (saveGenerationRef.current === generation) {
+            lastSavedDataRef.current = data;
+          }
+        })
+        .catch((error) => {
+          console.error('Failed to save data:', error);
+          setStatusMessage('Error saving data. Check console for details.');
+        });
+    }, 700);
+
+    return () => window.clearTimeout(timeoutId);
   }, [data, isLoading]);
 
   const dueReminders = useMemo(
@@ -495,15 +620,17 @@ export function App() {
   return (
     <I18nProvider language={settings.language}>
       <AppShell active={activeModule} onNavigate={setActiveModule} reminderBadges={reminderBadges}>
-        {page}
+        <Suspense fallback={<section className="loading-panel">Loading module...</section>}>{page}</Suspense>
         {activeReminder ? <ReminderModal reminder={activeReminder} onDismiss={() => dismissReminder(activeReminder)} onSnooze={() => snoozeReminder(activeReminder)} /> : null}
         {isArchiveManagerOpen ? (
-          <ArchiveTrashManager
-            data={data}
-            onChange={setData}
-            onClose={() => setIsArchiveManagerOpen(false)}
-            onStatusMessage={setStatusMessage}
-          />
+          <Suspense fallback={null}>
+            <ArchiveTrashManager
+              data={data}
+              onChange={setData}
+              onClose={() => setIsArchiveManagerOpen(false)}
+              onStatusMessage={setStatusMessage}
+            />
+          </Suspense>
         ) : null}
       </AppShell>
     </I18nProvider>
@@ -572,6 +699,73 @@ function normalizeData(data: AppData): AppData {
     goals: data.goals ?? [],
     inventory: data.inventory ?? [],
   };
+}
+
+function normalizeCollectionValue(collectionName: AppCollectionName, value: unknown) {
+  const normalized = normalizeData(setDataCollection(emptyData, collectionName, value));
+  return getDataCollection(normalized, collectionName);
+}
+
+function getDataCollection(data: AppData, collectionName: AppCollectionName) {
+  switch (collectionName) {
+    case 'movies':
+      return data.movies;
+    case 'workouts':
+      return data.workouts;
+    case 'todos':
+      return data.todos;
+    case 'finance':
+      return data.finance;
+    case 'habits':
+      return data.habits;
+    case 'calendar_events':
+      return data.calendarEvents;
+    case 'journal_entries':
+      return data.journalEntries;
+    case 'notes':
+      return data.notes;
+    case 'projects':
+      return data.projects;
+    case 'contacts':
+      return data.contacts;
+    case 'health':
+      return data.health;
+    case 'goals':
+      return data.goals;
+    case 'inventory':
+      return data.inventory;
+  }
+}
+
+function setDataCollection(data: AppData, collectionName: AppCollectionName, value: unknown): AppData {
+  switch (collectionName) {
+    case 'movies':
+      return { ...data, movies: Array.isArray(value) ? value as Movie[] : [] };
+    case 'workouts':
+      return { ...data, workouts: value as WorkoutData };
+    case 'todos':
+      return { ...data, todos: value as TodoData };
+    case 'finance':
+      return { ...data, finance: value as FinanceData };
+    case 'habits':
+      return { ...data, habits: value as HabitData };
+    case 'calendar_events':
+      return { ...data, calendarEvents: Array.isArray(value) ? value as CalendarEvent[] : [] };
+    case 'journal_entries':
+      return { ...data, journalEntries: Array.isArray(value) ? value as JournalEntry[] : [] };
+    case 'notes':
+      return { ...data, notes: Array.isArray(value) ? value as Note[] : [] };
+    case 'projects':
+      return { ...data, projects: Array.isArray(value) ? value as Project[] : [] };
+    case 'contacts':
+      return { ...data, contacts: Array.isArray(value) ? value as Contact[] : [] };
+    case 'health':
+      return { ...data, health: value as HealthData };
+    case 'goals':
+      return { ...data, goals: Array.isArray(value) ? value as Goal[] : [] };
+    case 'inventory':
+      return { ...data, inventory: Array.isArray(value) ? value as InventoryItem[] : [] };
+  }
 }
 
 function buildDueReminders(data: AppData, now: number): AppReminder[] {

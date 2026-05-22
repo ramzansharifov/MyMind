@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { PageHeader } from '../../shared/components/PageHeader';
@@ -8,9 +8,10 @@ import { formatDate, localDateOnly, millisecondsUntilNextLocalDay } from '../../
 import { createId } from '../../shared/utils/idGenerator';
 import { activeHabits, isHabitCompletedToday, isHabitScheduledForDate, todayHabits, todayLog } from './habitUtils';
 import { HabitCard } from './HabitCard';
-import { HabitChartsSection } from './HabitChartsSection';
 import { HabitForm } from './HabitForm';
 import type { Habit, HabitData, HabitLog } from './types';
+
+const HabitChartsSection = lazy(() => import('./HabitChartsSection').then((module) => ({ default: module.HabitChartsSection })));
 
 interface HabitsPageProps {
   data: HabitData;
@@ -195,7 +196,11 @@ export function HabitsPage({ data, onChange }: HabitsPageProps) {
         </section>
       ) : null}
 
-      {activeTab === 'charts' ? <HabitChartsSection habits={active} logs={data.logs} completedToday={completedToday} todayTotal={habitsForToday.length} /> : null}
+      {activeTab === 'charts' ? (
+        <Suspense fallback={<section className="panel">Loading charts...</section>}>
+          <HabitChartsSection habits={active} logs={data.logs} completedToday={completedToday} todayTotal={habitsForToday.length} />
+        </Suspense>
+      ) : null}
       {editing !== undefined ? <HabitForm habit={editing} onCancel={() => setEditing(undefined)} onSave={saveHabit} /> : null}
     </section>
   );

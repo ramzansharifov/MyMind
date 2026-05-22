@@ -19,6 +19,7 @@ import { formatDate } from '../../shared/utils/dateUtils';
 import { formatCurrency } from '../../shared/utils/formatters';
 import { currentBalance, totalByType, visibleTransactions } from './financeUtils';
 import type { FinanceData, FinanceTransaction } from './types';
+import '../../styles/modules/charts.css';
 
 interface FinanceChartsSectionProps {
   data: FinanceData;

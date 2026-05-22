@@ -17,6 +17,7 @@ import { StatCard } from '../../shared/components/StatCard';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { formatDate } from '../../shared/utils/dateUtils';
 import type { ExerciseDefinition, NutritionEntry, ProgressRecord, WorkoutPlan, WorkoutSession } from './types';
+import '../../styles/modules/charts.css';
 
 interface ChartsSectionProps {
   exercises: ExerciseDefinition[];

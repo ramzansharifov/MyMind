@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { AddButton, CancelButton, DeleteButton, EditButton, SaveButton } from '../../shared/components/ActionButtons';
 import { EntityForm } from '../../shared/components/EntityForm';
 import { EmptyState } from '../../shared/components/EmptyState';
@@ -6,7 +6,6 @@ import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { formatDate } from '../../shared/utils/dateUtils';
 import { createId } from '../../shared/utils/idGenerator';
-import { ChartsSection } from './ChartsSection';
 import { ExerciseForm } from './ExerciseForm';
 import { NutritionEntryForm } from './NutritionEntryForm';
 import { NutritionMealForm } from './NutritionMealForm';
@@ -27,6 +26,8 @@ import type {
   WorkoutPlan,
   WorkoutSession,
 } from './types';
+
+const ChartsSection = lazy(() => import('./ChartsSection').then((module) => ({ default: module.ChartsSection })));
 
 interface WorkoutsPageProps {
   data: WorkoutData;
@@ -686,13 +687,15 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
 
       {/* Charts Section */}
       {activeSection === 'charts' && (
-        <ChartsSection
-          exercises={exercises}
-          plans={plans}
-          sessions={sessions}
-          progressRecords={progressRecords}
-          nutritionEntries={nutritionEntries}
-        />
+        <Suspense fallback={<section className="panel">Loading charts...</section>}>
+          <ChartsSection
+            exercises={exercises}
+            plans={plans}
+            sessions={sessions}
+            progressRecords={progressRecords}
+            nutritionEntries={nutritionEntries}
+          />
+        </Suspense>
       )}
 
       {/* Forms */}

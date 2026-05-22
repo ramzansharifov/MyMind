@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { lazy, Suspense, useState, type FormEvent } from 'react';
 import { AddButton, DeleteButton, EditButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EntityForm } from '../../shared/components/EntityForm';
@@ -10,12 +10,13 @@ import { formatCurrency } from '../../shared/utils/formatters';
 import { createId } from '../../shared/utils/idGenerator';
 import { Minus } from 'lucide-react';
 import { currentBalance, filterTransactions, transactionTags } from './financeUtils';
-import { FinanceChartsSection } from './FinanceChartsSection';
 import { SavingsGoalCard } from './SavingsGoalCard';
 import { SavingsGoalForm } from './SavingsGoalForm';
 import { TransactionForm } from './TransactionForm';
 import { TransactionList } from './TransactionList';
 import type { FinanceData, FinanceTag, FinanceTagType, FinanceTransaction, SavingsGoal, TransactionType } from './types';
+
+const FinanceChartsSection = lazy(() => import('./FinanceChartsSection').then((module) => ({ default: module.FinanceChartsSection })));
 
 interface FinancePageProps {
   data: FinanceData;
@@ -268,7 +269,11 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
         </>
       ) : null}
 
-      {view === 'charts' ? <FinanceChartsSection data={data} currency={currency} /> : null}
+      {view === 'charts' ? (
+        <Suspense fallback={<section className="panel">Loading charts...</section>}>
+          <FinanceChartsSection data={data} currency={currency} />
+        </Suspense>
+      ) : null}
 
       {view === 'settings' ? (
         <div className="finance-settings-grid">
