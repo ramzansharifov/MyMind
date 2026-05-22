@@ -280,4 +280,149 @@
   100% { transform: rotate(360deg); }
 }
 
+.time-tools-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.time-tool-card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-height: 100%;
+}
+
+.time-tool-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.time-tool-heading svg {
+  color: var(--accent-strong);
+}
+
+.time-tool-heading h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.time-tool-alert {
+  position: absolute;
+  right: 12px;
+  top: -12px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 44%, var(--border));
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--text);
+  box-shadow: 0 12px 28px var(--shadow);
+  padding: 9px 12px;
+}
+
+.world-clock-list,
+.alarm-list {
+  display: grid;
+  gap: 8px;
+}
+
+.world-clock-row,
+.alarm-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 10px;
+}
+
+.world-clock-row strong {
+  color: var(--text);
+  font-size: 18px;
+}
+
+.world-clock-row small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
+.alarm-form {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 38px;
+  gap: 8px;
+}
+
+.alarm-form input {
+  min-width: 0;
+}
+
+.alarm-row {
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+}
+
+.alarm-row.muted {
+  opacity: 0.56;
+}
+
+.alarm-row button,
+.timer-presets button {
+  display: inline-grid;
+  min-height: 30px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  padding: 0 9px;
+}
+
+.alarm-row button.active,
+.alarm-row button:hover,
+.timer-presets button:hover {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  color: var(--accent-strong);
+}
+
+.alarm-row strong,
+.alarm-row span {
+  display: block;
+}
+
+.alarm-row span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.timer-display {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text);
+  padding: 18px;
+  font-size: 38px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+}
+
+.timer-presets,
+.timer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 1100px) {
+  .time-tools-grid {
+    grid-template-columns: 1fr;
+  }
+}
 

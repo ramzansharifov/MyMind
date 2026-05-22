@@ -151,7 +151,10 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
   }, [editor]);
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => syncVisualListGroups(editor));
+    const frame = window.requestAnimationFrame(() => {
+      syncVisualListGroups(editor);
+      clampImagePreviewWidths(editor);
+    });
     return () => window.cancelAnimationFrame(frame);
   }, [editor, editorRevision, mode]);
 
@@ -186,6 +189,7 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
   }, [editor]);
 
   function handleEditorChange() {
+    clampImagePreviewWidths(editor);
     setDirty(true);
     setEditorRevision((current) => current + 1);
     if (selectedBlock) {
@@ -301,14 +305,15 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
           <div className="note-editor-main">
             {isReadMode ? (
               <ReadOnlyBlocks blocks={mergeDrawingBlockData(editor.document as AnyBlock[])} />
-            ) : (
+            ) : null}
+            <div className={isReadMode ? 'note-live-editor-hidden' : undefined} aria-hidden={isReadMode}>
               <BlockNoteEditorShell
                 editor={editor}
-                readOnly={false}
+                readOnly={isReadMode}
                 onChange={handleEditorChange}
                 onSelectionChange={refreshSelectedBlock}
               />
-            )}
+            </div>
             <EditorStatusBar editor={editor} revision={editorRevision} lastSavedLabel={lastSavedLabel} />
           </div>
           {!isReadMode ? (
@@ -406,12 +411,28 @@ function renderReadOnlyBlocks(blocks: AnyBlock[]) {
         index += 1;
       }
 
+      if (listType === 'checkListItem') {
+        output.push(
+          <div className="note-read-checklist" key={block.id}>
+            {group.map((item) => {
+              const checked = Boolean((item.props as any).checked);
+              return (
+                <div className={`note-read-check-row${checked ? ' checked' : ''}`} key={item.id}>
+                  <span className="note-read-check" aria-hidden="true" />
+                  <span>{renderInlineContent(item.content)}</span>
+                </div>
+              );
+            })}
+          </div>,
+        );
+        continue;
+      }
+
       const ListTag = listType === 'numberedListItem' ? 'ol' : 'ul';
       output.push(
         <ListTag className={`note-read-list ${listType}`} key={block.id}>
           {group.map((item) => (
             <li key={item.id}>
-              {listType === 'checkListItem' ? <input type="checkbox" checked={Boolean((item.props as any).checked)} readOnly /> : null}
               <span>{renderInlineContent(item.content)}</span>
             </li>
           ))}
@@ -429,6 +450,10 @@ function renderReadOnlyBlocks(blocks: AnyBlock[]) {
 
 function renderReadOnlyBlock(block: AnyBlock): ReactNode {
   const children = Array.isArray(block.children) && block.children.length > 0 ? <div className="note-read-children">{renderReadOnlyBlocks(block.children as AnyBlock[])}</div> : null;
+
+  if (block.type === 'toggleListItem' || (block.type === 'heading' && (block.props as any).isToggleable)) {
+    return <ReadOnlyToggleBlock block={block} key={block.id} />;
+  }
 
   if (block.type === 'heading') {
     const level = Math.min(3, Math.max(1, Number((block.props as any).level ?? 1)));
@@ -487,6 +512,69 @@ function renderReadOnlyBlock(block: AnyBlock): ReactNode {
     );
   }
 
+  if (block.type === 'video') {
+    const url = String((block.props as any).url ?? '');
+    const caption = String((block.props as any).caption ?? '');
+    const name = String((block.props as any).name ?? 'Video');
+    const showPreview = (block.props as any).showPreview !== false;
+    return (
+      <figure className="note-read-block note-read-media note-read-video" key={block.id}>
+        {url && showPreview ? (
+          <video src={url} controls />
+        ) : url ? (
+          <a className="note-read-file-link" href={url} target="_blank" rel="noreferrer">
+            <Video size={18} />
+            <span>{name || url}</span>
+          </a>
+        ) : (
+          <div className="note-read-empty">Video</div>
+        )}
+        {caption ? <figcaption>{caption}</figcaption> : null}
+      </figure>
+    );
+  }
+
+  if (block.type === 'audio') {
+    const url = String((block.props as any).url ?? '');
+    const caption = String((block.props as any).caption ?? '');
+    const name = String((block.props as any).name ?? 'Audio');
+    const showPreview = (block.props as any).showPreview !== false;
+    return (
+      <figure className="note-read-block note-read-media note-read-audio" key={block.id}>
+        {url && showPreview ? (
+          <audio src={url} controls />
+        ) : url ? (
+          <a className="note-read-file-link" href={url} target="_blank" rel="noreferrer">
+            <Music size={18} />
+            <span>{name || url}</span>
+          </a>
+        ) : (
+          <div className="note-read-empty">Audio</div>
+        )}
+        {caption ? <figcaption>{caption}</figcaption> : null}
+      </figure>
+    );
+  }
+
+  if (block.type === 'file') {
+    const url = String((block.props as any).url ?? '');
+    const caption = String((block.props as any).caption ?? '');
+    const name = String((block.props as any).name ?? 'File');
+    return (
+      <figure className="note-read-block note-read-file" key={block.id}>
+        {url ? (
+          <a className="note-read-file-link" href={url} target="_blank" rel="noreferrer">
+            <FileIcon size={18} />
+            <span>{name || url}</span>
+          </a>
+        ) : (
+          <div className="note-read-empty">File</div>
+        )}
+        {caption ? <figcaption>{caption}</figcaption> : null}
+      </figure>
+    );
+  }
+
   if (block.type === 'drawing') {
     const drawingData = getCurrentDrawingData(block.id, String((block.props as any).drawingData ?? ''));
     const canvasHeight = clampNumber(Number((block.props as any).canvasHeight ?? DEFAULT_DRAWING_HEIGHT), 220, 900);
@@ -502,6 +590,37 @@ function renderReadOnlyBlock(block: AnyBlock): ReactNode {
       <p>{renderInlineContent(block.content)}</p>
       {children}
     </div>
+  );
+}
+
+function ReadOnlyToggleBlock({ block }: { block: AnyBlock }) {
+  const [isOpen, setIsOpen] = useState(true);
+  const hasChildren = Array.isArray(block.children) && block.children.length > 0;
+  const isHeadingToggle = block.type === 'heading' && (block.props as any).isToggleable;
+  const level = Math.min(3, Math.max(1, Number((block.props as any).level ?? 1)));
+  const HeadingTag = `h${level + 1}` as 'h2' | 'h3' | 'h4';
+  const title = renderInlineContent(block.content);
+
+  return (
+    <section className={`note-read-block note-read-toggle${isOpen ? ' open' : ''}${isHeadingToggle ? ` heading-toggle level-${level}` : ''}`}>
+      <button
+        className="note-read-toggle-button"
+        type="button"
+        aria-expanded={isOpen}
+        disabled={!hasChildren}
+        onClick={() => {
+          if (hasChildren) {
+            setIsOpen((current) => !current);
+          }
+        }}
+      >
+        <ChevronDown size={18} />
+      </button>
+      <div className="note-read-toggle-body">
+        {isHeadingToggle ? <HeadingTag>{title}</HeadingTag> : <p>{title}</p>}
+        {hasChildren && isOpen ? <div className="note-read-children">{renderReadOnlyBlocks(block.children as AnyBlock[])}</div> : null}
+      </div>
+    </section>
   );
 }
 
@@ -546,6 +665,10 @@ function renderInlineItem(item: unknown, index: number): ReactNode {
   }
 
   const value = item as Record<string, any>;
+  if (value.type === 'hardBreak' || value.type === 'lineBreak') {
+    return <br key={index} />;
+  }
+
   if (value.type === 'link') {
     return (
       <a href={String(value.href ?? '#')} key={index} target="_blank" rel="noreferrer">
@@ -897,6 +1020,10 @@ function NotePropertiesPanel({
   const hasHeaderColumn = Boolean(tableContent.headerCols);
   const activeStyles = editor.getActiveStyles() as Record<string, unknown>;
   const selectedBlocks = editor.getSelection()?.blocks ?? [currentBlock];
+  const selectedListGroup =
+    LIST_BLOCK_TYPES.has(currentBlock.type) && selectedBlocks.length <= 1
+      ? getContiguousListGroup(editor.document as AnyBlock[], currentBlock.id)
+      : selectedBlocks.filter((item) => LIST_BLOCK_TYPES.has(item.type));
   const selectedBlocksHaveContent = selectedBlocks.some((item) => item.content !== undefined);
   const currentTextAlignment = String((currentBlock.props as any).textAlignment ?? 'left');
   const blockTypeValue = getSidebarBlockTypeValue(block);
@@ -951,9 +1078,11 @@ function NotePropertiesPanel({
   }
 
   function setListMarkerType(value: string) {
+    const blocksToUpdate = selectedListGroup.length > 0 ? selectedListGroup : selectedBlocks;
+
     editor.focus();
     editor.transact(() => {
-      for (const item of selectedBlocks) {
+      for (const item of blocksToUpdate) {
         if (LIST_BLOCK_TYPES.has(item.type)) {
           editor.updateBlock(item, { type: value, props: getCommonBlockProps(item) } as any);
         }
@@ -1386,6 +1515,38 @@ function syncVisualListGroups(editor: AnyEditor) {
   }
 }
 
+function clampImagePreviewWidths(editor: AnyEditor) {
+  const root = document.querySelector('.mymind-blocknote-editor');
+  if (!root) {
+    return;
+  }
+
+  for (const block of flattenBlocks(editor.document as AnyBlock[])) {
+    if (block.type !== 'image') {
+      continue;
+    }
+
+    const previewWidth = Number((block.props as any).previewWidth);
+    if (!Number.isFinite(previewWidth)) {
+      continue;
+    }
+
+    const outer = root.querySelector<HTMLElement>(`.bn-block-outer[data-id="${cssEscape(block.id)}"]`);
+    const content = outer?.querySelector<HTMLElement>('.bn-block-content[data-content-type="image"]');
+    const maxWidth = Math.floor((content?.clientWidth ?? outer?.clientWidth ?? root.clientWidth) - 32);
+    if (maxWidth <= 0 || previewWidth <= maxWidth) {
+      continue;
+    }
+
+    editor.updateBlock(block, {
+      props: {
+        ...(block.props as Record<string, unknown>),
+        previewWidth: maxWidth,
+      },
+    } as any);
+  }
+}
+
 function mergeDrawingBlockData(blocks: AnyBlock[]): AnyBlock[] {
   return blocks.map((block) => {
     const nextBlock = {
@@ -1405,6 +1566,23 @@ function mergeDrawingBlockData(blocks: AnyBlock[]): AnyBlock[] {
 
     return nextBlock;
   });
+}
+
+function flattenBlocks(blocks: AnyBlock[]): AnyBlock[] {
+  const output: AnyBlock[] = [];
+
+  for (const block of blocks) {
+    output.push(block);
+    if (Array.isArray(block.children) && block.children.length > 0) {
+      output.push(...flattenBlocks(block.children as AnyBlock[]));
+    }
+  }
+
+  return output;
+}
+
+function cssEscape(value: string) {
+  return window.CSS?.escape ? window.CSS.escape(value) : value.replace(/["\\]/g, '\\$&');
 }
 
 function prepareInitialEditorContent(blocks: AnyPartialBlock[]): AnyPartialBlock[] {
@@ -1593,6 +1771,41 @@ function findBlockById(blocks: AnyBlock[], id: string): AnyBlock | null {
     }
   }
   return null;
+}
+
+function findBlockSiblings(blocks: AnyBlock[], id: string): { siblings: AnyBlock[]; index: number } | null {
+  const index = blocks.findIndex((block) => block.id === id);
+  if (index >= 0) {
+    return { siblings: blocks, index };
+  }
+
+  for (const block of blocks) {
+    const match = findBlockSiblings((block.children ?? []) as AnyBlock[], id);
+    if (match) {
+      return match;
+    }
+  }
+
+  return null;
+}
+
+function getContiguousListGroup(blocks: AnyBlock[], id: string) {
+  const match = findBlockSiblings(blocks, id);
+  if (!match || !LIST_BLOCK_TYPES.has(match.siblings[match.index]?.type)) {
+    return [];
+  }
+
+  let start = match.index;
+  while (start > 0 && LIST_BLOCK_TYPES.has(match.siblings[start - 1].type)) {
+    start -= 1;
+  }
+
+  let end = match.index;
+  while (end + 1 < match.siblings.length && LIST_BLOCK_TYPES.has(match.siblings[end + 1].type)) {
+    end += 1;
+  }
+
+  return match.siblings.slice(start, end + 1);
 }
 
 function stripBlockIds(block: AnyPartialBlock): AnyPartialBlock {

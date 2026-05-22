@@ -1275,6 +1275,10 @@
   margin: 0;
 }
 
+.note-read-block p {
+  white-space: pre-wrap;
+}
+
 .note-read-block h2 {
   font-size: clamp(2rem, 4vw, 3.5rem);
 }
@@ -1298,15 +1302,48 @@
   padding-left: 4px;
 }
 
-.note-read-list.checkListItem {
-  list-style: none;
-  padding-left: 22px;
+.note-read-checklist {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
 }
 
-.note-read-list.checkListItem li {
-  display: flex;
+.note-read-check-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  min-height: 28px;
+}
+
+.note-read-check {
+  position: relative;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 2px solid color-mix(in srgb, var(--accent) 58%, var(--border));
+  border-radius: 6px;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--surface-soft) 86%, black 14%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, white 7%, transparent);
+}
+
+.note-read-check-row.checked .note-read-check {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.note-read-check-row.checked .note-read-check::before {
+  width: 8px;
+  height: 5px;
+  border-bottom: 2px solid color-mix(in srgb, var(--surface) 82%, black 18%);
+  border-left: 2px solid color-mix(in srgb, var(--surface) 82%, black 18%);
+  content: "";
+  box-sizing: border-box;
+  transform: rotate(-45deg) translateY(-1px);
 }
 
 .note-read-quote {
@@ -1389,6 +1426,7 @@
 }
 
 .note-read-media,
+.note-read-file,
 .note-read-drawing {
   display: grid;
   place-items: center;
@@ -1397,12 +1435,58 @@
 }
 
 .note-read-media img,
+.note-read-media video,
 .note-read-drawing img {
   display: block;
   width: 100%;
   max-height: min(62vh, 620px);
   object-fit: contain;
   border-radius: 6px;
+}
+
+.note-read-media video {
+  background: #0b0e14;
+  border: 1px solid var(--line-soft);
+}
+
+.note-read-audio audio {
+  width: min(100%, 720px);
+}
+
+.note-read-file {
+  justify-items: start;
+}
+
+.note-read-file-link {
+  display: inline-grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 88%, black 12%);
+  color: var(--text);
+  padding: 10px 12px;
+  text-decoration: none;
+}
+
+.note-read-file-link:hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  color: var(--accent);
+}
+
+.note-read-file-link span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-read-media figcaption,
+.note-read-file figcaption {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .note-read-drawing img {
@@ -1427,6 +1511,79 @@
   display: grid;
   gap: 12px;
   margin-top: 14px;
+}
+
+.note-read-toggle {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+
+.note-read-toggle-button {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-top: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  line-height: 0;
+  padding: 0;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.note-read-toggle:not(.heading-toggle) .note-read-toggle-button {
+  margin-top: calc((1.65em - 28px) / 2);
+}
+
+.note-read-toggle.heading-toggle.level-1 .note-read-toggle-button {
+  margin-top: calc((clamp(2rem, 4vw, 3.5rem) * 1.15 - 28px) / 2);
+}
+
+.note-read-toggle.heading-toggle.level-2 .note-read-toggle-button {
+  margin-top: calc((2rem * 1.15 - 28px) / 2);
+}
+
+.note-read-toggle.heading-toggle.level-3 .note-read-toggle-button {
+  margin-top: calc((1.5rem * 1.15 - 28px) / 2);
+}
+
+.note-read-toggle-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: color-mix(in srgb, var(--accent) 82%, var(--text));
+}
+
+.note-read-toggle-button svg {
+  display: block;
+  transform: rotate(-90deg);
+  transition: transform var(--transition-fast);
+}
+
+.note-read-toggle.open .note-read-toggle-button svg {
+  transform: rotate(0deg);
+}
+
+.note-read-toggle-button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.note-read-toggle-body {
+  min-width: 0;
+}
+
+.note-read-toggle-body > p,
+.note-read-toggle-body > h2,
+.note-read-toggle-body > h3,
+.note-read-toggle-body > h4 {
+  margin-top: 0;
 }
 
 .note-read-only-header h1 {
@@ -1769,6 +1926,21 @@
   margin-inline: auto;
 }
 
+.note-editor-main {
+  position: relative;
+}
+
+.note-live-editor-hidden {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .mymind-blocknote-shell .bn-block-group {
   display: grid;
   gap: 24px;
@@ -1806,6 +1978,24 @@
   min-height: 68px;
 }
 
+.mymind-blocknote-shell .bn-block-content[data-content-type="toggleListItem"] {
+  min-height: 72px;
+  align-items: center;
+  padding-block: 14px;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="heading"]:has(.bn-toggle-wrapper) {
+  min-height: 92px;
+  align-items: center;
+  padding-block: 16px;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="toggleListItem"] .bn-toggle-wrapper,
+.mymind-blocknote-shell .bn-block-content[data-content-type="heading"] .bn-toggle-wrapper {
+  min-height: 28px;
+  align-items: center;
+}
+
 .mymind-blocknote-shell .bn-block-content[data-content-type="bulletListItem"],
 .mymind-blocknote-shell .bn-block-content[data-content-type="numberedListItem"],
 .mymind-blocknote-shell .bn-block-content[data-content-type="checkListItem"] {
@@ -1813,6 +2003,13 @@
   align-items: center;
   padding-block: 10px;
   line-height: 1.5;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="checkListItem"] {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  column-gap: 12px;
+  justify-content: stretch;
 }
 
 .mymind-blocknote-shell .bn-block-content[data-content-type="bulletListItem"]::before,
@@ -1825,11 +2022,75 @@
 
 .mymind-blocknote-shell .bn-block-content[data-content-type="checkListItem"] > div:has(> input) {
   align-self: center;
+  grid-column: 1;
+  grid-row: 1;
+  display: inline-grid;
+  flex: 0 0 22px;
+  width: 22px;
+  min-width: 22px;
+  max-width: 22px;
   height: 22px;
+  min-height: 22px;
+  max-height: 22px;
+  place-items: center;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="checkListItem"] > p {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  margin: 0;
+  align-self: center;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="checkListItem"][data-checked="true"] .bn-inline-content {
+  text-decoration: none;
 }
 
 .mymind-blocknote-shell .bn-block-content[data-content-type="checkListItem"] > div > input {
-  height: 18px;
+  position: relative;
+  display: grid;
+  flex: 0 0 18px;
+  width: 18px !important;
+  min-width: 18px !important;
+  max-width: 18px !important;
+  height: 18px !important;
+  min-height: 18px !important;
+  max-height: 18px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  place-items: center;
+  border: 2px solid color-mix(in srgb, var(--accent) 58%, var(--border));
+  border-radius: 6px;
+  appearance: none !important;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--surface-soft) 86%, black 14%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, white 7%, transparent);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="checkListItem"] > div > input::before {
+  width: 8px;
+  height: 5px;
+  border-bottom: 2px solid color-mix(in srgb, var(--surface) 82%, black 18%);
+  border-left: 2px solid color-mix(in srgb, var(--surface) 82%, black 18%);
+  content: "";
+  opacity: 0;
+  transform: rotate(-45deg) translateY(-1px);
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="checkListItem"] > div > input:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="checkListItem"] > div > input:checked::before {
+  opacity: 1;
 }
 
 .mymind-blocknote-shell .bn-block-content[data-content-type="table"],
@@ -1845,6 +2106,20 @@
 
 .mymind-blocknote-shell .bn-block-content[data-content-type="drawing"] {
   min-height: 420px;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="image"] {
+  overflow: hidden;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="image"] .bn-file-block-content-wrapper,
+.mymind-blocknote-shell .bn-block-content[data-content-type="image"] .bn-visual-media-wrapper {
+  max-width: 100% !important;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="image"] .bn-visual-media {
+  max-width: 100% !important;
+  object-fit: contain;
 }
 
 .note-simple-drawing-block {
@@ -2053,7 +2328,14 @@
 }
 
 .note-block-side-menu-popover .bn-side-menu {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: fit-content;
+  min-width: 60px;
   height: 30px;
+  min-height: 30px;
+  max-height: 30px;
   overflow: visible;
   border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
   border-radius: 8px;
@@ -2062,8 +2344,13 @@
 }
 
 .note-block-side-menu-popover .bn-side-menu .mantine-UnstyledButton-root:not(.mantine-Menu-item) {
+  flex: 0 0 30px;
   width: 30px;
+  min-width: 30px;
+  max-width: 30px;
   height: 28px;
+  min-height: 28px;
+  max-height: 28px;
   border-radius: 7px;
 }
 

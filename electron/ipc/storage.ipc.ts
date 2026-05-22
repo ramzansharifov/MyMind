@@ -48,6 +48,10 @@ const listDefaults = new Set<CollectionName>([
   'inventory',
 ]);
 
+const retryableStorageErrorCodes = new Set(['EBUSY', 'EPERM', 'EACCES']);
+const storageRetryDelaysMs = [50, 100, 200, 400, 800];
+const collectionWriteQueues = new Map<CollectionName, Promise<unknown>>();
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -108,27 +112,88 @@ function filePath(collectionName: CollectionName) {
   return path.join(getDataDirectory(), collectionFiles[collectionName]);
 }
 
+function isRetryableStorageError(error: unknown) {
+  return (
+    error !== null &&
+    typeof error === 'object' &&
+    'code' in error &&
+    retryableStorageErrorCodes.has(String((error as { code?: unknown }).code))
+  );
+}
+
+function getStorageErrorCode(error: unknown) {
+  if (error !== null && typeof error === 'object' && 'code' in error) {
+    return String((error as { code?: unknown }).code);
+  }
+  return null;
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function withStorageRetry<T>(operation: () => Promise<T>) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= storageRetryDelaysMs.length; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableStorageError(error) || attempt === storageRetryDelaysMs.length) {
+        throw error;
+      }
+      await wait(storageRetryDelaysMs[attempt]);
+    }
+  }
+
+  throw lastError;
+}
+
+async function enqueueCollectionWrite<T>(collectionName: CollectionName, operation: () => Promise<T>) {
+  const previous = collectionWriteQueues.get(collectionName) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(operation);
+  let tracked: Promise<T>;
+
+  tracked = next.finally(() => {
+    if (collectionWriteQueues.get(collectionName) === tracked) {
+      collectionWriteQueues.delete(collectionName);
+    }
+  });
+
+  collectionWriteQueues.set(collectionName, tracked);
+
+  return tracked;
+}
+
 async function ensureFile(collectionName: CollectionName) {
   await ensureDataDirectory();
   const target = filePath(collectionName);
   try {
-    await fs.access(target);
-  } catch {
+    await withStorageRetry(() => fs.access(target));
+  } catch (error) {
+    if (getStorageErrorCode(error) !== 'ENOENT') {
+      throw error;
+    }
     await writeJson(collectionName, defaultValue(collectionName));
   }
 }
 
 async function writeJson(collectionName: CollectionName, value: unknown) {
-  await ensureDataDirectory();
-  const encoded = `${JSON.stringify(value, null, 2)}\n`;
-  await fs.writeFile(filePath(collectionName), encoded, 'utf8');
+  return enqueueCollectionWrite(collectionName, async () => {
+    await ensureDataDirectory();
+    const encoded = `${JSON.stringify(value, null, 2)}\n`;
+    await withStorageRetry(() => fs.writeFile(filePath(collectionName), encoded, 'utf8'));
+  });
 }
 
 async function readJson(collectionName: CollectionName) {
   await ensureFile(collectionName);
   const target = filePath(collectionName);
   try {
-    const content = await fs.readFile(target, 'utf8');
+    const content = await withStorageRetry(() => fs.readFile(target, 'utf8'));
     if (!content.trim()) {
       const safeDefault = defaultValue(collectionName);
       await writeJson(collectionName, safeDefault);
@@ -136,6 +201,9 @@ async function readJson(collectionName: CollectionName) {
     }
     return JSON.parse(content) as unknown;
   } catch (error) {
+    if (isRetryableStorageError(error)) {
+      throw error;
+    }
     const backupPath = `${target}.corrupted.${Date.now()}`;
     try {
       await fs.copyFile(target, backupPath);

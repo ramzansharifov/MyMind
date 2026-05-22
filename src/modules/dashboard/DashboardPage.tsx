@@ -11,6 +11,7 @@ import { formatCurrency } from '../../shared/utils/formatters';
 import { currentBalance, totalByType } from '../finance/financeUtils';
 import { todayHabits } from '../habits/habitUtils';
 import { todayTodos } from '../todos/todoUtils';
+import { TimeToolsPanel } from './TimeToolsPanel';
 import { WeatherPanel } from './WeatherPanel';
 
 interface DashboardPageProps {
@@ -86,6 +87,7 @@ export function DashboardPage({
       </div>
 
       <WeatherPanel settings={settings} onSettingsChange={onSettingsChange} />
+      <TimeToolsPanel />
 
       <div className="dashboard-layout section-block">
         <section className="panel command-panel">
