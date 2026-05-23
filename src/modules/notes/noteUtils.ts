@@ -1,6 +1,9 @@
-import type { Note } from './types';
+import type { Note, NoteLayoutWidth } from './types';
 
 export const NOTE_SCHEMA_VERSION = 2;
+
+const NOTE_LAYOUT_WIDTHS = [900, 1000, 1200] as const satisfies readonly NoteLayoutWidth[];
+const DEFAULT_NOTE_LAYOUT_WIDTH: NoteLayoutWidth = 1000;
 
 type MyMindEditorBlock = {
   id?: string;
@@ -229,6 +232,7 @@ export function migrateNote(note: Note): Note {
       tags: note.tags ?? [],
       properties: note.properties ?? [],
       assets: note.assets ?? [],
+      layoutWidth: normalizeNoteLayoutWidth(note.layoutWidth),
       editorContent,
       editorPlainText,
       content: note.content ?? editorPlainText,
@@ -245,6 +249,7 @@ export function migrateNote(note: Note): Note {
     tags: note.tags ?? [],
     properties: note.properties ?? [],
     assets: note.assets ?? [],
+    layoutWidth: normalizeNoteLayoutWidth(note.layoutWidth),
     schemaVersion: NOTE_SCHEMA_VERSION,
     editorContent,
     editorPlainText,
@@ -298,6 +303,11 @@ export function legacyContentToPlainText(note: Note) {
     return stripMarkdown(stripLegacyBlocksComment(note.content ?? ''));
   }
   return stripHtml(stripLegacyBlocksComment(note.content ?? ''));
+}
+
+function normalizeNoteLayoutWidth(value: unknown): NoteLayoutWidth {
+  const width = Number(value);
+  return NOTE_LAYOUT_WIDTHS.includes(width as NoteLayoutWidth) ? (width as NoteLayoutWidth) : DEFAULT_NOTE_LAYOUT_WIDTH;
 }
 
 function getMigratedEditorContent(note: Note): MyMindEditorContent {

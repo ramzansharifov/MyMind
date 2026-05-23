@@ -2,6 +2,8 @@ import type { BaseEntity } from '../../shared/types/common';
 
 export type NotePropertyType = 'text' | 'number' | 'date' | 'select' | 'multiSelect' | 'checkbox' | 'url';
 
+export type NoteLayoutWidth = 900 | 1000 | 1200;
+
 export interface NoteProperty {
   id: string;
   name: string;
@@ -30,4 +32,5 @@ export interface Note extends BaseEntity {
   properties?: NoteProperty[];
   assets?: NoteAsset[];
   schemaVersion?: number;
+  layoutWidth?: NoteLayoutWidth;
 }

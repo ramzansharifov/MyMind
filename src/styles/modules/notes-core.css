@@ -25,6 +25,8 @@
 .note-reader-page {
   --note-toolbar-sticky-top: -30px;
   --note-sidebar-sticky-top: 36px;
+  --note-content-width: 1000px;
+  --note-sidecar-width: 316px;
   --bn-colors-highlights-gray-text: #cbd2dc;
   --bn-colors-highlights-gray-background: #4c5564;
   --bn-colors-highlights-brown-text: #d6c0ad;
@@ -45,9 +47,14 @@
   --bn-colors-highlights-pink-background: #744861;
   display: grid;
   gap: 18px;
-  width: min(100%, 1500px);
-  max-width: 1500px;
+  width: min(100%, calc(var(--note-content-width) + var(--note-sidecar-width)));
+  max-width: calc(var(--note-content-width) + var(--note-sidecar-width));
   margin-inline: auto;
+}
+
+.note-editor-page.read-mode {
+  width: min(100%, var(--note-content-width));
+  max-width: var(--note-content-width);
 }
 
 .modern-note-editor-page {
@@ -1206,6 +1213,29 @@
   white-space: nowrap;
 }
 
+.note-layout-width-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--control-height);
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--surface-strong) 58%, transparent);
+  color: var(--muted);
+  padding: 6px 8px 6px 11px;
+  font-size: 13px;
+}
+
+.note-layout-width-select select {
+  min-height: 30px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  background: var(--surface-soft);
+  color: var(--text);
+  padding: 4px 8px;
+}
+
 .note-editor-page .button.accent {
   border-color: color-mix(in srgb, var(--accent) 72%, var(--border));
   background: color-mix(in srgb, var(--accent) 18%, var(--surface-strong));
@@ -1229,6 +1259,27 @@
 
 .note-save-status.dirty {
   color: #d59d31;
+}
+
+.note-unsaved-dialog {
+  width: min(520px, 100%);
+}
+
+.note-unsaved-dialog-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+}
+
+.note-unsaved-dialog-header h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 20px;
+}
+
+.note-unsaved-dialog-actions {
+  flex-wrap: wrap;
 }
 
 .note-editor-title-area {
@@ -1438,7 +1489,7 @@
 .note-read-media video,
 .note-read-drawing img {
   display: block;
-  width: 100%;
+  width: min(100%, var(--note-read-media-width, 100%));
   max-height: min(62vh, 620px);
   object-fit: contain;
   border-radius: 6px;
@@ -1834,13 +1885,14 @@
 
 .note-editor-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, var(--note-content-width)) 300px;
+  justify-content: center;
   gap: 16px;
   align-items: start;
 }
 
 .note-editor-layout.read-mode {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, var(--note-content-width));
 }
 
 .note-editor-main {
@@ -2213,7 +2265,8 @@
   background: color-mix(in srgb, var(--accent) 18%, var(--surface));
 }
 
-.note-drawing-height-slider {
+.note-drawing-height-slider,
+.note-image-width-slider {
   width: 100%;
 }
 

@@ -31,7 +31,7 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type FC, type KeyboardEvent, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FC, type KeyboardEvent, type MouseEvent } from 'react';
 import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from '@blocknote/core';
 import { BlockNoteView } from '@blocknote/mantine';
 import { getDefaultReactSlashMenuItems, SideMenu, SideMenuController, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react';
@@ -41,7 +41,7 @@ import { createId } from '../../shared/utils/idGenerator';
 import { DRAWING_BLOCK_DIRTY_EVENT } from './blocks/drawing';
 import { DRAWING_BLOCK_SELECTED_EVENT } from './blocks/drawing';
 import { editorContentToPlainText, getNoteEditorContent, NOTE_SCHEMA_VERSION } from './noteUtils';
-import type { Note, NoteProperty } from './types';
+import type { Note, NoteLayoutWidth, NoteProperty } from './types';
 import { ReadOnlyBlocks } from './editor/ReadOnlyBlocks';
 import {
   BLOCKS_WITH_LIBRARY_ENTER,
@@ -65,6 +65,11 @@ interface NoteEditorPageProps {
   onSave: (note: Note) => void;
 }
 
+const IMAGE_MIN_WIDTH = 96;
+const IMAGE_FALLBACK_MAX_WIDTH = 1200;
+const NOTE_LAYOUT_WIDTHS = [900, 1000, 1200] as const satisfies readonly NoteLayoutWidth[];
+const DEFAULT_NOTE_LAYOUT_WIDTH: NoteLayoutWidth = 1000;
+
 export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEditorPageProps) {
   const initialContent = useMemo(() => prepareInitialEditorContent(sanitizeInitialContent(getNoteEditorContent(note))), [note?.id]);
   const [mode, setMode] = useState<NoteMode>(initialMode ?? (note ? 'read' : 'edit'));
@@ -73,8 +78,10 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>(note?.tags ?? []);
   const [properties, setProperties] = useState<NoteProperty[]>(note?.properties ?? []);
+  const [layoutWidth, setLayoutWidth] = useState<NoteLayoutWidth>(normalizeNoteLayoutWidth(note?.layoutWidth));
   const [selectedBlock, setSelectedBlock] = useState<AnyBlock | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [lastSavedLabel, setLastSavedLabel] = useState(note?.updatedAt ? 'загружено' : 'новая заметка');
   const [editorRevision, setEditorRevision] = useState(0);
 
@@ -110,6 +117,23 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
     });
     return () => window.cancelAnimationFrame(frame);
   }, [editor, editorRevision, mode]);
+
+  useEffect(() => {
+    if (mode !== 'edit') {
+      return;
+    }
+
+    const handleResizeEnd = () => {
+      window.requestAnimationFrame(() => clampImagePreviewWidths(editor));
+    };
+
+    window.addEventListener('mouseup', handleResizeEnd);
+    window.addEventListener('touchend', handleResizeEnd);
+    return () => {
+      window.removeEventListener('mouseup', handleResizeEnd);
+      window.removeEventListener('touchend', handleResizeEnd);
+    };
+  }, [editor, mode]);
 
   useEffect(() => {
     function handleDrawingDirty() {
@@ -178,11 +202,32 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
       editorPlainText: plainText,
       editorHtml: html,
       schemaVersion: NOTE_SCHEMA_VERSION,
+      layoutWidth,
     };
 
     setDirty(false);
+    setShowLeaveDialog(false);
     setLastSavedLabel('только что');
     onSave(saved);
+  }
+
+  function requestBack() {
+    if (!dirty) {
+      onCancel();
+      return;
+    }
+
+    setShowLeaveDialog(true);
+  }
+
+  function leaveWithoutSaving() {
+    setShowLeaveDialog(false);
+    onCancel();
+  }
+
+  function changeLayoutWidth(value: NoteLayoutWidth) {
+    setLayoutWidth(value);
+    setDirty(true);
   }
 
   function addBlock(type: string) {
@@ -208,15 +253,27 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
   }
 
   return (
-    <section className="note-editor-page">
+    <section
+      className={`note-editor-page${isReadMode ? ' read-mode' : ''}`}
+      style={{ '--note-content-width': `${layoutWidth}px` } as CSSProperties}
+    >
       <NoteTopBar
         mode={mode}
         dirty={dirty}
         lastSavedLabel={lastSavedLabel}
-        onBack={onCancel}
+        layoutWidth={layoutWidth}
+        onBack={requestBack}
+        onLayoutWidthChange={changeLayoutWidth}
         onModeChange={setMode}
         onSave={() => void saveNote()}
       />
+      {showLeaveDialog ? (
+        <UnsavedChangesDialog
+          onClose={() => setShowLeaveDialog(false)}
+          onDiscard={leaveWithoutSaving}
+          onSave={() => void saveNote()}
+        />
+      ) : null}
 
       <div className="note-editor-title-area">
         {isReadMode ? (
@@ -287,14 +344,18 @@ function NoteTopBar({
   mode,
   dirty,
   lastSavedLabel,
+  layoutWidth,
   onBack,
+  onLayoutWidthChange,
   onModeChange,
   onSave,
 }: {
   mode: NoteMode;
   dirty: boolean;
   lastSavedLabel: string;
+  layoutWidth: NoteLayoutWidth;
   onBack: () => void;
+  onLayoutWidthChange: (value: NoteLayoutWidth) => void;
   onModeChange: (mode: NoteMode) => void;
   onSave: () => void;
 }) {
@@ -313,12 +374,66 @@ function NoteTopBar({
           <Brush size={18} />
           Визуальный редактор
         </button>
+        <label className="note-layout-width-select">
+          <span>Ширина</span>
+          <select value={layoutWidth} onChange={(event) => onLayoutWidthChange(normalizeNoteLayoutWidth(Number(event.target.value)))}>
+            {NOTE_LAYOUT_WIDTHS.map((width) => (
+              <option value={width} key={width}>
+                {width}px
+              </option>
+            ))}
+          </select>
+        </label>
         <button className="button accent note-save-button" type="button" onClick={onSave}>
           <Save size={18} />
           Сохранить
         </button>
         <span className={`note-save-status${dirty ? ' dirty' : ''}`}>{dirty ? 'Есть несохранённые изменения' : `Последнее сохранение: ${lastSavedLabel}`}</span>
       </div>
+    </div>
+  );
+}
+
+function UnsavedChangesDialog({
+  onClose,
+  onDiscard,
+  onSave,
+}: {
+  onClose: () => void;
+  onDiscard: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="dialog-backdrop note-unsaved-dialog-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="dialog note-unsaved-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="note-unsaved-dialog-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="note-unsaved-dialog-header">
+          <div>
+            <h3 id="note-unsaved-dialog-title">Есть несохранённые изменения</h3>
+            <p>Сохранить заметку перед выходом или выйти без сохранения?</p>
+          </div>
+          <button className="icon-button ghost" type="button" aria-label="Закрыть" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+        <div className="dialog-actions note-unsaved-dialog-actions">
+          <button className="button ghost" type="button" onClick={onClose}>
+            Остаться
+          </button>
+          <button className="button danger" type="button" onClick={onDiscard}>
+            Выйти без сохранения
+          </button>
+          <button className="button accent" type="button" onClick={onSave}>
+            <Save size={17} />
+            Сохранить и выйти
+          </button>
+        </div>
+      </section>
     </div>
   );
 }
@@ -680,6 +795,9 @@ function NotePropertiesPanel({
     block.type === 'heading' && (block.props as any).isToggleable
       ? `heading-${String((block.props as any).level ?? 1)}`
       : 'toggleListItem';
+  const imageMaxWidth = block.type === 'image' ? getImageBlockMaxWidth(block.id) : IMAGE_FALLBACK_MAX_WIDTH;
+  const rawImageWidth = Number((block.props as any).previewWidth);
+  const imageWidthValue = clampNumber(Number.isFinite(rawImageWidth) ? rawImageWidth : imageMaxWidth, IMAGE_MIN_WIDTH, imageMaxWidth);
 
   function preventToolbarBlur(event: MouseEvent) {
     event.preventDefault();
@@ -800,6 +918,12 @@ function NotePropertiesPanel({
     setLinkUrl('');
     setLinkTarget(null);
     onDirty();
+  }
+
+  function setImageWidth(value: number) {
+    updateBlock({
+      previewWidth: clampNumber(Math.round(value), IMAGE_MIN_WIDTH, getImageBlockMaxWidth(currentBlock.id)),
+    });
   }
 
   return (
@@ -984,6 +1108,29 @@ function NotePropertiesPanel({
 
       {block.type === 'image' ? (
         <>
+          <label className="note-settings-input">
+            Ширина, px
+            <input
+              type="number"
+              min={IMAGE_MIN_WIDTH}
+              max={imageMaxWidth}
+              step="10"
+              value={imageWidthValue}
+              onChange={(event) => setImageWidth(Number(event.target.value))}
+            />
+          </label>
+          <input
+            className="note-image-width-slider"
+            type="range"
+            min={IMAGE_MIN_WIDTH}
+            max={imageMaxWidth}
+            step="10"
+            value={imageWidthValue}
+            onChange={(event) => setImageWidth(Number(event.target.value))}
+          />
+          <button className="button ghost compact-action full-width" type="button" onClick={() => setImageWidth(imageMaxWidth)}>
+            По ширине блока
+          </button>
           <SettingChoiceRow
             label="Выравнивание"
             value={String((block.props as any).textAlignment ?? 'left')}
@@ -1159,25 +1306,68 @@ function clampImagePreviewWidths(editor: AnyEditor) {
       continue;
     }
 
-    const previewWidth = Number((block.props as any).previewWidth);
-    if (!Number.isFinite(previewWidth)) {
+    const outer = root.querySelector<HTMLElement>(`.bn-block-outer[data-id="${cssEscape(block.id)}"]`);
+    const blockNode = outer?.querySelector<HTMLElement>('.bn-block');
+    const content = outer?.querySelector<HTMLElement>('.bn-block-content[data-content-type="image"]');
+    const wrapper = content?.querySelector<HTMLElement>('.bn-file-block-content-wrapper');
+    const maxWidth = getBlockMediaMaxWidth(root as HTMLElement, outer, blockNode, content);
+    if (maxWidth <= 0) {
       continue;
     }
 
-    const outer = root.querySelector<HTMLElement>(`.bn-block-outer[data-id="${cssEscape(block.id)}"]`);
-    const content = outer?.querySelector<HTMLElement>('.bn-block-content[data-content-type="image"]');
-    const maxWidth = Math.floor((content?.clientWidth ?? outer?.clientWidth ?? root.clientWidth) - 32);
-    if (maxWidth <= 0 || previewWidth <= maxWidth) {
+    const previewWidth = Number((block.props as any).previewWidth);
+    const renderedWidth = Math.ceil(wrapper?.getBoundingClientRect().width ?? 0);
+    const nextWidth = Number.isFinite(previewWidth) ? Math.min(previewWidth, maxWidth) : maxWidth;
+    if ((Number.isFinite(previewWidth) && previewWidth <= maxWidth) && renderedWidth <= maxWidth + 1) {
       continue;
     }
 
     editor.updateBlock(block, {
       props: {
         ...(block.props as Record<string, unknown>),
-        previewWidth: maxWidth,
+        previewWidth: nextWidth,
       },
     } as any);
   }
+}
+
+function getBlockMediaMaxWidth(
+  root: HTMLElement,
+  outer?: HTMLElement | null,
+  blockNode?: HTMLElement | null,
+  content?: HTMLElement | null,
+) {
+  const widths = [root, outer, blockNode, content]
+    .filter((element): element is HTMLElement => Boolean(element))
+    .map((element) => Math.floor(element.getBoundingClientRect().width))
+    .filter((width) => Number.isFinite(width) && width > 0);
+
+  if (widths.length === 0) {
+    return 0;
+  }
+
+  const horizontalPadding = content ? getHorizontalPadding(content) : 0;
+  return Math.max(64, Math.floor(Math.min(...widths) - horizontalPadding));
+}
+
+function getImageBlockMaxWidth(blockId: string) {
+  const root = document.querySelector<HTMLElement>('.mymind-blocknote-editor');
+  if (!root) {
+    return IMAGE_FALLBACK_MAX_WIDTH;
+  }
+
+  const outer = root.querySelector<HTMLElement>(`.bn-block-outer[data-id="${cssEscape(blockId)}"]`);
+  const blockNode = outer?.querySelector<HTMLElement>('.bn-block');
+  const content = outer?.querySelector<HTMLElement>('.bn-block-content[data-content-type="image"]');
+  const maxWidth = getBlockMediaMaxWidth(root, outer, blockNode, content);
+  return maxWidth > 0 ? Math.max(IMAGE_MIN_WIDTH, maxWidth) : IMAGE_FALLBACK_MAX_WIDTH;
+}
+
+function getHorizontalPadding(element: HTMLElement) {
+  const styles = window.getComputedStyle(element);
+  const left = Number.parseFloat(styles.paddingLeft) || 0;
+  const right = Number.parseFloat(styles.paddingRight) || 0;
+  return left + right;
 }
 
 function cssEscape(value: string) {
@@ -1276,6 +1466,11 @@ function resolveCssColor(value: unknown, kind: 'text' | 'background' = 'backgrou
   }
 
   return String(value);
+}
+
+function normalizeNoteLayoutWidth(value: unknown): NoteLayoutWidth {
+  const width = Number(value);
+  return NOTE_LAYOUT_WIDTHS.includes(width as NoteLayoutWidth) ? (width as NoteLayoutWidth) : DEFAULT_NOTE_LAYOUT_WIDTH;
 }
 
 function clampNumber(value: number, min: number, max: number) {

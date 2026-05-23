@@ -118,8 +118,9 @@ function renderReadOnlyBlock(block: AnyBlock): ReactNode {
 
   if (block.type === 'image') {
     const url = String((block.props as any).url ?? '');
+    const widthStyle = getMediaWidthStyle((block.props as any).previewWidth);
     return (
-      <figure className="note-read-block note-read-media" key={block.id}>
+      <figure className="note-read-block note-read-media" key={block.id} style={widthStyle}>
         {url ? <img src={url} alt={String((block.props as any).caption ?? 'Image')} /> : <div className="note-read-empty">Image</div>}
         {(block.props as any).caption ? <figcaption>{String((block.props as any).caption)}</figcaption> : null}
       </figure>
@@ -305,6 +306,15 @@ function renderInlineItem(item: unknown, index: number): ReactNode {
 
 function isValidDrawingData(value: string) {
   return value.startsWith('data:image/png;base64,') || value.startsWith('data:image/webp;base64,') || value.startsWith('data:image/jpeg;base64,');
+}
+
+function getMediaWidthStyle(value: unknown): CSSProperties | undefined {
+  const width = Number(value);
+  if (!Number.isFinite(width)) {
+    return undefined;
+  }
+
+  return { '--note-read-media-width': `${clampNumber(width, 96, 1600)}px` } as CSSProperties;
 }
 
 function clampNumber(value: number, min: number, max: number) {
