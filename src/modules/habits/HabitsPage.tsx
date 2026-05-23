@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { EmptyState } from '../../shared/components/EmptyState';
+import { LoadingState } from '../../shared/components/LoadingState';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { trashEntity } from '../../shared/utils/archiveUtils';
@@ -197,7 +198,7 @@ export function HabitsPage({ data, onChange }: HabitsPageProps) {
       ) : null}
 
       {activeTab === 'charts' ? (
-        <Suspense fallback={<section className="panel">Loading charts...</section>}>
+        <Suspense fallback={<LoadingState title="Loading charts" message="Preparing habit progress analytics..." variant="compact" />}>
           <HabitChartsSection habits={active} logs={data.logs} completedToday={completedToday} todayTotal={habitsForToday.length} />
         </Suspense>
       ) : null}

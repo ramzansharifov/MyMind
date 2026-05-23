@@ -419,6 +419,167 @@
   );
 }
 
+.loading-panel {
+  position: relative;
+  overflow: hidden;
+  grid-template-columns: auto minmax(0, max-content);
+  place-items: center;
+  min-height: 240px;
+  gap: 18px;
+  text-align: left;
+}
+
+.loading-panel::before {
+  position: absolute;
+  inset: -45%;
+  pointer-events: none;
+  content: "";
+  background:
+    radial-gradient(circle at 38% 38%, color-mix(in srgb, var(--accent) 22%, transparent) 0 7%, transparent 22%),
+    radial-gradient(circle at 62% 58%, color-mix(in srgb, var(--accent-strong) 16%, transparent) 0 8%, transparent 24%);
+  opacity: 0.78;
+  animation: loading-glow 5.6s ease-in-out infinite alternate;
+}
+
+.loading-orbit,
+.loading-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.loading-orbit {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border-radius: 50%;
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    conic-gradient(from 0deg, transparent, var(--accent), var(--accent-strong), transparent) border-box;
+  border: 2px solid transparent;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent),
+    0 14px 34px color-mix(in srgb, var(--accent) 20%, transparent);
+  animation: loading-spin 1.35s linear infinite;
+}
+
+.loading-orbit::before {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-strong) 34%, transparent);
+  content: "";
+}
+
+.loading-orbit span {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent-strong);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent-strong) 80%, transparent);
+}
+
+.loading-orbit span:first-child {
+  top: 3px;
+}
+
+.loading-orbit span:last-child {
+  right: 4px;
+  bottom: 9px;
+  width: 6px;
+  height: 6px;
+  opacity: 0.78;
+}
+
+.loading-copy {
+  display: grid;
+  gap: 4px;
+  max-width: min(420px, 100%);
+}
+
+.loading-copy strong {
+  color: var(--text);
+  font-size: 18px;
+}
+
+.loading-copy span,
+.loading-copy small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.loading-copy small {
+  font-size: 12px;
+}
+
+.loading-panel-page {
+  min-height: min(640px, calc(100vh - 96px));
+}
+
+.loading-panel-compact {
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 110px;
+  padding: 18px;
+}
+
+.loading-panel-compact .loading-orbit {
+  width: 38px;
+  height: 38px;
+}
+
+.loading-panel-compact .loading-orbit::before {
+  width: 16px;
+  height: 16px;
+}
+
+.loading-panel-compact .loading-orbit span:first-child {
+  top: 1px;
+}
+
+.loading-panel-compact .loading-copy strong {
+  font-size: 15px;
+}
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--backdrop) 86%, transparent);
+  backdrop-filter: blur(12px);
+  padding: 24px;
+}
+
+.loading-panel-overlay {
+  width: min(440px, 100%);
+  min-height: 190px;
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes loading-glow {
+  from {
+    transform: translate3d(-2%, -1%, 0) rotate(0deg);
+  }
+  to {
+    transform: translate3d(2%, 1%, 0) rotate(8deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-panel::before,
+  .loading-orbit {
+    animation: none;
+  }
+}
+
 .panel {
   padding: 18px;
 }

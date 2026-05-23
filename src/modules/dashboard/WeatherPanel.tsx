@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { useI18n } from '../../shared/i18n/I18nProvider';
+import { LoadingState } from '../../shared/components/LoadingState';
 import type { AppSettings } from '../../shared/types/common';
 
 interface WeatherPanelProps {
@@ -370,10 +371,7 @@ export function WeatherPanel({ settings, onSettingsChange }: WeatherPanelProps) 
             {city.name}
           </h3>
         </div>
-        <div className="loading-panel" style={{ minHeight: '80px' }}>
-          <Loader2 size={24} className="weather-spinner" style={{ color: 'var(--accent-strong)' }} />
-          <span>{t('Loading weather...')}</span>
-        </div>
+        <LoadingState title={t('Loading weather...')} message={t('Preparing forecast for your dashboard.')} variant="compact" />
       </section>
     );
   }

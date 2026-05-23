@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EmptyState } from '../../shared/components/EmptyState';
+import { LoadingState } from '../../shared/components/LoadingState';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
@@ -78,7 +79,7 @@ export function NotesPage({ notes, onChange }: NotesPageProps) {
 
   if (editorNote !== undefined) {
     return (
-      <Suspense fallback={<section className="loading-panel">Loading editor...</section>}>
+      <Suspense fallback={<LoadingState title="Opening editor" message="Preparing BlockNote tools and note content..." variant="page" />}>
         <NoteEditorPage note={editorNote} initialMode={editorInitialMode} onCancel={() => setEditorNote(undefined)} onSave={saveNote} />
       </Suspense>
     );

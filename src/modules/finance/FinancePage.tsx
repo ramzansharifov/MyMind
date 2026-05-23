@@ -3,6 +3,7 @@ import { AddButton, DeleteButton, EditButton } from '../../shared/components/Act
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EntityForm } from '../../shared/components/EntityForm';
 import { EmptyState } from '../../shared/components/EmptyState';
+import { LoadingState } from '../../shared/components/LoadingState';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, trashEntity } from '../../shared/utils/archiveUtils';
@@ -270,7 +271,7 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
       ) : null}
 
       {view === 'charts' ? (
-        <Suspense fallback={<section className="panel">Loading charts...</section>}>
+        <Suspense fallback={<LoadingState title="Loading charts" message="Preparing finance analytics..." variant="compact" />}>
           <FinanceChartsSection data={data} currency={currency} />
         </Suspense>
       ) : null}

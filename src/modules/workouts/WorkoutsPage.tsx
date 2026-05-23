@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from 'react';
 import { AddButton, CancelButton, DeleteButton, EditButton, SaveButton } from '../../shared/components/ActionButtons';
 import { EntityForm } from '../../shared/components/EntityForm';
 import { EmptyState } from '../../shared/components/EmptyState';
+import { LoadingState } from '../../shared/components/LoadingState';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { formatDate } from '../../shared/utils/dateUtils';
@@ -687,7 +688,7 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
 
       {/* Charts Section */}
       {activeSection === 'charts' && (
-        <Suspense fallback={<section className="panel">Loading charts...</section>}>
+        <Suspense fallback={<LoadingState title="Loading charts" message="Preparing workout analytics..." variant="compact" />}>
           <ChartsSection
             exercises={exercises}
             plans={plans}

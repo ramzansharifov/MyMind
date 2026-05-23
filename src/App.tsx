@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AppShell } from './shared/components/AppShell';
+import { LoadingOverlay, LoadingState } from './shared/components/LoadingState';
 import { storageClient } from './shared/storage/storageClient';
 import type { ModuleKey } from './shared/types/common';
 import { I18nProvider, useI18n } from './shared/i18n/I18nProvider';
@@ -83,13 +84,20 @@ export function App() {
 
   const page = useMemo(() => {
     if (isLoading) {
-      return <section className="loading-panel">Loading local JSON workspace...</section>;
+      return <LoadingState title="Loading workspace" message="Reading local JSON data and preparing modules..." variant="page" />;
     }
     const requiredCollections = moduleCollections[activeModule] ?? [];
     const isModuleDataReady = requiredCollections.every((collectionName) => loadedCollections.has(collectionName));
     if (!isModuleDataReady) {
       const activeLoads = requiredCollections.filter((collectionName) => loadingCollections.has(collectionName)).length;
-      return <section className="loading-panel">Loading module data{activeLoads ? ` (${activeLoads})` : ''}...</section>;
+      return (
+        <LoadingState
+          title="Loading module"
+          message="Pulling the needed local collections into memory..."
+          detail={activeLoads ? `${activeLoads} collection${activeLoads === 1 ? '' : 's'} in progress` : undefined}
+          variant="page"
+        />
+      );
     }
 
     switch (activeModule) {
@@ -173,10 +181,10 @@ export function App() {
   return (
     <I18nProvider language={settings.language}>
       <AppShell active={activeModule} onNavigate={setActiveModule} reminderBadges={reminderBadges}>
-        <Suspense fallback={<section className="loading-panel">Loading module...</section>}>{page}</Suspense>
+        <Suspense fallback={<LoadingState title="Opening module" message="Loading interface and tools..." variant="page" />}>{page}</Suspense>
         {activeReminder ? <ReminderModal reminder={activeReminder} onDismiss={() => dismissReminder(activeReminder)} onSnooze={() => snoozeReminder(activeReminder)} /> : null}
         {isArchiveManagerOpen ? (
-          <Suspense fallback={null}>
+          <Suspense fallback={<LoadingOverlay title="Opening archive" message="Preparing archived and trashed records..." />}>
             <ArchiveTrashManager
               data={data}
               onChange={setData}
