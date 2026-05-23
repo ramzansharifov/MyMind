@@ -1,4 +1,4 @@
-import type { AppData } from '../../App';
+import type { AppData } from '../app/appData';
 import { isHiddenFromRegularLists, isTrashed } from './archiveUtils';
 
 export type FlatCollectionKey =

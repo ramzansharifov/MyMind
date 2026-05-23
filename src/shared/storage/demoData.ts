@@ -1,4 +1,4 @@
-import type { AppData } from "../../App";
+import type { AppData } from '../app/appData';
 import { createId } from "../utils/idGenerator";
 
 function now() {

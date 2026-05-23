@@ -1,0 +1,13 @@
+.mymind-blocknote-shell .bn-block-content[data-content-type="image"] {
+  max-width: 100%;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="image"] img,
+.mymind-blocknote-shell .bn-block-content[data-content-type="image"] video {
+  max-width: 100%;
+}
+
+.note-reader-content p,
+.note-read-paragraph {
+  white-space: pre-wrap;
+}

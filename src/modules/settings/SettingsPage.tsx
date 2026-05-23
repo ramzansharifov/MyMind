@@ -22,7 +22,7 @@ import { DeleteButton } from '../../shared/components/ActionButtons';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import type { CollectionName } from '../../shared/storage/storageTypes';
-import type { AppData } from '../../App';
+import type { AppData } from '../../shared/app/appData';
 import type { AppSettings, ModuleKey } from '../../shared/types/common';
 import { buildRecordCenterRows } from '../../shared/utils/appDataUtils';
 import { formatDate } from '../../shared/utils/dateUtils';

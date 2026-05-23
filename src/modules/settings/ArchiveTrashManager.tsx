@@ -1,6 +1,6 @@
 import { Archive, ChevronDown, ChevronUp, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import type { AppData } from '../../App';
+import type { AppData } from '../../shared/app/appData';
 import { CloseButton, DeleteButton } from '../../shared/components/ActionButtons';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isArchived, isTrashed, restoreEntity, trashEntity, type LifecycleEntity } from '../../shared/utils/archiveUtils';

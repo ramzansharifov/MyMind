@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { AppData } from '../../App';
+import type { AppData } from '../app/appData';
 import { useI18n } from '../i18n/I18nProvider';
 import type { ModuleKey } from '../types/common';
 import { isHiddenFromRegularLists } from '../utils/archiveUtils';

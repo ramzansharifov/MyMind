@@ -2,99 +2,11 @@ import { app, dialog, ipcMain, Notification, shell } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-
-type CollectionName =
-  | 'movies'
-  | 'workouts'
-  | 'todos'
-  | 'finance'
-  | 'habits'
-  | 'calendar_events'
-  | 'journal_entries'
-  | 'notes'
-  | 'projects'
-  | 'contacts'
-  | 'health'
-  | 'goals'
-  | 'inventory'
-  | 'app_settings';
-
-const collectionFiles: Record<CollectionName, string> = {
-  movies: 'movies.json',
-  workouts: 'workouts.json',
-  todos: 'todos.json',
-  finance: 'finance.json',
-  habits: 'habits.json',
-  calendar_events: 'calendar_events.json',
-  journal_entries: 'journal_entries.json',
-  notes: 'notes.json',
-  projects: 'projects.json',
-  contacts: 'contacts.json',
-  health: 'health.json',
-  goals: 'goals.json',
-  inventory: 'inventory.json',
-  app_settings: 'app_settings.json',
-};
-
-const listDefaults = new Set<CollectionName>([
-  'movies',
-  'todos',
-  'calendar_events',
-  'journal_entries',
-  'notes',
-  'projects',
-  'contacts',
-  'goals',
-  'inventory',
-]);
+import { assertCollectionName, collectionFiles, defaultValue, listCollections, nowIso, type CollectionName } from './storageRegistry';
 
 const retryableStorageErrorCodes = new Set(['EBUSY', 'EPERM', 'EACCES']);
 const storageRetryDelaysMs = [50, 100, 200, 400, 800];
 const collectionWriteQueues = new Map<CollectionName, Promise<unknown>>();
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function defaultValue(collectionName: CollectionName) {
-  if (collectionName === 'workouts') {
-    return { exercises: [], exerciseGroups: [], plans: [], sessions: [], startingPosition: null, progressRecords: [], nutritionEntries: [] };
-  }
-  if (collectionName === 'todos') {
-    return { items: [], groups: [] };
-  }
-  if (collectionName === 'finance') {
-    return { startingBalance: 0, startedAt: null, transactions: [], savingsGoals: [], tags: [] };
-  }
-  if (collectionName === 'habits') {
-    return { habits: [], logs: [] };
-  }
-  if (collectionName === 'health') {
-    return { entries: [], metrics: [] };
-  }
-  if (collectionName === 'app_settings') {
-    return {
-      themeMode: 'system',
-      language: 'en',
-      dataDirectory: getDataDirectory(),
-      currency: 'USD',
-      uiDensity: 'comfortable',
-      accentColor: 'teal',
-      startModule: 'dashboard',
-      seedDataCreated: false,
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-    };
-  }
-  return [];
-}
-
-function assertCollectionName(value: string): CollectionName {
-  if (value in collectionFiles) {
-    return value as CollectionName;
-  }
-  throw new Error(`Unknown storage collection: ${value}`);
-}
 
 function getDocumentsDirectory() {
   return app.getPath('documents') || path.join(os.homedir(), 'Documents');
@@ -177,7 +89,7 @@ async function ensureFile(collectionName: CollectionName) {
     if (getStorageErrorCode(error) !== 'ENOENT') {
       throw error;
     }
-    await writeJson(collectionName, defaultValue(collectionName));
+    await writeJson(collectionName, defaultValue(collectionName, getDataDirectory()));
   }
 }
 
@@ -185,7 +97,19 @@ async function writeJson(collectionName: CollectionName, value: unknown) {
   return enqueueCollectionWrite(collectionName, async () => {
     await ensureDataDirectory();
     const encoded = `${JSON.stringify(value, null, 2)}\n`;
-    await withStorageRetry(() => fs.writeFile(filePath(collectionName), encoded, 'utf8'));
+    const target = filePath(collectionName);
+    const tempPath = `${target}.${process.pid}.${Date.now()}.tmp`;
+    try {
+      await withStorageRetry(() => fs.writeFile(tempPath, encoded, 'utf8'));
+      await withStorageRetry(() => fs.rename(tempPath, target));
+    } catch (error) {
+      try {
+        await fs.unlink(tempPath);
+      } catch {
+        // Temp cleanup is best-effort.
+      }
+      throw error;
+    }
   });
 }
 
@@ -195,7 +119,7 @@ async function readJson(collectionName: CollectionName) {
   try {
     const content = await withStorageRetry(() => fs.readFile(target, 'utf8'));
     if (!content.trim()) {
-      const safeDefault = defaultValue(collectionName);
+      const safeDefault = defaultValue(collectionName, getDataDirectory());
       await writeJson(collectionName, safeDefault);
       return safeDefault;
     }
@@ -210,14 +134,14 @@ async function readJson(collectionName: CollectionName) {
     } catch {
       // Recovery should continue even when the backup copy cannot be written.
     }
-    const safeDefault = defaultValue(collectionName);
+    const safeDefault = defaultValue(collectionName, getDataDirectory());
     await writeJson(collectionName, safeDefault);
     return safeDefault;
   }
 }
 
 function ensureListCollection(collectionName: CollectionName, value: unknown): Array<{ id: string }> {
-  if (!listDefaults.has(collectionName) || !Array.isArray(value)) {
+  if (!listCollections.has(collectionName) || !Array.isArray(value)) {
     throw new Error(`${collectionName} does not support item-level storage operations`);
   }
   return value.filter((item): item is { id: string } => Boolean(item && typeof item === 'object' && 'id' in item));
