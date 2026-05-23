@@ -7,7 +7,7 @@ import { EntityForm as EntityFormShell } from './EntityForm';
 import { CollapsibleFilters } from './CollapsibleFilters';
 import { PageHeader } from './PageHeader';
 import { useI18n } from '../i18n/I18nProvider';
-import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../utils/archiveUtils';
+import { useCollectionItems } from '../hooks/useCollectionItems';
 
 type FieldType = 'text' | 'textarea' | 'date' | 'number' | 'select' | 'card-select' | 'tags';
 
@@ -48,37 +48,16 @@ export function SimpleEntityPage<T extends { id: string; createdAt: string; upda
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<T | null | undefined>(undefined);
   const { t } = useI18n();
-  const normalized = query.trim().toLowerCase();
-  const visibleItems = items.filter((item) => !isHiddenFromRegularLists(item));
-  const filtered = visibleItems
-    .filter((item) => searchKeys.some((key) => String(item[key] ?? '').toLowerCase().includes(normalized)))
-    .sort((a, b) => Number(Boolean(b.pinnedAt)) - Number(Boolean(a.pinnedAt)) || b.updatedAt.localeCompare(a.updatedAt));
+  const { filteredItems, upsertItem, archiveItem, trashItem, togglePin } = useCollectionItems({
+    items,
+    onChange,
+    search: query,
+    searchText: (item) => searchKeys.map((key) => String(item[key] ?? '')).join(' '),
+  });
 
   function save(item: T) {
-    const exists = items.some((existing) => existing.id === item.id);
-    onChange(exists ? items.map((existing) => (existing.id === item.id ? item : existing)) : [item, ...items]);
+    upsertItem(item);
     setEditing(undefined);
-  }
-
-  function archive(item: T) {
-    onChange(
-      items.map((existing) =>
-        existing.id === item.id ? archiveEntity(existing, { setArchivedStatus: typeof existing.status === 'string' }) : existing,
-      ),
-    );
-  }
-
-  function moveToTrash(item: T) {
-    onChange(items.map((existing) => (existing.id === item.id ? trashEntity(existing) : existing)));
-  }
-
-  function togglePin(item: T) {
-    const timestamp = new Date().toISOString();
-    onChange(
-      items.map((existing) =>
-        existing.id === item.id ? { ...existing, pinnedAt: existing.pinnedAt ? null : timestamp, updatedAt: timestamp } : existing,
-      ),
-    );
   }
 
   return (
@@ -91,11 +70,11 @@ export function SimpleEntityPage<T extends { id: string; createdAt: string; upda
         }
       />
       <CollapsibleFilters query={query} placeholder={`Search ${title.toLowerCase()}`} onQueryChange={setQuery} />
-      {filtered.length === 0 ? (
+      {filteredItems.length === 0 ? (
         <EmptyState title={emptyTitle} message={emptyMessage} />
       ) : (
         <div className="card-grid">
-          {filtered.map((item) => (
+          {filteredItems.map((item) => (
             <article className={`card ${item.pinnedAt ? 'pinned' : ''}`} key={item.id}>
               <div className="card-title-row">
                 <div>
@@ -119,13 +98,13 @@ export function SimpleEntityPage<T extends { id: string; createdAt: string; upda
                   label="Archive"
                   confirmTitle="Archive item?"
                   confirmMessage="The item will be hidden from regular lists but kept in local JSON storage."
-                  onConfirm={() => archive(item)}
+                  onConfirm={() => archiveItem(item)}
                 />
                 <DeleteButton
                   label="Move to trash"
                   confirmTitle="Move to trash?"
                   confirmMessage="The item will stay in trash for 30 days before permanent deletion."
-                  onConfirm={() => moveToTrash(item)}
+                  onConfirm={() => trashItem(item)}
                 />
               </div>
             </article>

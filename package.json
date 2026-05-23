@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "concurrently -k \"vite\" \"tsc -p tsconfig.node.json --watch\" \"wait-on http://localhost:5173 dist-electron/main.js && electron .\"",
     "build": "node scripts/clean-build.cjs && tsc --noEmit && tsc -p tsconfig.node.json && vite build",
+    "test": "node scripts/verify-notes-architecture.cjs",
     "start": "electron .",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win"
@@ -18,8 +19,7 @@
     "lucide-react": "^1.14.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "recharts": "^3.8.1",
-    "tldraw": "^5.0.1"
+    "recharts": "^3.8.1"
   },
   "overrides": {
     "@tiptap/core": "3.13.0",
