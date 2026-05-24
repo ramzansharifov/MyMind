@@ -19,6 +19,18 @@ export interface SidebarSettings {
   groups: SidebarModuleGroup[];
 }
 
+export interface ContentGroup {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GroupedContentData<TItem> {
+  items: TItem[];
+  groups: ContentGroup[];
+}
+
 export interface BaseEntity {
   id: string;
   createdAt: string;

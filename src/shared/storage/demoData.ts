@@ -30,11 +30,11 @@ export function isAppDataEmpty(data: AppData) {
     data.habits.habits.length === 0 &&
     data.habits.logs.length === 0 &&
     data.calendarEvents.length === 0 &&
-    data.journalEntries.length === 0 &&
-    data.notes.length === 0 &&
-    data.templates.length === 0 &&
+    data.journalEntries.items.length === 0 &&
+    data.notes.items.length === 0 &&
+    data.templates.items.length === 0 &&
     data.projects.length === 0 &&
-    data.contacts.length === 0 &&
+    data.contacts.items.length === 0 &&
     data.health.entries.length === 0 &&
     data.health.metrics.length === 0 &&
     data.goals.length === 0 &&
@@ -819,42 +819,54 @@ export function createDemoData(): AppData {
         updatedAt: createdAt,
       },
     ],
-    journalEntries: [
-      {
-        id: createId("entry"),
-        title: "First MyMind note",
-        content: "A calmer local place for plans, records, and decisions.",
-        mood: "Focused",
-        tags: ["start"],
-        createdAt,
-        updatedAt: createdAt,
-      },
-    ],
-    notes: [
-      {
-        id: createId("note"),
-        title: "MyMind ideas",
-        content:
-          "Use notes for durable ideas, references, checklists, and project thinking that should not live in the journal.",
-        category: "Reference",
-        tags: ["mymind", "ideas"],
-        pinned: true,
-        createdAt,
-        updatedAt: createdAt,
-      },
-    ],
-    templates: [
-      {
-        id: createId("template"),
-        title: "Follow-up message",
-        body: "Hi {{name}},\n\nJust checking in about {{topic}}. Let me know what works best for you.",
-        category: "Messages",
-        tags: ["message", "follow-up"],
-        variables: ["name", "topic"],
-        createdAt,
-        updatedAt: createdAt,
-      },
-    ],
+    journalEntries: {
+      items: [
+        {
+          id: createId("entry"),
+          title: "First MyMind note",
+          content: "A calmer local place for plans, records, and decisions.",
+          mood: "Focused",
+          groupId: null,
+          tags: ["start"],
+          createdAt,
+          updatedAt: createdAt,
+        },
+      ],
+      groups: [],
+    },
+    notes: {
+      items: [
+        {
+          id: createId("note"),
+          title: "MyMind ideas",
+          content:
+            "Use notes for durable ideas, references, checklists, and project thinking that should not live in the journal.",
+          category: "Reference",
+          groupId: null,
+          tags: ["mymind", "ideas"],
+          pinned: true,
+          createdAt,
+          updatedAt: createdAt,
+        },
+      ],
+      groups: [],
+    },
+    templates: {
+      items: [
+        {
+          id: createId("template"),
+          title: "Follow-up message",
+          body: "Hi {{name}},\n\nJust checking in about {{topic}}. Let me know what works best for you.",
+          category: "Messages",
+          groupId: null,
+          tags: ["message", "follow-up"],
+          variables: ["name", "topic"],
+          createdAt,
+          updatedAt: createdAt,
+        },
+      ],
+      groups: [],
+    },
     projects: [
       {
         id: createId("project"),
@@ -870,25 +882,29 @@ export function createDemoData(): AppData {
         updatedAt: createdAt,
       },
     ],
-    contacts: [
-      {
-        id: createId("contact"),
-        name: "Example Contact",
-        relationship: "Friend",
-        phone: "",
-        email: "",
-        facebook: "",
-        whatsapp: "",
-        telegram: "@example",
-        instagram: "",
-        birthday: null,
-        lastContactedAt: null,
-        notes: "Use contacts for memory notes and follow-up context.",
-        tags: ["example"],
-        createdAt,
-        updatedAt: createdAt,
-      },
-    ],
+    contacts: {
+      items: [
+        {
+          id: createId("contact"),
+          name: "Example Contact",
+          relationship: "Friend",
+          groupId: null,
+          phone: "",
+          email: "",
+          facebook: "",
+          whatsapp: "",
+          telegram: "@example",
+          instagram: "",
+          birthday: null,
+          lastContactedAt: null,
+          notes: "Use contacts for memory notes and follow-up context.",
+          tags: ["example"],
+          createdAt,
+          updatedAt: createdAt,
+        },
+      ],
+      groups: [],
+    },
     health: {
       entries: [],
       metrics: [],

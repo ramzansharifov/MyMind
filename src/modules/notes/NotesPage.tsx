@@ -1,11 +1,14 @@
 import { lazy, Suspense, useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
+import { ContentGroupsPanel, ContentGroupWorkspaceHeader } from '../../shared/components/ContentGroupsPanel';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { LoadingState } from '../../shared/components/LoadingState';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
+import type { ContentGroup } from '../../shared/types/common';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
+import { countItemsByContentGroup, matchesContentGroup } from '../../shared/utils/contentGroupUtils';
 import { filterNotes, noteCategories, noteTags } from './noteUtils';
 import { NoteCard } from './NoteCard';
 import type { Note } from './types';
@@ -14,53 +17,62 @@ import '../../styles/modules/notes.css';
 const NoteEditorPage = lazy(() => import('./NoteEditorPage').then((module) => ({ default: module.NoteEditorPage })));
 
 interface NotesPageProps {
-  notes: Note[];
-  onChange: (notes: Note[]) => void;
+  data: {
+    items: Note[];
+    groups: ContentGroup[];
+  };
+  onChange: (data: NotesPageProps['data']) => void;
 }
 
-export function NotesPage({ notes, onChange }: NotesPageProps) {
+export function NotesPage({ data, onChange }: NotesPageProps) {
+  const notes = data.items;
+  const groups = data.groups;
   const [query, setQuery] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [pinnedOnly, setPinnedOnly] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [activeGroupId, setActiveGroupId] = useState('all');
   const [editorNote, setEditorNote] = useState<Note | null | undefined>(undefined);
   const [editorInitialMode, setEditorInitialMode] = useState<'read' | 'edit'>('edit');
   const visibleNotes = notes.filter((note) => !isHiddenFromRegularLists(note));
   const searched = filterNotes(visibleNotes, query, '', '', false);
-  const filtered = searched.filter((note) => {
+  const filteredByFilters = searched.filter((note) => {
     const matchesTags = tags.length === 0 || tags.some((tag) => note.tags.includes(tag));
     const matchesCategories = categories.length === 0 || categories.includes(note.category);
     const matchesPinned = !pinnedOnly || Boolean(note.pinned || note.pinnedAt);
     return matchesTags && matchesCategories && matchesPinned;
   });
+  const filtered = filteredByFilters.filter((note) => matchesContentGroup(note.groupId, activeGroupId));
   const { t } = useI18n();
   const availableTags = noteTags(visibleNotes);
   const availableCategories = noteCategories(visibleNotes);
   const activeFilterCount = tags.length + categories.length + (pinnedOnly ? 1 : 0);
+  const groupCounts = countItemsByContentGroup(visibleNotes);
 
   function saveNote(note: Note) {
     const exists = notes.some((item) => item.id === note.id);
-    onChange(exists ? notes.map((item) => (item.id === note.id ? note : item)) : [note, ...notes]);
+    onChange({ ...data, items: exists ? notes.map((item) => (item.id === note.id ? note : item)) : [note, ...notes] });
     setEditorNote(undefined);
   }
 
   function archiveNote(note: Note) {
-    onChange(notes.map((item) => (item.id === note.id ? archiveEntity(item) : item)));
+    onChange({ ...data, items: notes.map((item) => (item.id === note.id ? archiveEntity(item) : item)) });
   }
 
   function moveNoteToTrash(note: Note) {
-    onChange(notes.map((item) => (item.id === note.id ? trashEntity(item) : item)));
+    onChange({ ...data, items: notes.map((item) => (item.id === note.id ? trashEntity(item) : item)) });
   }
 
   function togglePin(note: Note) {
     const timestamp = new Date().toISOString();
     const isPinned = Boolean(note.pinned || note.pinnedAt);
-    onChange(
-      notes.map((item) =>
+    onChange({
+      ...data,
+      items: notes.map((item) =>
         item.id === note.id ? { ...item, pinned: !isPinned, pinnedAt: isPinned ? null : timestamp, updatedAt: timestamp } : item,
       ),
-    );
+    });
   }
 
   function toggleTag(value: string) {
@@ -77,10 +89,32 @@ export function NotesPage({ notes, onChange }: NotesPageProps) {
     setPinnedOnly(false);
   }
 
+  function renameGroup(groupId: string, title: string) {
+    const timestamp = new Date().toISOString();
+    onChange({ ...data, groups: groups.map((group) => (group.id === groupId ? { ...group, title, updatedAt: timestamp } : group)) });
+  }
+
+  function deleteGroup(groupId: string) {
+    const timestamp = new Date().toISOString();
+    onChange({
+      ...data,
+      groups: groups.filter((group) => group.id !== groupId),
+      items: notes.map((note) => (note.groupId === groupId ? { ...note, groupId: null, updatedAt: timestamp } : note)),
+    });
+    setActiveGroupId('all');
+  }
+
   if (editorNote !== undefined) {
     return (
       <Suspense fallback={<LoadingState title="Opening editor" message="Preparing BlockNote tools and note content..." variant="page" />}>
-        <NoteEditorPage note={editorNote} initialMode={editorInitialMode} onCancel={() => setEditorNote(undefined)} onSave={saveNote} />
+        <NoteEditorPage
+          note={editorNote}
+          groups={groups}
+          defaultGroupId={activeGroupId === 'all' ? null : activeGroupId}
+          initialMode={editorInitialMode}
+          onCancel={() => setEditorNote(undefined)}
+          onSave={saveNote}
+        />
       </Suspense>
     );
   }
@@ -100,14 +134,16 @@ export function NotesPage({ notes, onChange }: NotesPageProps) {
           />
         }
       />
-      <CollapsibleFilters
-        query={query}
-        placeholder="Search notes"
-        isOpen={filtersOpen}
-        activeCount={activeFilterCount}
-        onQueryChange={setQuery}
-        onToggle={() => setFiltersOpen((current) => !current)}
-      >
+      <div className="todo-workspace">
+        <div className="todo-filters-row">
+          <CollapsibleFilters
+            query={query}
+            placeholder="Search notes"
+            isOpen={filtersOpen}
+            activeCount={activeFilterCount}
+            onQueryChange={setQuery}
+            onToggle={() => setFiltersOpen((current) => !current)}
+          >
         <div className="filter-choice-group">
           <div className="filter-choice-heading">
             <strong>{t('Category')}</strong>
@@ -145,30 +181,49 @@ export function NotesPage({ notes, onChange }: NotesPageProps) {
           </div>
         </div>
         {activeFilterCount > 0 ? <button className="button ghost filter-clear-button" type="button" onClick={clearFilters}>{t('Clear filters')}</button> : null}
-      </CollapsibleFilters>
-      {filtered.length === 0 ? (
-        <EmptyState title="No notes found" message="Capture ideas, instructions, references, and personal knowledge." />
-      ) : (
-        <div className="card-grid">
-          {filtered.map((note) => (
-            <NoteCard
-              note={note}
-              key={note.id}
-              onOpen={() => {
-                setEditorInitialMode('read');
-                setEditorNote(note);
-              }}
-              onEdit={() => {
-                setEditorInitialMode('edit');
-                setEditorNote(note);
-              }}
-              onPin={() => togglePin(note)}
-              onArchive={() => archiveNote(note)}
-              onTrash={() => moveNoteToTrash(note)}
-            />
-          ))}
+          </CollapsibleFilters>
         </div>
-      )}
+        <ContentGroupsPanel
+          groups={groups}
+          totalCount={visibleNotes.length}
+          activeGroupId={activeGroupId}
+          counts={groupCounts}
+          onActiveGroupChange={setActiveGroupId}
+          onGroupsChange={(groups) => onChange({ ...data, groups })}
+        />
+        <section className="todo-list-panel">
+          <ContentGroupWorkspaceHeader
+            groups={groups}
+            activeGroupId={activeGroupId}
+            itemCount={filtered.length}
+            onRenameGroup={renameGroup}
+            onDeleteGroup={deleteGroup}
+          />
+          {filtered.length === 0 ? (
+            <EmptyState title="No notes found" message="Capture ideas, instructions, references, and personal knowledge." />
+          ) : (
+            <div className="card-grid">
+              {filtered.map((note) => (
+                <NoteCard
+                  note={note}
+                  key={note.id}
+                  onOpen={() => {
+                    setEditorInitialMode('read');
+                    setEditorNote(note);
+                  }}
+                  onEdit={() => {
+                    setEditorInitialMode('edit');
+                    setEditorNote(note);
+                  }}
+                  onPin={() => togglePin(note)}
+                  onArchive={() => archiveNote(note)}
+                  onTrash={() => moveNoteToTrash(note)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </section>
   );
 }

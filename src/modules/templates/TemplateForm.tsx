@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { EntityForm } from '../../shared/components/EntityForm';
 import { useI18n } from '../../shared/i18n/I18nProvider';
+import type { ContentGroup } from '../../shared/types/common';
 import { joinCsv, splitCsv } from '../../shared/utils/formatters';
 import { createId } from '../../shared/utils/idGenerator';
 import { extractTemplateVariables } from './templateUtils';
@@ -8,13 +9,16 @@ import type { TextTemplate } from './types';
 
 interface TemplateFormProps {
   template?: TextTemplate | null;
+  groups?: ContentGroup[];
+  defaultGroupId?: string | null;
   onCancel: () => void;
   onSave: (template: TextTemplate) => void;
 }
 
-export function TemplateForm({ template, onCancel, onSave }: TemplateFormProps) {
+export function TemplateForm({ template, groups = [], defaultGroupId = null, onCancel, onSave }: TemplateFormProps) {
   const [title, setTitle] = useState(template?.title ?? '');
   const [category, setCategory] = useState(template?.category ?? '');
+  const [groupId, setGroupId] = useState<string | null>(template?.groupId ?? defaultGroupId ?? null);
   const [tags, setTags] = useState(joinCsv(template?.tags ?? []));
   const [body, setBody] = useState(template?.body ?? '');
   const variables = useMemo(() => extractTemplateVariables(body), [body]);
@@ -28,6 +32,7 @@ export function TemplateForm({ template, onCancel, onSave }: TemplateFormProps) 
       title: title.trim() || 'Untitled template',
       body: body.trim(),
       category: category.trim(),
+      groupId,
       tags: splitCsv(tags),
       variables,
       pinnedAt: template?.pinnedAt ?? null,
@@ -55,6 +60,19 @@ export function TemplateForm({ template, onCancel, onSave }: TemplateFormProps) 
           <input value={tags} onChange={(event) => setTags(event.target.value)} placeholder={t('Comma-separated names')} />
         </label>
       </div>
+      {groups.length > 0 ? (
+        <label>
+          {t('Group')}
+          <select value={groupId ?? ''} onChange={(event) => setGroupId(event.target.value || null)}>
+            <option value="">{t('No group')}</option>
+            {groups.map((group) => (
+              <option value={group.id} key={group.id}>
+                {group.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <label>
         {t('Template text')}
         <textarea

@@ -1,6 +1,7 @@
 import { Copy, Wand2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CloseButton } from '../../shared/components/ActionButtons';
+import { ModalPortal } from '../../shared/components/ModalPortal';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { copyTextToClipboard, renderTemplate } from './templateUtils';
 import type { TextTemplate } from './types';
@@ -23,6 +24,7 @@ export function TemplateBuilder({ template, onClose }: TemplateBuilderProps) {
   }
 
   return (
+    <ModalPortal>
     <div
       className="dialog-backdrop form-modal-backdrop"
       role="presentation"
@@ -70,5 +72,6 @@ export function TemplateBuilder({ template, onClose }: TemplateBuilderProps) {
         </div>
       </section>
     </div>
+    </ModalPortal>
   );
 }

@@ -1,6 +1,6 @@
-import { lazy, Suspense, useState } from 'react';
-import { AddButton, CancelButton, DeleteButton, EditButton, SaveButton } from '../../shared/components/ActionButtons';
-import { EntityForm } from '../../shared/components/EntityForm';
+import { lazy, Suspense, useState, type FormEvent } from 'react';
+import { AddButton, DeleteButton, EditButton } from '../../shared/components/ActionButtons';
+import { ContentGroupWorkspaceHeader, GroupFormDialog } from '../../shared/components/ContentGroupsPanel';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { LoadingState } from '../../shared/components/LoadingState';
 import { PageHeader } from '../../shared/components/PageHeader';
@@ -63,8 +63,7 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
   const [openForm, setOpenForm] = useState<OpenForm>(null);
   const [activeExerciseGroupId, setActiveExerciseGroupId] = useState<string>('all');
   const [newExerciseGroupTitle, setNewExerciseGroupTitle] = useState('');
-  const [editingExerciseGroupId, setEditingExerciseGroupId] = useState<string | null>(null);
-  const [editingExerciseGroupTitle, setEditingExerciseGroupTitle] = useState('');
+  const [isCreatingExerciseGroup, setIsCreatingExerciseGroup] = useState(false);
   const { t } = useI18n();
   const exercises = data.exercises ?? [];
   const exerciseGroups = data.exerciseGroups ?? [];
@@ -92,7 +91,8 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
     });
   }
 
-  function saveExerciseGroup() {
+  function saveExerciseGroup(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
     const title = newExerciseGroupTitle.trim();
     if (!title) {
       return;
@@ -108,32 +108,17 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
     onChange({ ...data, exerciseGroups: [...exerciseGroups, group] });
     setActiveExerciseGroupId(group.id);
     setNewExerciseGroupTitle('');
+    setIsCreatingExerciseGroup(false);
   }
 
-  function startEditExerciseGroup(group: ExerciseGroup) {
-    setEditingExerciseGroupId(group.id);
-    setEditingExerciseGroupTitle(group.title);
-  }
-
-  function saveEditedExerciseGroup() {
-    const title = editingExerciseGroupTitle.trim();
-    if (!editingExerciseGroupId || !title) {
-      return;
-    }
+  function renameExerciseGroup(groupId: string, title: string) {
     const timestamp = new Date().toISOString();
     onChange({
       ...data,
       exerciseGroups: exerciseGroups.map((group) =>
-        group.id === editingExerciseGroupId ? { ...group, title, updatedAt: timestamp } : group,
+        group.id === groupId ? { ...group, title, updatedAt: timestamp } : group,
       ),
     });
-    setEditingExerciseGroupId(null);
-    setEditingExerciseGroupTitle('');
-  }
-
-  function cancelEditExerciseGroup() {
-    setEditingExerciseGroupId(null);
-    setEditingExerciseGroupTitle('');
   }
 
   function deleteExerciseGroup(groupId: string) {
@@ -147,9 +132,6 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
     });
     if (activeExerciseGroupId === groupId) {
       setActiveExerciseGroupId('all');
-    }
-    if (editingExerciseGroupId === groupId) {
-      cancelEditExerciseGroup();
     }
   }
 
@@ -258,8 +240,27 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
             </div>
             <AddButton label="Add exercise" onClick={() => setOpenForm({ kind: 'exercise' })} />
           </div>
+          <ContentGroupWorkspaceHeader
+            groups={[
+              { id: 'all', title: 'All', createdAt: 'system', updatedAt: 'system' },
+              { id: 'ungrouped', title: 'No group', createdAt: 'system', updatedAt: 'system' },
+              ...exerciseGroups,
+            ]}
+            activeGroupId={activeExerciseGroupId}
+            itemCount={visibleExercises.length}
+            onRenameGroup={renameExerciseGroup}
+            onDeleteGroup={deleteExerciseGroup}
+            canManageGroup={(group) => Boolean(exerciseGroups.some((item) => item.id === group.id))}
+          />
           <div className="exercise-library-layout">
             <aside className="exercise-groups-panel">
+              <div className="section-heading content-groups-heading">
+                <div className="content-groups-heading-main">
+                  <h2>{t('Groups')}</h2>
+                  <span className="rating-pill">{exercises.length}</span>
+                </div>
+                <AddButton className="content-group-add-button" iconOnly label="Add exercise group" onClick={() => setIsCreatingExerciseGroup(true)} />
+              </div>
               <div className="exercise-group-tabs" role="tablist" aria-label={t('Exercise groups')}>
                 {[
                   { id: 'all', title: t('All'), count: exercises.length, group: null },
@@ -270,67 +271,31 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
                     count: exercises.filter((exercise) => exercise.groupId === group.id).length,
                     group,
                   })),
-                ].map((group) =>
-                  editingExerciseGroupId === group.id ? (
-                    <div className="exercise-group-edit-row" key={group.id}>
-                      <input
-                        value={editingExerciseGroupTitle}
-                        onChange={(event) => setEditingExerciseGroupTitle(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            saveEditedExerciseGroup();
-                          }
-                          if (event.key === 'Escape') {
-                            cancelEditExerciseGroup();
-                          }
-                        }}
-                        autoFocus
-                      />
-                      <div className="exercise-group-actions">
-                        <SaveButton label="Save group" iconOnly type="button" onClick={saveEditedExerciseGroup} />
-                        <CancelButton label="Cancel" iconOnly type="button" onClick={cancelEditExerciseGroup} />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="exercise-group-row" key={group.id}>
-                      <button
-                        className={`exercise-group-tab ${activeExerciseGroupId === group.id ? 'active' : ''}`}
-                        type="button"
-                        onClick={() => setActiveExerciseGroupId(group.id)}
-                      >
-                        <span>{group.title}</span>
-                        <small>{group.count}</small>
-                      </button>
-                      {group.group ? (
-                        <div className="exercise-group-actions">
-                          <EditButton label="Edit group" onClick={() => startEditExerciseGroup(group.group as ExerciseGroup)} />
-                          <DeleteButton
-                            label="Delete group"
-                            confirmTitle="Delete exercise group?"
-                            confirmMessage="Exercises from this group will move to No group."
-                            onConfirm={() => deleteExerciseGroup(group.id)}
-                          />
-                        </div>
-                      ) : null}
-                    </div>
-                  ),
-                )}
+                ].map((group) => (
+                  <button
+                    className={`exercise-group-tab ${activeExerciseGroupId === group.id ? 'active' : ''}`}
+                    key={group.id}
+                    type="button"
+                    onClick={() => setActiveExerciseGroupId(group.id)}
+                  >
+                    <span>{group.title}</span>
+                    <small>{group.count}</small>
+                  </button>
+                ))}
               </div>
-              <div className="inline-form exercise-group-create">
-                <input
+              {isCreatingExerciseGroup ? (
+                <GroupFormDialog
+                  title="Create group"
+                  saveLabel="Add group"
                   value={newExerciseGroupTitle}
-                  placeholder={t('New exercise group')}
-                  onChange={(event) => setNewExerciseGroupTitle(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      saveExerciseGroup();
-                    }
+                  onChange={setNewExerciseGroupTitle}
+                  onCancel={() => {
+                    setIsCreatingExerciseGroup(false);
+                    setNewExerciseGroupTitle('');
                   }}
+                  onSubmit={saveExerciseGroup}
                 />
-                <AddButton label="Add exercise group" onClick={saveExerciseGroup}>
-                  {t('Add')}
-                </AddButton>
-              </div>
+              ) : null}
             </aside>
             <div className="workout-exercise-grid">
             {visibleExercises.map((exercise) => (

@@ -32,8 +32,8 @@ export function DashboardPage({
   const { t } = useI18n();
   const today = todayDateOnly();
   const activeTodos = data.todos.items.filter((todo) => !isHiddenFromRegularLists(todo));
-  const activeNotes = data.notes.filter((note) => !isHiddenFromRegularLists(note));
-  const activeEntries = data.journalEntries.filter((entry) => !isHiddenFromRegularLists(entry));
+  const activeNotes = data.notes.items.filter((note) => !isHiddenFromRegularLists(note));
+  const activeEntries = data.journalEntries.items.filter((entry) => !isHiddenFromRegularLists(entry));
   const activeEvents = data.calendarEvents.filter((event) => !isHiddenFromRegularLists(event));
   const upcomingEvents = activeEvents
     .filter((event) => isWithinDays(event.date, 14))

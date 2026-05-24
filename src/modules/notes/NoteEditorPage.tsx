@@ -37,10 +37,13 @@ import { BlockNoteView } from '@blocknote/mantine';
 import { getDefaultReactSlashMenuItems, SideMenu, SideMenuController, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
+import { useI18n } from '../../shared/i18n/I18nProvider';
+import { ModalPortal } from '../../shared/components/ModalPortal';
 import { createId } from '../../shared/utils/idGenerator';
 import { DRAWING_BLOCK_DIRTY_EVENT } from './blocks/drawing';
 import { DRAWING_BLOCK_SELECTED_EVENT } from './blocks/drawing';
 import { editorContentToPlainText, getNoteEditorContent, NOTE_SCHEMA_VERSION } from './noteUtils';
+import type { ContentGroup } from '../../shared/types/common';
 import type { Note, NoteLayoutWidth, NoteProperty } from './types';
 import { ReadOnlyBlocks } from './editor/ReadOnlyBlocks';
 import {
@@ -60,6 +63,8 @@ import type { AnyBlock, AnyEditor, NoteMode } from './editor/types';
 
 interface NoteEditorPageProps {
   note?: Note | null;
+  groups?: ContentGroup[];
+  defaultGroupId?: string | null;
   initialMode?: NoteMode;
   onCancel: () => void;
   onSave: (note: Note) => void;
@@ -70,11 +75,12 @@ const IMAGE_FALLBACK_MAX_WIDTH = 1200;
 const NOTE_LAYOUT_WIDTHS = [900, 1000, 1200] as const satisfies readonly NoteLayoutWidth[];
 const DEFAULT_NOTE_LAYOUT_WIDTH: NoteLayoutWidth = 1000;
 
-export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEditorPageProps) {
+export function NoteEditorPage({ note, groups = [], defaultGroupId = null, initialMode, onCancel, onSave }: NoteEditorPageProps) {
   const initialContent = useMemo(() => prepareInitialEditorContent(sanitizeInitialContent(getNoteEditorContent(note))), [note?.id]);
   const [mode, setMode] = useState<NoteMode>(initialMode ?? (note ? 'read' : 'edit'));
   const [title, setTitle] = useState(note?.title ?? '');
   const [category, setCategory] = useState(note?.category ?? '');
+  const [groupId, setGroupId] = useState<string | null>(note?.groupId ?? defaultGroupId ?? null);
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>(note?.tags ?? []);
   const [properties, setProperties] = useState<NoteProperty[]>(note?.properties ?? []);
@@ -193,6 +199,7 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
       pinned: note?.pinned ?? false,
       title: title.trim() || 'Без названия',
       category: category.trim(),
+      groupId,
       tags,
       properties,
       assets: note?.assets ?? [],
@@ -289,11 +296,17 @@ export function NoteEditorPage({ note, initialMode, onCancel, onSave }: NoteEdit
             setDirty(true);
           }}
         />
-        <NoteMetadata
-          tags={tags}
-          tagInput={tagInput}
-          properties={properties}
-          onTagInputChange={setTagInput}
+          <NoteMetadata
+            tags={tags}
+            groups={groups}
+            groupId={groupId}
+            tagInput={tagInput}
+            properties={properties}
+            onGroupChange={(value) => {
+              setGroupId(value);
+              setDirty(true);
+            }}
+            onTagInputChange={setTagInput}
           onAddTag={addTag}
           onRemoveTag={removeTag}
           onChangeProperty={(property) => {
@@ -404,6 +417,7 @@ function UnsavedChangesDialog({
   onSave: () => void;
 }) {
   return (
+    <ModalPortal>
     <div className="dialog-backdrop note-unsaved-dialog-backdrop" role="presentation" onMouseDown={onClose}>
       <section
         className="dialog note-unsaved-dialog"
@@ -435,6 +449,7 @@ function UnsavedChangesDialog({
         </div>
       </section>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -458,8 +473,11 @@ function ReadOnlyNoteHeader({ title, tags }: { title: string; tags: string[] }) 
 
 function NoteMetadata({
   tags,
+  groups,
+  groupId,
   tagInput,
   properties,
+  onGroupChange,
   onTagInputChange,
   onAddTag,
   onRemoveTag,
@@ -467,16 +485,34 @@ function NoteMetadata({
   onRemoveProperty,
 }: {
   tags: string[];
+  groups: ContentGroup[];
+  groupId: string | null;
   tagInput: string;
   properties: NoteProperty[];
+  onGroupChange: (value: string | null) => void;
   onTagInputChange: (value: string) => void;
   onAddTag: (value?: string) => void;
   onRemoveTag: (value: string) => void;
   onChangeProperty: (property: NoteProperty) => void;
   onRemoveProperty: (id: string) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="note-metadata">
+      {groups.length > 0 ? (
+        <label className="note-group-select">
+          <span>{t('Group')}</span>
+          <select value={groupId ?? ''} onChange={(event) => onGroupChange(event.target.value || null)}>
+            <option value="">{t('No group')}</option>
+            {groups.map((group) => (
+              <option value={group.id} key={group.id}>
+                {group.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <div className="note-tag-row">
         <Tags size={17} />
         {tags.map((tag) => (

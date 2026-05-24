@@ -1,5 +1,6 @@
 import { Archive, Check, Trash2 } from 'lucide-react';
 import { CancelButton } from './ActionButtons';
+import { ModalPortal } from './ModalPortal';
 import { useI18n } from '../i18n/I18nProvider';
 
 interface ConfirmDialogProps {
@@ -24,6 +25,7 @@ export function ConfirmDialog({
   const { t } = useI18n();
   const Icon = action === 'archive' ? Archive : action === 'confirm' ? Check : Trash2;
   return (
+    <ModalPortal>
     <div
       className="dialog-backdrop"
       role="presentation"
@@ -45,5 +47,6 @@ export function ConfirmDialog({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

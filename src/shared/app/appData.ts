@@ -1,22 +1,22 @@
 import type { CalendarEvent } from '../../modules/calendar/types';
-import type { Contact } from '../../modules/contacts/types';
+import type { Contact, ContactsData } from '../../modules/contacts/types';
 import type { FinanceData } from '../../modules/finance/types';
 import type { Goal } from '../../modules/goals/types';
 import type { HabitData, HabitLog } from '../../modules/habits/types';
 import type { HealthData } from '../../modules/health/types';
 import type { InventoryItem } from '../../modules/inventory/types';
-import type { JournalEntry } from '../../modules/journal/types';
+import type { JournalData, JournalEntry } from '../../modules/journal/types';
 import type { Movie } from '../../modules/movies/types';
 import { migrateNote } from '../../modules/notes/noteUtils';
-import type { Note } from '../../modules/notes/types';
+import type { Note, NotesData } from '../../modules/notes/types';
 import type { Project } from '../../modules/projects/types';
-import type { TextTemplate } from '../../modules/templates/types';
+import type { TemplatesData, TextTemplate } from '../../modules/templates/types';
 import type { TodoData, TodoItem } from '../../modules/todos/types';
 import { DEFAULT_TODO_GROUPS } from '../../modules/todos/todoUtils';
 import type { MealRecord, NutritionEntry, WorkoutData } from '../../modules/workouts/types';
 import { appModules, moduleGroupIconDefinitions } from './moduleRegistry';
 import type { CollectionName } from '../storage/storageTypes';
-import type { AppSettings, ModuleGroupIconKey, ModuleKey, SidebarSettings } from '../types/common';
+import type { AppSettings, ContentGroup, GroupedContentData, ModuleGroupIconKey, ModuleKey, SidebarSettings } from '../types/common';
 import { localDateOnly, weekdayNumber } from '../utils/dateUtils';
 
 export interface AppData {
@@ -26,11 +26,11 @@ export interface AppData {
   finance: FinanceData;
   habits: HabitData;
   calendarEvents: CalendarEvent[];
-  journalEntries: JournalEntry[];
-  notes: Note[];
-  templates: TextTemplate[];
+  journalEntries: JournalData;
+  notes: NotesData;
+  templates: TemplatesData;
   projects: Project[];
-  contacts: Contact[];
+  contacts: ContactsData;
   health: HealthData;
   goals: Goal[];
   inventory: InventoryItem[];
@@ -53,11 +53,11 @@ export const emptyData: AppData = {
   finance: { startingBalance: 0, startedAt: null, transactions: [], savingsGoals: [], tags: [] },
   habits: { habits: [], logs: [] },
   calendarEvents: [],
-  journalEntries: [],
-  notes: [],
-  templates: [],
+  journalEntries: { items: [], groups: [] },
+  notes: { items: [], groups: [] },
+  templates: { items: [], groups: [] },
   projects: [],
-  contacts: [],
+  contacts: { items: [], groups: [] },
   health: { entries: [], metrics: [] },
   goals: [],
   inventory: [],
@@ -192,8 +192,9 @@ export function normalizeData(data: AppData): AppData {
       })),
     },
     todos: normalizeTodoData(data.todos),
-    notes: (data.notes ?? []).map(migrateNote),
-    templates: data.templates ?? [],
+    journalEntries: normalizeGroupedContentData<JournalEntry>(data.journalEntries),
+    notes: normalizeGroupedContentData<Note>(data.notes, (note) => migrateNote(note)),
+    templates: normalizeGroupedContentData<TextTemplate>(data.templates),
     calendarEvents: (data.calendarEvents ?? []).map((event) => ({
       ...event,
       tags: event.tags ?? (event.category ? [event.category] : []),
@@ -213,7 +214,7 @@ export function normalizeData(data: AppData): AppData {
       reminderFiredAt: event.reminderFiredAt ?? null,
     })),
     projects: data.projects ?? [],
-    contacts: (data.contacts ?? []).map((contact) => ({
+    contacts: normalizeGroupedContentData<Contact>(data.contacts, (contact) => ({
       ...contact,
       facebook: contact.facebook ?? '',
       whatsapp: contact.whatsapp ?? '',
@@ -278,15 +279,15 @@ export function setDataCollection(data: AppData, collectionName: AppCollectionNa
     case 'calendar_events':
       return { ...data, calendarEvents: Array.isArray(value) ? value as CalendarEvent[] : [] };
     case 'journal_entries':
-      return { ...data, journalEntries: Array.isArray(value) ? value as JournalEntry[] : [] };
+      return { ...data, journalEntries: normalizeGroupedContentData<JournalEntry>(value) };
     case 'notes':
-      return { ...data, notes: Array.isArray(value) ? value as Note[] : [] };
+      return { ...data, notes: normalizeGroupedContentData<Note>(value, (note) => migrateNote(note)) };
     case 'templates':
-      return { ...data, templates: Array.isArray(value) ? value as TextTemplate[] : [] };
+      return { ...data, templates: normalizeGroupedContentData<TextTemplate>(value) };
     case 'projects':
       return { ...data, projects: Array.isArray(value) ? value as Project[] : [] };
     case 'contacts':
-      return { ...data, contacts: Array.isArray(value) ? value as Contact[] : [] };
+      return { ...data, contacts: normalizeGroupedContentData<Contact>(value) };
     case 'health':
       return { ...data, health: value as HealthData };
     case 'goals':
@@ -347,6 +348,43 @@ function normalizeTodoData(todos: TodoData | TodoItem[] | undefined): TodoData {
         reminderEnabled: todo.reminderEnabled ?? false,
         reminderFiredAt: todo.reminderFiredAt ?? null,
         completedAt: todo.completedAt ?? null,
+      };
+    }),
+    groups,
+  };
+}
+
+function normalizeGroupedContentData<TItem extends { id: string; groupId?: string | null }>(
+  data: GroupedContentData<TItem> | TItem[] | unknown,
+  mapItem: (item: TItem) => TItem = (item) => item,
+): GroupedContentData<TItem> {
+  const timestamp = new Date().toISOString();
+  const source = data as Partial<GroupedContentData<TItem>> | TItem[] | undefined;
+  const rawItems = Array.isArray(source) ? source : source?.items ?? [];
+  const rawGroups = Array.isArray(source) ? [] : source?.groups ?? [];
+  const seenGroups = new Set<string>();
+  const groups = rawGroups
+    .filter((group): group is ContentGroup => {
+      if (!group?.id || seenGroups.has(group.id)) {
+        return false;
+      }
+      seenGroups.add(group.id);
+      return true;
+    })
+    .map((group) => ({
+      id: group.id,
+      title: group.title || 'New group',
+      createdAt: group.createdAt ?? timestamp,
+      updatedAt: group.updatedAt ?? timestamp,
+    }));
+  const groupIds = new Set(groups.map((group) => group.id));
+
+  return {
+    items: rawItems.map((item) => {
+      const mapped = mapItem(item);
+      return {
+        ...mapped,
+        groupId: mapped.groupId && groupIds.has(mapped.groupId) ? mapped.groupId : null,
       };
     }),
     groups,

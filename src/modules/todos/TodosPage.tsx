@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
+import { ContentGroupWorkspaceHeader, GroupFormDialog } from '../../shared/components/ContentGroupsPanel';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
@@ -23,6 +24,7 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeGroupId, setActiveGroupId] = useState('all');
   const [newGroupTitle, setNewGroupTitle] = useState('');
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [editing, setEditing] = useState<TodoItem | null | undefined>(undefined);
   const [draftGroupId, setDraftGroupId] = useState('pending');
   const items = todoItems(data);
@@ -38,7 +40,6 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
     (a, b) => Number(Boolean(b.pinnedAt)) - Number(Boolean(a.pinnedAt)) || b.updatedAt.localeCompare(a.updatedAt),
   );
   const { t } = useI18n();
-  const selectedGroup = groups.find((group) => group.id === activeGroupId);
   const availableTags = todoTags(activeTodos);
   const activeFilterCount = priorities.length + tags.length;
 
@@ -68,7 +69,8 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
     onChange({ ...data, items: items.map((item) => (item.id === todo.id ? { ...item, pinnedAt: item.pinnedAt ? null : timestamp, updatedAt: timestamp } : item)) });
   }
 
-  function addGroup() {
+  function addGroup(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
     const title = newGroupTitle.trim();
     if (!title) {
       return;
@@ -84,6 +86,25 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
     onChange({ ...data, groups: [...data.groups, group] });
     setActiveGroupId(group.id);
     setNewGroupTitle('');
+    setIsCreatingGroup(false);
+  }
+
+  function renameGroup(groupId: string, title: string) {
+    const timestamp = new Date().toISOString();
+    onChange({
+      ...data,
+      groups: data.groups.map((group) => (group.id === groupId ? { ...group, title, updatedAt: timestamp } : group)),
+    });
+  }
+
+  function deleteGroup(groupId: string) {
+    const timestamp = new Date().toISOString();
+    onChange({
+      ...data,
+      groups: data.groups.filter((group) => group.id !== groupId),
+      items: items.map((todo) => (todo.groupId === groupId ? { ...todo, groupId: 'pending', updatedAt: timestamp } : todo)),
+    });
+    setActiveGroupId('all');
   }
 
   function defaultGroupForNewTask() {
@@ -187,9 +208,12 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
         </div>
 
         <aside className="panel todo-groups-panel">
-          <div className="section-heading">
-            <h2>{t('Groups')}</h2>
-            <span className="rating-pill">{activeTodos.length}</span>
+          <div className="section-heading content-groups-heading">
+            <div className="content-groups-heading-main">
+              <h2>{t('Groups')}</h2>
+              <span className="rating-pill">{activeTodos.length}</span>
+            </div>
+            <AddButton className="content-group-add-button" iconOnly label="Add group" onClick={() => setIsCreatingGroup(true)} />
           </div>
 
           <div className="todo-group-tabs" role="tablist" aria-label={t('Task groups')}>
@@ -210,48 +234,61 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
             })}
           </div>
 
-          <div className="inline-form inline-form-stacked todo-group-create">
-            <input
+          {isCreatingGroup ? (
+            <GroupFormDialog
+              title="Create group"
+              saveLabel="Add group"
               value={newGroupTitle}
-              placeholder={t('New group')}
-              onChange={(event) => setNewGroupTitle(event.target.value)}
+              onChange={setNewGroupTitle}
+              onCancel={() => {
+                setIsCreatingGroup(false);
+                setNewGroupTitle('');
+              }}
+              onSubmit={addGroup}
             />
-            <AddButton label="Add group" onClick={addGroup} />
-          </div>
+          ) : null}
         </aside>
 
         <section className="todo-list-panel">
-          <section className="panel section-block">
-            <div className="section-heading">
-              <div>
-                <h2>{query.trim() ? t('Search results') : t(selectedGroup?.title ?? 'All')}</h2>
-                <p className="muted-text">
+          {query.trim() ? (
+            <div className="content-group-workspace-header">
+              <div className="content-group-workspace-copy">
+                <span className="eyebrow">{t('Search results')}</span>
+                <h2>{t('Search results')}</h2>
+                <small>
                   {filtered.length} {t('tasks')}
-                </p>
+                </small>
               </div>
-
-              <AddButton className="todo-group-add-button" iconOnly label="Add task" onClick={() => openNewTask()} />
             </div>
+          ) : (
+            <ContentGroupWorkspaceHeader
+              groups={groups}
+              activeGroupId={activeGroupId}
+              itemCount={filtered.length}
+              onRenameGroup={renameGroup}
+              onDeleteGroup={deleteGroup}
+              canManageGroup={(group) => group.kind === 'custom'}
+            />
+          )}
 
-            {filtered.length === 0 ? (
-              <EmptyState title="No tasks found" message="Add a task or change the filters." />
-            ) : null}
+          {filtered.length === 0 ? (
+            <EmptyState title="No tasks found" message="Add a task or change the filters." />
+          ) : null}
 
-            <div className="stack">
-              {filtered.map((todo) => (
-                <TodoCard
-                  todo={todo}
-                  key={todo.id}
-                  groupTitle={groups.find((group) => group.id === todo.groupId)?.title}
-                  onToggle={() => toggle(todo)}
-                  onEdit={() => openEditTask(todo)}
-                  onPin={() => togglePin(todo)}
-                  onArchive={() => archive(todo)}
-                  onTrash={() => moveToTrash(todo)}
-                />
-              ))}
-            </div>
-          </section>
+          <div className="stack">
+            {filtered.map((todo) => (
+              <TodoCard
+                todo={todo}
+                key={todo.id}
+                groupTitle={groups.find((group) => group.id === todo.groupId)?.title}
+                onToggle={() => toggle(todo)}
+                onEdit={() => openEditTask(todo)}
+                onPin={() => togglePin(todo)}
+                onArchive={() => archive(todo)}
+                onTrash={() => moveToTrash(todo)}
+              />
+            ))}
+          </div>
         </section>
       </div>
       {editing !== undefined ? (

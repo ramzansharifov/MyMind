@@ -1,5 +1,6 @@
 import type { FormEvent, ReactNode } from 'react';
 import { CancelButton, CloseButton, SaveButton } from './ActionButtons';
+import { ModalPortal } from './ModalPortal';
 import { useI18n } from '../i18n/I18nProvider';
 
 interface EntityFormProps {
@@ -15,6 +16,7 @@ export function EntityForm({ title, saveLabel, onCancel, onSubmit, children, wid
   const { t } = useI18n();
 
   return (
+    <ModalPortal>
     <div
       className="dialog-backdrop form-modal-backdrop"
       role="presentation"
@@ -36,5 +38,6 @@ export function EntityForm({ title, saveLabel, onCancel, onSubmit, children, wid
         </div>
       </form>
     </div>
+    </ModalPortal>
   );
 }

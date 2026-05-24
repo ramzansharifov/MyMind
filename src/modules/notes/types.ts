@@ -1,4 +1,4 @@
-import type { BaseEntity } from '../../shared/types/common';
+import type { BaseEntity, GroupedContentData } from '../../shared/types/common';
 
 export type NotePropertyType = 'text' | 'number' | 'date' | 'select' | 'multiSelect' | 'checkbox' | 'url';
 
@@ -24,6 +24,7 @@ export interface Note extends BaseEntity {
   content: string;
   contentFormat?: 'plain' | 'html' | 'markdown';
   category: string;
+  groupId?: string | null;
   tags: string[];
   pinned: boolean;
   editorContent?: unknown;
@@ -34,3 +35,5 @@ export interface Note extends BaseEntity {
   schemaVersion?: number;
   layoutWidth?: NoteLayoutWidth;
 }
+
+export type NotesData = GroupedContentData<Note>;

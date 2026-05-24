@@ -119,6 +119,14 @@ export function cleanupExpiredTrash(data: AppData) {
       next.habits = { ...data.habits, habits: kept as unknown as AppData['habits']['habits'] };
     } else if (key === 'financeTransactions') {
       next.finance = { ...data.finance, transactions: kept as unknown as AppData['finance']['transactions'] };
+    } else if (key === 'journalEntries') {
+      next.journalEntries = { ...data.journalEntries, items: kept as unknown as AppData['journalEntries']['items'] };
+    } else if (key === 'notes') {
+      next.notes = { ...data.notes, items: kept as unknown as AppData['notes']['items'] };
+    } else if (key === 'templates') {
+      next.templates = { ...data.templates, items: kept as unknown as AppData['templates']['items'] };
+    } else if (key === 'contacts') {
+      next.contacts = { ...data.contacts, items: kept as unknown as AppData['contacts']['items'] };
     } else {
       next[key] = kept as never;
     }
@@ -164,6 +172,18 @@ function getFlatItems(data: AppData, key: FlatCollectionKey): AnyFlatRecord[] {
   }
   if (key === 'financeTransactions') {
     return data.finance.transactions as unknown as AnyFlatRecord[];
+  }
+  if (key === 'journalEntries') {
+    return data.journalEntries.items as unknown as AnyFlatRecord[];
+  }
+  if (key === 'notes') {
+    return data.notes.items as unknown as AnyFlatRecord[];
+  }
+  if (key === 'templates') {
+    return data.templates.items as unknown as AnyFlatRecord[];
+  }
+  if (key === 'contacts') {
+    return data.contacts.items as unknown as AnyFlatRecord[];
   }
   return data[key] as unknown as AnyFlatRecord[];
 }

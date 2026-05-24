@@ -1676,6 +1676,16 @@
   gap: 10px;
 }
 
+.note-group-select {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 280px);
+  gap: 10px;
+  align-items: center;
+  justify-content: start;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .note-chip-input,
 .note-settings-input {
   display: grid;
@@ -1687,6 +1697,7 @@
 .note-chip-input input,
 .note-tag-input,
 .note-property-chip input,
+.note-group-select select,
 .note-settings-input input {
   min-height: 34px;
   border: 1px solid var(--line-soft);
@@ -1694,6 +1705,10 @@
   background: var(--surface-soft);
   color: var(--text);
   padding: 7px 10px;
+}
+
+.note-group-select select {
+  min-width: 180px;
 }
 
 .note-settings-input select {

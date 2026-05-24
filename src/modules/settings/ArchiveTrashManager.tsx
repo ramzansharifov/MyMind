@@ -2,6 +2,7 @@ import { Archive, ChevronDown, ChevronUp, RotateCcw, Trash2 } from 'lucide-react
 import { useState } from 'react';
 import type { AppData } from '../../shared/app/appData';
 import { CloseButton, DeleteButton } from '../../shared/components/ActionButtons';
+import { ModalPortal } from '../../shared/components/ModalPortal';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isArchived, isTrashed, restoreEntity, trashEntity, type LifecycleEntity } from '../../shared/utils/archiveUtils';
 import { formatDate } from '../../shared/utils/dateUtils';
@@ -76,6 +77,7 @@ export function ArchiveTrashManager({ data, onChange, onClose, onStatusMessage }
   const [activeTab, setActiveTab] = useState<ArchiveTab>(trashRows.length > 0 ? 'trash' : 'archive');
 
   return (
+    <ModalPortal>
     <div
       className="archive-window-backdrop"
       onMouseDown={(event) => {
@@ -93,6 +95,7 @@ export function ArchiveTrashManager({ data, onChange, onClose, onStatusMessage }
         onStatusMessage={onStatusMessage}
       />
     </div>
+    </ModalPortal>
   );
 }
 

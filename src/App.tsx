@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AppShell } from './shared/components/AppShell';
 import { LoadingState } from './shared/components/LoadingState';
+import { ModalPortal } from './shared/components/ModalPortal';
 import { storageClient } from './shared/storage/storageClient';
 import type { ModuleKey } from './shared/types/common';
 import { I18nProvider, useI18n } from './shared/i18n/I18nProvider';
@@ -120,18 +121,33 @@ export function App() {
       case 'journal':
         return (
           <JournalPage
-            entries={data.journalEntries}
+            data={data.journalEntries}
             onChange={(journalEntries) => setData((current) => ({ ...current, journalEntries }))}
           />
         );
       case 'notes':
-        return <NotesPage notes={data.notes} onChange={(notes) => setData((current) => ({ ...current, notes }))} />;
+        return (
+          <NotesPage
+            data={data.notes}
+            onChange={(notes) => setData((current) => ({ ...current, notes }))}
+          />
+        );
       case 'templates':
-        return <TemplatesPage templates={data.templates} onChange={(templates) => setData((current) => ({ ...current, templates }))} />;
+        return (
+          <TemplatesPage
+            data={data.templates}
+            onChange={(templates) => setData((current) => ({ ...current, templates }))}
+          />
+        );
       case 'projects':
         return <ProjectsPage projects={data.projects} onChange={(projects) => setData((current) => ({ ...current, projects }))} />;
       case 'contacts':
-        return <ContactsPage contacts={data.contacts} onChange={(contacts) => setData((current) => ({ ...current, contacts }))} />;
+        return (
+          <ContactsPage
+            data={data.contacts}
+            onChange={(contacts) => setData((current) => ({ ...current, contacts }))}
+          />
+        );
       case 'health':
         return <HealthPage data={data.health} onChange={(health) => setData((current) => ({ ...current, health }))} />;
       case 'goals':
@@ -212,6 +228,7 @@ function ReminderModal({ reminder, onDismiss, onSnooze }: { reminder: AppReminde
   }, [reminder.id]);
 
   return (
+    <ModalPortal>
     <div
       className="dialog-backdrop"
       role="presentation"
@@ -235,5 +252,6 @@ function ReminderModal({ reminder, onDismiss, onSnooze }: { reminder: AppReminde
         </div>
       </section>
     </div>
+    </ModalPortal>
   );
 }

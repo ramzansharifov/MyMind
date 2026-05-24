@@ -1,8 +1,9 @@
-import type { BaseEntity } from '../../shared/types/common';
+import type { BaseEntity, GroupedContentData } from '../../shared/types/common';
 
 export interface Contact extends BaseEntity {
   name: string;
   relationship: string;
+  groupId?: string | null;
   phone: string;
   email: string;
   facebook?: string;
@@ -14,3 +15,5 @@ export interface Contact extends BaseEntity {
   notes: string;
   tags: string[];
 }
+
+export type ContactsData = GroupedContentData<Contact>;

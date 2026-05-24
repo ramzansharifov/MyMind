@@ -1,22 +1,33 @@
 import { useState, type FormEvent } from 'react';
 import { AddButton, ArchiveButton, DeleteButton, EditButton, PinButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
+import { ContentGroupsPanel, ContentGroupWorkspaceHeader } from '../../shared/components/ContentGroupsPanel';
 import { EntityForm } from '../../shared/components/EntityForm';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
+import type { ContentGroup } from '../../shared/types/common';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
+import { countItemsByContentGroup, matchesContentGroup } from '../../shared/utils/contentGroupUtils';
 import { joinCsv, splitCsv } from '../../shared/utils/formatters';
 import { createId } from '../../shared/utils/idGenerator';
-import type { Contact } from './types';
+import type { Contact, ContactsData } from './types';
 
-export function ContactsPage({ contacts, onChange }: { contacts: Contact[]; onChange: (contacts: Contact[]) => void }) {
+interface ContactsPageProps {
+  data: ContactsData;
+  onChange: (data: ContactsData) => void;
+}
+
+export function ContactsPage({ data, onChange }: ContactsPageProps) {
+  const contacts = data.items;
+  const groups = data.groups;
   const [query, setQuery] = useState('');
+  const [activeGroupId, setActiveGroupId] = useState('all');
   const [editing, setEditing] = useState<Contact | null | undefined>(undefined);
   const { t } = useI18n();
   const normalized = query.trim().toLowerCase();
-  const visibleContacts = contacts
-    .filter((contact) => !isHiddenFromRegularLists(contact))
+  const activeContacts = contacts.filter((contact) => !isHiddenFromRegularLists(contact));
+  const searchedContacts = activeContacts
     .filter((contact) =>
       [
         contact.name,
@@ -33,61 +44,107 @@ export function ContactsPage({ contacts, onChange }: { contacts: Contact[]; onCh
         .join(' ')
         .toLowerCase()
         .includes(normalized),
-    )
+    );
+  const visibleContacts = searchedContacts.filter((contact) => matchesContentGroup(contact.groupId, activeGroupId))
     .sort((a, b) => Number(Boolean(b.pinnedAt)) - Number(Boolean(a.pinnedAt)) || a.name.localeCompare(b.name));
+  const groupCounts = countItemsByContentGroup(activeContacts);
 
   function saveContact(contact: Contact) {
     const exists = contacts.some((item) => item.id === contact.id);
-    onChange(exists ? contacts.map((item) => (item.id === contact.id ? contact : item)) : [contact, ...contacts]);
+    onChange({ ...data, items: exists ? contacts.map((item) => (item.id === contact.id ? contact : item)) : [contact, ...contacts] });
     setEditing(undefined);
   }
 
   function togglePin(contact: Contact) {
     const timestamp = new Date().toISOString();
-    onChange(contacts.map((item) => (item.id === contact.id ? { ...item, pinnedAt: item.pinnedAt ? null : timestamp, updatedAt: timestamp } : item)));
+    onChange({ ...data, items: contacts.map((item) => (item.id === contact.id ? { ...item, pinnedAt: item.pinnedAt ? null : timestamp, updatedAt: timestamp } : item)) });
+  }
+
+  function renameGroup(groupId: string, title: string) {
+    const timestamp = new Date().toISOString();
+    onChange({ ...data, groups: groups.map((group) => (group.id === groupId ? { ...group, title, updatedAt: timestamp } : group)) });
+  }
+
+  function deleteGroup(groupId: string) {
+    const timestamp = new Date().toISOString();
+    onChange({
+      ...data,
+      groups: groups.filter((group) => group.id !== groupId),
+      items: contacts.map((contact) => (contact.groupId === groupId ? { ...contact, groupId: null, updatedAt: timestamp } : contact)),
+    });
+    setActiveGroupId('all');
   }
 
   return (
     <section>
       <PageHeader title="Contacts" subtitle="People, relationships, birthdays, memory notes, and social links." actions={<AddButton label="Add contact" onClick={() => setEditing(null)} />} />
-      <CollapsibleFilters query={query} placeholder="Search contacts" onQueryChange={setQuery} />
-      {visibleContacts.length === 0 ? (
-        <EmptyState title="No contacts" message="Add people you want to remember and follow up with." />
-      ) : (
-        <div className="card-grid">
-          {visibleContacts.map((contact) => (
-            <article className={`card contact-card ${contact.pinnedAt ? 'pinned' : ''}`} key={contact.id}>
-              <div className="card-title-row">
-                <div>
-                  <h3>{contact.name}</h3>
-                  <small>{contact.relationship || t('Person')}</small>
-                </div>
-                {contact.pinnedAt ? <span className="rating-pill">{t('Pinned')}</span> : null}
-              </div>
-              <section className="contact-block">
-                <strong>{t('Main contact')}</strong>
-                <p>{contact.phone || contact.email || t('No contact details')}</p>
-                {contact.phone ? <small>{contact.phone}</small> : null}
-                {contact.email ? <small>{contact.email}</small> : null}
-              </section>
-              <SocialLinks contact={contact} />
-              {contact.notes ? <p>{contact.notes}</p> : null}
-              <div className="chip-row">
-                {(contact.tags ?? []).map((tag) => (
-                  <span className="chip" key={tag}>{tag}</span>
-                ))}
-              </div>
-              <div className="card-actions">
-                <PinButton isPinned={Boolean(contact.pinnedAt)} onClick={() => togglePin(contact)} />
-                <EditButton onClick={() => setEditing(contact)} />
-                <ArchiveButton label="Archive" onConfirm={() => onChange(contacts.map((item) => (item.id === contact.id ? archiveEntity(item) : item)))} />
-                <DeleteButton label="Move to trash" confirmTitle="Move to trash?" confirmMessage="The item will stay in trash for 30 days before permanent deletion." onConfirm={() => onChange(contacts.map((item) => (item.id === contact.id ? trashEntity(item) : item)))} />
-              </div>
-            </article>
-          ))}
+      <div className="todo-workspace">
+        <div className="todo-filters-row">
+          <CollapsibleFilters query={query} placeholder="Search contacts" onQueryChange={setQuery} />
         </div>
-      )}
-      {editing !== undefined ? <ContactForm contact={editing} onCancel={() => setEditing(undefined)} onSave={saveContact} /> : null}
+        <ContentGroupsPanel
+          groups={groups}
+          totalCount={activeContacts.length}
+          activeGroupId={activeGroupId}
+          counts={groupCounts}
+          onActiveGroupChange={setActiveGroupId}
+          onGroupsChange={(groups) => onChange({ ...data, groups })}
+        />
+        <section className="todo-list-panel">
+          <ContentGroupWorkspaceHeader
+            groups={groups}
+            activeGroupId={activeGroupId}
+            itemCount={visibleContacts.length}
+            onRenameGroup={renameGroup}
+            onDeleteGroup={deleteGroup}
+          />
+          {visibleContacts.length === 0 ? (
+            <EmptyState title="No contacts" message="Add people you want to remember and follow up with." />
+          ) : (
+            <div className="card-grid">
+              {visibleContacts.map((contact) => (
+                <article className={`card contact-card ${contact.pinnedAt ? 'pinned' : ''}`} key={contact.id}>
+                  <div className="card-title-row">
+                    <div>
+                      <h3>{contact.name}</h3>
+                      <small>{contact.relationship || t('Person')}</small>
+                    </div>
+                    {contact.pinnedAt ? <span className="rating-pill">{t('Pinned')}</span> : null}
+                  </div>
+                  <section className="contact-block">
+                    <strong>{t('Main contact')}</strong>
+                    <p>{contact.phone || contact.email || t('No contact details')}</p>
+                    {contact.phone ? <small>{contact.phone}</small> : null}
+                    {contact.email ? <small>{contact.email}</small> : null}
+                  </section>
+                  <SocialLinks contact={contact} />
+                  {contact.notes ? <p>{contact.notes}</p> : null}
+                  <div className="chip-row">
+                    {(contact.tags ?? []).map((tag) => (
+                      <span className="chip" key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                  <div className="card-actions">
+                    <PinButton isPinned={Boolean(contact.pinnedAt)} onClick={() => togglePin(contact)} />
+                    <EditButton onClick={() => setEditing(contact)} />
+                    <ArchiveButton label="Archive" onConfirm={() => onChange({ ...data, items: contacts.map((item) => (item.id === contact.id ? archiveEntity(item) : item)) })} />
+                    <DeleteButton label="Move to trash" confirmTitle="Move to trash?" confirmMessage="The item will stay in trash for 30 days before permanent deletion." onConfirm={() => onChange({ ...data, items: contacts.map((item) => (item.id === contact.id ? trashEntity(item) : item)) })} />
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+      {editing !== undefined ? (
+        <ContactForm
+          contact={editing}
+          groups={groups}
+          defaultGroupId={activeGroupId === 'all' ? null : activeGroupId}
+          onCancel={() => setEditing(undefined)}
+          onSave={saveContact}
+        />
+      ) : null}
     </section>
   );
 }
@@ -117,7 +174,19 @@ function SocialLinks({ contact }: { contact: Contact }) {
   );
 }
 
-function ContactForm({ contact, onCancel, onSave }: { contact?: Contact | null; onCancel: () => void; onSave: (contact: Contact) => void }) {
+function ContactForm({
+  contact,
+  groups = [],
+  defaultGroupId = null,
+  onCancel,
+  onSave,
+}: {
+  contact?: Contact | null;
+  groups?: ContentGroup[];
+  defaultGroupId?: string | null;
+  onCancel: () => void;
+  onSave: (contact: Contact) => void;
+}) {
   const [draft, setDraft] = useState({
     name: contact?.name ?? '',
     relationship: contact?.relationship ?? '',
@@ -129,6 +198,7 @@ function ContactForm({ contact, onCancel, onSave }: { contact?: Contact | null; 
     instagram: contact?.instagram ?? '',
     birthday: contact?.birthday?.slice(0, 10) ?? '',
     notes: contact?.notes ?? '',
+    groupId: contact?.groupId ?? defaultGroupId ?? '',
     tags: joinCsv(contact?.tags ?? []),
   });
   const { t } = useI18n();
@@ -154,6 +224,7 @@ function ContactForm({ contact, onCancel, onSave }: { contact?: Contact | null; 
       birthday: draft.birthday || null,
       lastContactedAt: contact?.lastContactedAt ?? null,
       notes: draft.notes.trim(),
+      groupId: draft.groupId || null,
       tags: splitCsv(draft.tags),
       createdAt: contact?.createdAt ?? timestamp,
       updatedAt: timestamp,
@@ -164,6 +235,19 @@ function ContactForm({ contact, onCancel, onSave }: { contact?: Contact | null; 
     <EntityForm title={contact ? 'Edit contact' : 'Add contact'} saveLabel="Save" onCancel={onCancel} onSubmit={submit}>
       <label>{t('Name')}<input required value={draft.name} onChange={(event) => update('name', event.target.value)} /></label>
       <label>{t('Relationship')}<input value={draft.relationship} onChange={(event) => update('relationship', event.target.value)} /></label>
+      {groups.length > 0 ? (
+        <label>
+          {t('Group')}
+          <select value={draft.groupId} onChange={(event) => update('groupId', event.target.value)}>
+            <option value="">{t('No group')}</option>
+            {groups.map((group) => (
+              <option value={group.id} key={group.id}>
+                {group.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <div className="form-grid">
         <label>{t('Phone')}<input value={draft.phone} onChange={(event) => update('phone', event.target.value)} /></label>
         <label>{t('Email')}<input value={draft.email} onChange={(event) => update('email', event.target.value)} /></label>
