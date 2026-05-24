@@ -369,9 +369,9 @@
 }
 
 :root {
-  --calendar-importance-low: #6f8fd6;
-  --calendar-importance-medium: #d59d31;
-  --calendar-importance-high: #d85f5f;
+  --calendar-importance-low: var(--priority-low);
+  --calendar-importance-medium: var(--priority-medium);
+  --calendar-importance-high: var(--priority-high);
 }
 
 @media (max-width: 980px) {

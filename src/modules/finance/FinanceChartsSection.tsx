@@ -59,7 +59,7 @@ export function FinanceChartsSection({ data, currency }: FinanceChartsSectionPro
                 <CartesianGrid stroke="var(--line-soft)" vertical={false} />
                 <XAxis dataKey="label" stroke="var(--muted)" tickLine={false} axisLine={false} />
                 <YAxis stroke="var(--muted)" tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(58, 169, 151, 0.08)' }} />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'var(--chart-cursor-accent)' }} />
                 <Legend />
                 <Bar dataKey="income" name={t('Income')} fill="var(--positive)" radius={[6, 6, 0, 0]} />
                 <Bar dataKey="expense" name={t('Expenses')} fill="var(--danger)" radius={[6, 6, 0, 0]} />
@@ -78,7 +78,7 @@ export function FinanceChartsSection({ data, currency }: FinanceChartsSectionPro
                 <XAxis dataKey="label" stroke="var(--muted)" tickLine={false} axisLine={false} />
                 <YAxis stroke="var(--muted)" tickLine={false} axisLine={false} />
                 <Tooltip contentStyle={tooltipStyle} />
-                <Area type="monotone" dataKey="balance" name={t('Balance')} stroke="var(--accent-strong)" fill="rgba(58, 169, 151, 0.24)" strokeWidth={3} />
+                <Area type="monotone" dataKey="balance" name={t('Balance')} stroke="var(--accent-strong)" fill="var(--chart-area-accent)" strokeWidth={3} />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
@@ -93,7 +93,7 @@ export function FinanceChartsSection({ data, currency }: FinanceChartsSectionPro
                 <CartesianGrid stroke="var(--line-soft)" horizontal={false} />
                 <XAxis type="number" stroke="var(--muted)" tickLine={false} axisLine={false} />
                 <YAxis dataKey="tag" type="category" stroke="var(--muted)" tickLine={false} axisLine={false} width={120} />
-                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(216, 95, 95, 0.08)' }} />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'var(--chart-cursor-danger)' }} />
                 <Bar dataKey="total" name={t('Expenses')} fill="var(--danger)" radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>

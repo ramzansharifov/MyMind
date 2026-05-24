@@ -146,7 +146,7 @@
   width: 4px;
   border-radius: 999px;
   background: var(--accent-strong);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: 0 0 18px var(--accent-glow-strong);
 }
 
 .sidebar.collapsed .nav-item {

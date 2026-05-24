@@ -569,8 +569,8 @@
 .block-quote {
   display: flex;
   gap: 12px;
-  border-left: 4px solid #b17aff;
-  background: color-mix(in srgb, #b17aff 10%, var(--surface-soft));
+  border-left: 4px solid var(--quote-accent-default);
+  background: color-mix(in srgb, var(--quote-accent-default) 10%, var(--surface-soft));
   color: var(--text);
   padding: 16px;
   border-radius: 10px;
@@ -724,7 +724,7 @@
 }
 
 .code-contrast {
-  background: #05080d;
+  background: var(--code-bg);
 }
 
 .block-image-placeholder {
@@ -768,12 +768,12 @@
 }
 
 .block-quote {
-  border-left-color: var(--quote-accent, #b17aff);
+  border-left-color: var(--quote-accent, var(--quote-accent-default));
 }
 
 .block-quote.quote-card {
   border: 1px solid
-    color-mix(in srgb, var(--quote-accent, #b17aff) 34%, var(--border));
+    color-mix(in srgb, var(--quote-accent, var(--quote-accent-default)) 34%, var(--border));
   border-left-width: 4px;
 }
 
@@ -1280,7 +1280,7 @@
 }
 
 .note-save-status.dirty {
-  color: #d59d31;
+  color: var(--warning);
 }
 
 .note-unsaved-dialog {
@@ -1566,7 +1566,7 @@
   height: var(--note-drawing-height, 420px);
   background:
     radial-gradient(circle, color-mix(in srgb, var(--accent) 12%, transparent) 1px, transparent 1px) 0 0 / 20px 20px,
-    #151922;
+    var(--drawing-surface);
   border: 1px solid var(--line-soft);
 }
 
@@ -2316,7 +2316,7 @@
   border-radius: 6px;
   background:
     radial-gradient(circle, color-mix(in srgb, var(--accent) 16%, transparent) 1px, transparent 1px) 0 0 / 20px 20px,
-    #151922;
+    var(--drawing-surface);
   cursor: crosshair;
   touch-action: none;
 }
@@ -2510,7 +2510,7 @@
 }
 
 .note-callout-warning {
-  background: color-mix(in srgb, #d59d31 13%, var(--surface-soft));
+  background: color-mix(in srgb, var(--warning) 13%, var(--surface-soft));
 }
 
 .note-callout-success {

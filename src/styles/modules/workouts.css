@@ -457,19 +457,19 @@
 }
 
 .nutrition-meal-card.breakfast {
-  --meal-accent: #d59d31;
+  --meal-accent: var(--meal-breakfast);
 }
 
 .nutrition-meal-card.lunch {
-  --meal-accent: var(--accent);
+  --meal-accent: var(--meal-lunch);
 }
 
 .nutrition-meal-card.dinner {
-  --meal-accent: #6f8fd6;
+  --meal-accent: var(--meal-dinner);
 }
 
 .nutrition-meal-card.snack {
-  --meal-accent: #8a72ca;
+  --meal-accent: var(--meal-snack);
 }
 
 .nutrition-meal-accent {

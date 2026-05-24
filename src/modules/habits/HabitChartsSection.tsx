@@ -42,7 +42,7 @@ export function HabitChartsSection({ habits, logs, completedToday, todayTotal }:
                 <CartesianGrid stroke="var(--line-soft)" vertical={false} />
                 <XAxis dataKey="label" stroke="var(--muted)" tickLine={false} axisLine={false} />
                 <YAxis stroke="var(--muted)" tickLine={false} axisLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(58, 169, 151, 0.08)' }} />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'var(--chart-cursor-accent)' }} />
                 <Legend />
                 <Bar dataKey="completed" name={t('Completed')} fill="var(--positive)" radius={[6, 6, 0, 0]} />
                 <Bar dataKey="pending" name={t('Pending')} fill="var(--neutral)" radius={[6, 6, 0, 0]} />
@@ -76,7 +76,7 @@ export function HabitChartsSection({ habits, logs, completedToday, todayTotal }:
                 <CartesianGrid stroke="var(--line-soft)" horizontal={false} />
                 <XAxis type="number" stroke="var(--muted)" tickLine={false} axisLine={false} allowDecimals={false} />
                 <YAxis dataKey="title" type="category" stroke="var(--muted)" tickLine={false} axisLine={false} width={130} />
-                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(58, 169, 151, 0.08)' }} />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'var(--chart-cursor-accent)' }} />
                 <Bar dataKey="completed" name={t('Completed')} fill="var(--accent-strong)" radius={[0, 6, 6, 0]} />
               </BarChart>
             </ResponsiveContainer>

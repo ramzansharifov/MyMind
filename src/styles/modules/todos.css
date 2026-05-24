@@ -156,15 +156,15 @@
   width: 11px;
   height: 11px;
   border-radius: 999px;
-  background: #6f8fd6;
+  background: var(--priority-low);
 }
 
 .todo-choice-card.priority-medium .todo-priority-dot {
-  background: #d59d31;
+  background: var(--priority-medium);
 }
 
 .todo-choice-card.priority-high .todo-priority-dot {
-  background: #d85f5f;
+  background: var(--priority-high);
 }
 
 .todo-workspace {
@@ -279,15 +279,15 @@
   width: 9px;
   height: 9px;
   border-radius: 999px;
-  background: #6f8fd6;
+  background: var(--priority-low);
 }
 
 .todo-filter-chip.priority-medium > span {
-  background: #d59d31;
+  background: var(--priority-medium);
 }
 
 .todo-filter-chip.priority-high > span {
-  background: #d85f5f;
+  background: var(--priority-high);
 }
 
 .todo-filter-clear {

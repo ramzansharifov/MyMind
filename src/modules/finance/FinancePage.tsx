@@ -159,19 +159,21 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
         subtitle="Starting balance, income, expenses, and tags for local financial tracking."
       />
 
-      <SegmentedTabs tabs={financeTabs} activeTab={view} ariaLabel="Finance sections" onChange={setView} />
+      <div className="panel finance-tabs-panel">
+        <SegmentedTabs tabs={financeTabs} activeTab={view} ariaLabel="Finance sections" onChange={setView} />
 
-      <div className="finance-tab-actions">
-        {view === 'ledger' ? (
-          <>
-            <AddButton label="Income" onClick={() => setOpenForm({ kind: 'transaction', type: 'income' })} />
-            <button className="button danger finance-expense-button" type="button" onClick={() => setOpenForm({ kind: 'transaction', type: 'expense' })}>
-              <Minus size={17} aria-hidden="true" />
-              <span>{t('Expense')}</span>
-            </button>
-          </>
-        ) : null}
-        {view === 'goals' ? <AddButton label="Add savings goal" onClick={() => setOpenForm({ kind: 'goal' })} /> : null}
+        <div className="finance-tab-actions">
+          {view === 'ledger' ? (
+            <>
+              <AddButton label="Income" onClick={() => setOpenForm({ kind: 'transaction', type: 'income' })} />
+              <button className="button danger finance-expense-button" type="button" onClick={() => setOpenForm({ kind: 'transaction', type: 'expense' })}>
+                <Minus size={17} aria-hidden="true" />
+                <span>{t('Expense')}</span>
+              </button>
+            </>
+          ) : null}
+          {view === 'goals' ? <AddButton label="Add savings goal" onClick={() => setOpenForm({ kind: 'goal' })} /> : null}
+        </div>
       </div>
 
       {view === 'ledger' ? (

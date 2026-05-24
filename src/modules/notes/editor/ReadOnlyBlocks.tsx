@@ -1,5 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { ChevronDown, File as FileIcon, Music, Video } from 'lucide-react';
+import { useI18n } from '../../../shared/i18n/I18nProvider';
 import { getCurrentDrawingData } from '../blocks/drawing';
 import { markdownToHtml } from '../noteUtils';
 import { DEFAULT_DRAWING_HEIGHT } from './constants';
@@ -7,10 +8,13 @@ import { inlineContentToSafeString } from './contentSanitizer';
 import type { AnyBlock } from './types';
 
 export function ReadOnlyBlocks({ blocks }: { blocks: AnyBlock[] }) {
-  return <div className="note-read-content">{renderReadOnlyBlocks(blocks)}</div>;
+  const { t } = useI18n();
+  return <div className="note-read-content">{renderReadOnlyBlocks(blocks, t)}</div>;
 }
 
-function renderReadOnlyBlocks(blocks: AnyBlock[]) {
+type Translate = (value: string) => string;
+
+function renderReadOnlyBlocks(blocks: AnyBlock[], t: Translate) {
   const output = [];
   let index = 0;
 
@@ -55,18 +59,18 @@ function renderReadOnlyBlocks(blocks: AnyBlock[]) {
       continue;
     }
 
-    output.push(renderReadOnlyBlock(block));
+    output.push(renderReadOnlyBlock(block, t));
     index += 1;
   }
 
   return output;
 }
 
-function renderReadOnlyBlock(block: AnyBlock): ReactNode {
-  const children = Array.isArray(block.children) && block.children.length > 0 ? <div className="note-read-children">{renderReadOnlyBlocks(block.children as AnyBlock[])}</div> : null;
+function renderReadOnlyBlock(block: AnyBlock, t: Translate): ReactNode {
+  const children = Array.isArray(block.children) && block.children.length > 0 ? <div className="note-read-children">{renderReadOnlyBlocks(block.children as AnyBlock[], t)}</div> : null;
 
   if (block.type === 'toggleListItem' || (block.type === 'heading' && (block.props as any).isToggleable)) {
-    return <ReadOnlyToggleBlock block={block} key={block.id} />;
+    return <ReadOnlyToggleBlock block={block} t={t} key={block.id} />;
   }
 
   if (block.type === 'heading') {
@@ -121,7 +125,7 @@ function renderReadOnlyBlock(block: AnyBlock): ReactNode {
     const widthStyle = getMediaWidthStyle((block.props as any).previewWidth);
     return (
       <figure className="note-read-block note-read-media" key={block.id} style={widthStyle}>
-        {url ? <img src={url} alt={String((block.props as any).caption ?? 'Image')} /> : <div className="note-read-empty">Image</div>}
+        {url ? <img src={url} alt={String((block.props as any).caption ?? t('Image'))} /> : <div className="note-read-empty">{t('Image')}</div>}
         {(block.props as any).caption ? <figcaption>{String((block.props as any).caption)}</figcaption> : null}
       </figure>
     );
@@ -130,7 +134,7 @@ function renderReadOnlyBlock(block: AnyBlock): ReactNode {
   if (block.type === 'video') {
     const url = String((block.props as any).url ?? '');
     const caption = String((block.props as any).caption ?? '');
-    const name = String((block.props as any).name ?? 'Video');
+    const name = String((block.props as any).name ?? t('Video'));
     const showPreview = (block.props as any).showPreview !== false;
     return (
       <figure className="note-read-block note-read-media note-read-video" key={block.id}>
@@ -142,7 +146,7 @@ function renderReadOnlyBlock(block: AnyBlock): ReactNode {
             <span>{name || url}</span>
           </a>
         ) : (
-          <div className="note-read-empty">Video</div>
+          <div className="note-read-empty">{t('Video')}</div>
         )}
         {caption ? <figcaption>{caption}</figcaption> : null}
       </figure>
@@ -152,7 +156,7 @@ function renderReadOnlyBlock(block: AnyBlock): ReactNode {
   if (block.type === 'audio') {
     const url = String((block.props as any).url ?? '');
     const caption = String((block.props as any).caption ?? '');
-    const name = String((block.props as any).name ?? 'Audio');
+    const name = String((block.props as any).name ?? t('Audio'));
     const showPreview = (block.props as any).showPreview !== false;
     return (
       <figure className="note-read-block note-read-media note-read-audio" key={block.id}>
@@ -164,7 +168,7 @@ function renderReadOnlyBlock(block: AnyBlock): ReactNode {
             <span>{name || url}</span>
           </a>
         ) : (
-          <div className="note-read-empty">Audio</div>
+          <div className="note-read-empty">{t('Audio')}</div>
         )}
         {caption ? <figcaption>{caption}</figcaption> : null}
       </figure>
@@ -174,7 +178,7 @@ function renderReadOnlyBlock(block: AnyBlock): ReactNode {
   if (block.type === 'file') {
     const url = String((block.props as any).url ?? '');
     const caption = String((block.props as any).caption ?? '');
-    const name = String((block.props as any).name ?? 'File');
+    const name = String((block.props as any).name ?? t('File'));
     return (
       <figure className="note-read-block note-read-file" key={block.id}>
         {url ? (
@@ -183,7 +187,7 @@ function renderReadOnlyBlock(block: AnyBlock): ReactNode {
             <span>{name || url}</span>
           </a>
         ) : (
-          <div className="note-read-empty">File</div>
+          <div className="note-read-empty">{t('File')}</div>
         )}
         {caption ? <figcaption>{caption}</figcaption> : null}
       </figure>
@@ -195,7 +199,7 @@ function renderReadOnlyBlock(block: AnyBlock): ReactNode {
     const canvasHeight = clampNumber(Number((block.props as any).canvasHeight ?? DEFAULT_DRAWING_HEIGHT), 220, 900);
     return (
       <div className="note-read-block note-read-drawing" key={block.id} style={{ '--note-drawing-height': `${canvasHeight}px` } as CSSProperties}>
-        {isValidDrawingData(drawingData) ? <img src={drawingData} alt="Drawing" /> : <div className="note-read-empty">No drawing yet</div>}
+        {isValidDrawingData(drawingData) ? <img src={drawingData} alt={t('Drawing')} /> : <div className="note-read-empty">{t('No drawing yet')}</div>}
       </div>
     );
   }
@@ -208,7 +212,7 @@ function renderReadOnlyBlock(block: AnyBlock): ReactNode {
   );
 }
 
-function ReadOnlyToggleBlock({ block }: { block: AnyBlock }) {
+function ReadOnlyToggleBlock({ block, t }: { block: AnyBlock; t: Translate }) {
   const [isOpen, setIsOpen] = useState(true);
   const hasChildren = Array.isArray(block.children) && block.children.length > 0;
   const isHeadingToggle = block.type === 'heading' && (block.props as any).isToggleable;
@@ -233,7 +237,7 @@ function ReadOnlyToggleBlock({ block }: { block: AnyBlock }) {
       </button>
       <div className="note-read-toggle-body">
         {isHeadingToggle ? <HeadingTag>{title}</HeadingTag> : <p>{title}</p>}
-        {hasChildren && isOpen ? <div className="note-read-children">{renderReadOnlyBlocks(block.children as AnyBlock[])}</div> : null}
+        {hasChildren && isOpen ? <div className="note-read-children">{renderReadOnlyBlocks(block.children as AnyBlock[], t)}</div> : null}
       </div>
     </section>
   );

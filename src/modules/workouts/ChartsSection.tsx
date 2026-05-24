@@ -58,7 +58,7 @@ export function ChartsSection({ exercises, plans, sessions, progressRecords, nut
                 <CartesianGrid stroke="var(--line-soft)" vertical={false} />
                 <XAxis dataKey="label" stroke="var(--muted)" tickLine={false} axisLine={false} />
                 <YAxis stroke="var(--muted)" tickLine={false} axisLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(58, 169, 151, 0.08)' }} />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'var(--chart-cursor-accent)' }} />
                 <Legend />
                 <Bar dataKey="completed" name={t('Completed')} fill="var(--accent-strong)" radius={[6, 6, 0, 0]} />
                 <Bar dataKey="skipped" name={t('Skipped')} fill="var(--neutral)" radius={[6, 6, 0, 0]} />
@@ -79,7 +79,7 @@ export function ChartsSection({ exercises, plans, sessions, progressRecords, nut
                 <Tooltip contentStyle={tooltipStyle} />
                 <Legend />
                 <Line type="monotone" dataKey="energy" name={t('Energy')} stroke="var(--accent-strong)" strokeWidth={3} dot={{ r: 4 }} />
-                <Line type="monotone" dataKey="mood" name={t('Mood')} stroke="#d59d31" strokeWidth={3} dot={{ r: 4 }} />
+                <Line type="monotone" dataKey="mood" name={t('Mood')} stroke="var(--chart-series-2)" strokeWidth={3} dot={{ r: 4 }} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -95,7 +95,7 @@ export function ChartsSection({ exercises, plans, sessions, progressRecords, nut
                 <XAxis dataKey="label" stroke="var(--muted)" tickLine={false} axisLine={false} />
                 <YAxis stroke="var(--muted)" tickLine={false} axisLine={false} />
                 <Tooltip contentStyle={tooltipStyle} />
-                <Area type="monotone" dataKey="calories" name={t('Calories')} stroke="var(--accent-strong)" fill="rgba(58, 169, 151, 0.24)" strokeWidth={3} />
+                <Area type="monotone" dataKey="calories" name={t('Calories')} stroke="var(--accent-strong)" fill="var(--chart-area-accent)" strokeWidth={3} />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
@@ -110,11 +110,11 @@ export function ChartsSection({ exercises, plans, sessions, progressRecords, nut
                 <CartesianGrid stroke="var(--line-soft)" vertical={false} />
                 <XAxis dataKey="label" stroke="var(--muted)" tickLine={false} axisLine={false} />
                 <YAxis stroke="var(--muted)" tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(58, 169, 151, 0.08)' }} />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'var(--chart-cursor-accent)' }} />
                 <Legend />
                 <Bar dataKey="protein" name={t('protein')} stackId="macros" fill="var(--accent-strong)" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="carbs" name={t('carbs')} stackId="macros" fill="#d59d31" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="fats" name={t('fats')} stackId="macros" fill="#6f8fd6" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="carbs" name={t('carbs')} stackId="macros" fill="var(--chart-series-2)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="fats" name={t('fats')} stackId="macros" fill="var(--chart-series-3)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -223,7 +223,7 @@ function progressMetricKeys(rows: Array<Record<string, string | number>>) {
   return Array.from(new Set(rows.flatMap((row) => Object.keys(row).filter((key) => key !== 'label'))));
 }
 
-const chartColors = ['var(--accent-strong)', '#d59d31', '#6f8fd6', '#d85f5f', '#4ab58d'];
+const chartColors = ['var(--chart-series-1)', 'var(--chart-series-2)', 'var(--chart-series-3)', 'var(--chart-series-4)', 'var(--chart-series-5)'];
 
 const tooltipStyle = {
   background: 'var(--surface-strong)',
