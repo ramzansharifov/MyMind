@@ -1,6 +1,6 @@
 import { Archive, Check, Trash2 } from 'lucide-react';
 import { CancelButton } from './ActionButtons';
-import { ModalPortal } from './ModalPortal';
+import { Modal } from './Modal';
 import { useI18n } from '../i18n/I18nProvider';
 
 interface ConfirmDialogProps {
@@ -25,28 +25,23 @@ export function ConfirmDialog({
   const { t } = useI18n();
   const Icon = action === 'archive' ? Archive : action === 'confirm' ? Check : Trash2;
   return (
-    <ModalPortal>
-    <div
-      className="dialog-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onCancel();
-        }
-      }}
-    >
-      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
-        <h2 id="confirm-title">{t(title)}</h2>
-        <p>{t(message)}</p>
-        <div className="dialog-actions">
+    <Modal
+      title={title}
+      size="sm"
+      panelClassName="dialog confirm-dialog"
+      showClose={false}
+      onClose={onCancel}
+      footer={
+        <>
           <CancelButton onClick={onCancel} />
           <button className={`button ${confirmVariant} ${action === 'archive' ? 'archive' : ''}`} type="button" onClick={onConfirm}>
             <Icon size={17} aria-hidden="true" />
             {t(confirmLabel)}
           </button>
-        </div>
-      </div>
-    </div>
-    </ModalPortal>
+        </>
+      }
+    >
+        <p>{t(message)}</p>
+    </Modal>
   );
 }

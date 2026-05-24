@@ -4,6 +4,7 @@ import { ContentGroupWorkspaceHeader, GroupFormDialog } from '../../shared/compo
 import { EmptyState } from '../../shared/components/EmptyState';
 import { LoadingState } from '../../shared/components/LoadingState';
 import { PageHeader } from '../../shared/components/PageHeader';
+import { SegmentedTabs } from '../../shared/components/SegmentedTabs';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { formatDate } from '../../shared/utils/dateUtils';
 import { createId } from '../../shared/utils/idGenerator';
@@ -215,20 +216,7 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
     <section>
       <PageHeader title="Training & Nutrition" subtitle="Manage exercises, workouts, nutrition, and track your progress." />
 
-      <div className="workout-tabs" role="tablist" aria-label="Training and nutrition sections">
-        {SECTION_TABS.map((section) => (
-          <button
-            key={section.id}
-            type="button"
-            role="tab"
-            aria-selected={activeSection === section.id}
-            className={`workout-tab${activeSection === section.id ? ' active' : ''}`}
-            onClick={() => setActiveSection(section.id)}
-          >
-            {t(section.label)}
-          </button>
-        ))}
-      </div>
+      <SegmentedTabs tabs={SECTION_TABS} activeTab={activeSection} ariaLabel="Training and nutrition sections" onChange={setActiveSection} />
 
       {/* Exercises Section */}
       {activeSection === 'exercises' && (

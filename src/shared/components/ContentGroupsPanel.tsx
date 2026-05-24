@@ -1,7 +1,8 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Edit3 } from 'lucide-react';
-import { AddButton, CancelButton, DeleteButton, SaveButton } from './ActionButtons';
-import { ModalPortal } from './ModalPortal';
+import { AddButton, DeleteButton } from './ActionButtons';
+import { FormModal } from './FormModal';
+import { TextField } from './FormFields';
 import { useI18n } from '../i18n/I18nProvider';
 import { createId } from '../utils/idGenerator';
 import type { ContentGroup } from '../types/common';
@@ -192,35 +193,9 @@ interface GroupFormDialogProps {
 }
 
 export function GroupFormDialog({ title, saveLabel, value, onChange, onCancel, onSubmit }: GroupFormDialogProps) {
-  const { t } = useI18n();
-
   return (
-    <ModalPortal>
-    <div
-      className="dialog-backdrop form-modal-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onCancel();
-        }
-      }}
-    >
-      <form className="panel form-panel entity-form content-group-dialog" onSubmit={onSubmit}>
-        <div className="form-header">
-          <div>
-            <h2>{t(title)}</h2>
-          </div>
-        </div>
-        <label>
-          {t('Group name')}
-          <input autoFocus required value={value} placeholder={t('New group')} onChange={(event) => onChange(event.target.value)} />
-        </label>
-        <div className="form-actions">
-          <CancelButton onClick={onCancel} />
-          <SaveButton label={saveLabel} />
-        </div>
-      </form>
-    </div>
-    </ModalPortal>
+    <FormModal title={title} saveLabel={saveLabel} className="content-group-dialog" onCancel={onCancel} onSubmit={onSubmit}>
+      <TextField label="Group name" autoFocus required value={value} placeholder="New group" onChange={(event) => onChange(event.target.value)} />
+    </FormModal>
   );
 }

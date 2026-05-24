@@ -4,8 +4,10 @@ import { splitCsv, joinCsv } from '../utils/formatters';
 import { createId } from '../utils/idGenerator';
 import { EmptyState } from './EmptyState';
 import { EntityForm as EntityFormShell } from './EntityForm';
+import { TextField, TextareaField, SelectField } from './FormFields';
+import { ChoiceTile } from './ChoiceTile';
 import { CollapsibleFilters } from './CollapsibleFilters';
-import { PageHeader } from './PageHeader';
+import { ModulePageShell } from './ModulePageShell';
 import { useI18n } from '../i18n/I18nProvider';
 import { useCollectionItems } from '../hooks/useCollectionItems';
 
@@ -61,15 +63,12 @@ export function SimpleEntityPage<T extends { id: string; createdAt: string; upda
   }
 
   return (
-    <section>
-      <PageHeader
-        title={title}
-        subtitle={subtitle}
-        actions={
-          <AddButton label={addLabel} onClick={() => setEditing(null)} />
-        }
-      />
-      <CollapsibleFilters query={query} placeholder={`Search ${title.toLowerCase()}`} onQueryChange={setQuery} />
+    <ModulePageShell
+      title={title}
+      subtitle={subtitle}
+      actions={<AddButton label={addLabel} onClick={() => setEditing(null)} />}
+      filters={<CollapsibleFilters query={query} placeholder={`Search ${title.toLowerCase()}`} onQueryChange={setQuery} />}
+    >
       {filteredItems.length === 0 ? (
         <EmptyState title={emptyTitle} message={emptyMessage} />
       ) : (
@@ -112,7 +111,7 @@ export function SimpleEntityPage<T extends { id: string; createdAt: string; upda
         </div>
       )}
       {editing !== undefined ? <SimpleEntityForm item={editing} fields={fields} onCancel={() => setEditing(undefined)} onSave={save} /> : null}
-    </section>
+    </ModulePageShell>
   );
 }
 
@@ -169,24 +168,24 @@ function SimpleEntityForm<T extends { id: string; createdAt: string; updatedAt: 
         const value = String(draft[key] ?? '');
         if (field.type === 'textarea') {
           return (
-            <label key={key}>
-              {t(field.label)}
-              <textarea rows={5} value={value} onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))} />
-            </label>
+            <TextareaField
+              key={key}
+              label={field.label}
+              rows={5}
+              value={value}
+              onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))}
+            />
           );
         }
         if (field.type === 'select') {
           return (
-            <label key={key}>
-              {t(field.label)}
-              <select value={value} onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))}>
-                {field.options?.map((option) => (
-                  <option value={option} key={option}>
-                    {t(option)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <SelectField
+              key={key}
+              label={field.label}
+              value={value}
+              options={(field.options ?? []).map((option) => ({ value: option, label: option }))}
+              onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))}
+            />
           );
         }
         if (field.type === 'card-select') {
@@ -213,15 +212,14 @@ function SimpleEntityForm<T extends { id: string; createdAt: string; updatedAt: 
           );
         }
         return (
-          <label key={key}>
-            {t(field.label)}
-            <input
-              required={field.required}
-              type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
-              value={value}
-              onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))}
-            />
-          </label>
+          <TextField
+            key={key}
+            label={field.label}
+            required={field.required}
+            type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+            value={value}
+            onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))}
+          />
         );
       })}
     </EntityFormShell>

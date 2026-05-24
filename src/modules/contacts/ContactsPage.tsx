@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { AddButton, ArchiveButton, DeleteButton, EditButton, PinButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
-import { ContentGroupsPanel, ContentGroupWorkspaceHeader } from '../../shared/components/ContentGroupsPanel';
 import { EntityForm } from '../../shared/components/EntityForm';
 import { EmptyState } from '../../shared/components/EmptyState';
+import { GroupedCollectionLayout } from '../../shared/components/GroupedCollectionLayout';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import type { ContentGroup } from '../../shared/types/common';
@@ -78,26 +78,18 @@ export function ContactsPage({ data, onChange }: ContactsPageProps) {
   return (
     <section>
       <PageHeader title="Contacts" subtitle="People, relationships, birthdays, memory notes, and social links." actions={<AddButton label="Add contact" onClick={() => setEditing(null)} />} />
-      <div className="todo-workspace">
-        <div className="todo-filters-row">
-          <CollapsibleFilters query={query} placeholder="Search contacts" onQueryChange={setQuery} />
-        </div>
-        <ContentGroupsPanel
+      <GroupedCollectionLayout
+        filters={<CollapsibleFilters query={query} placeholder="Search contacts" onQueryChange={setQuery} />}
           groups={groups}
           totalCount={activeContacts.length}
           activeGroupId={activeGroupId}
-          counts={groupCounts}
+        groupCounts={groupCounts}
+        itemCount={visibleContacts.length}
           onActiveGroupChange={setActiveGroupId}
           onGroupsChange={(groups) => onChange({ ...data, groups })}
-        />
-        <section className="todo-list-panel">
-          <ContentGroupWorkspaceHeader
-            groups={groups}
-            activeGroupId={activeGroupId}
-            itemCount={visibleContacts.length}
-            onRenameGroup={renameGroup}
-            onDeleteGroup={deleteGroup}
-          />
+        onRenameGroup={renameGroup}
+        onDeleteGroup={deleteGroup}
+      >
           {visibleContacts.length === 0 ? (
             <EmptyState title="No contacts" message="Add people you want to remember and follow up with." />
           ) : (
@@ -134,8 +126,7 @@ export function ContactsPage({ data, onChange }: ContactsPageProps) {
               ))}
             </div>
           )}
-        </section>
-      </div>
+      </GroupedCollectionLayout>
       {editing !== undefined ? (
         <ContactForm
           contact={editing}

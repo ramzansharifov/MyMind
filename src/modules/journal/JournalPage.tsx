@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
-import { ContentGroupsPanel, ContentGroupWorkspaceHeader } from '../../shared/components/ContentGroupsPanel';
 import { EmptyState } from '../../shared/components/EmptyState';
+import { GroupedCollectionLayout } from '../../shared/components/GroupedCollectionLayout';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
@@ -90,8 +90,8 @@ export function JournalPage({ data, onChange }: JournalPageProps) {
           <AddButton label="Add entry" onClick={() => setEditing(null)} />
         }
       />
-      <div className="todo-workspace">
-        <div className="todo-filters-row">
+      <GroupedCollectionLayout
+        filters={
           <CollapsibleFilters
             query={query}
             placeholder="Search diary"
@@ -128,23 +128,17 @@ export function JournalPage({ data, onChange }: JournalPageProps) {
             </div>
             {activeFilterCount > 0 ? <button className="button ghost filter-clear-button" type="button" onClick={clearFilters}>{t('Clear filters')}</button> : null}
           </CollapsibleFilters>
-        </div>
-        <ContentGroupsPanel
-          groups={groups}
-          totalCount={activeEntries.length}
-          activeGroupId={activeGroupId}
-          counts={groupCounts}
-          onActiveGroupChange={setActiveGroupId}
-          onGroupsChange={(groups) => onChange({ ...data, groups })}
-        />
-        <section className="todo-list-panel">
-          <ContentGroupWorkspaceHeader
-            groups={groups}
-            activeGroupId={activeGroupId}
-            itemCount={filtered.length}
-            onRenameGroup={renameGroup}
-            onDeleteGroup={deleteGroup}
-          />
+        }
+        groups={groups}
+        totalCount={activeEntries.length}
+        activeGroupId={activeGroupId}
+        groupCounts={groupCounts}
+        itemCount={filtered.length}
+        onActiveGroupChange={setActiveGroupId}
+        onGroupsChange={(groups) => onChange({ ...data, groups })}
+        onRenameGroup={renameGroup}
+        onDeleteGroup={deleteGroup}
+      >
           {filtered.length === 0 ? (
             <EmptyState title="No diary entries" message="Write local notes that stay on this machine." />
           ) : (
@@ -161,8 +155,7 @@ export function JournalPage({ data, onChange }: JournalPageProps) {
               ))}
             </div>
           )}
-        </section>
-      </div>
+      </GroupedCollectionLayout>
       {editing !== undefined ? (
         <JournalEntryForm
           entry={editing}

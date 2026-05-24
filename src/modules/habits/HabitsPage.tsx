@@ -3,6 +3,7 @@ import { AddButton } from '../../shared/components/ActionButtons';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { LoadingState } from '../../shared/components/LoadingState';
 import { PageHeader } from '../../shared/components/PageHeader';
+import { SegmentedTabs } from '../../shared/components/SegmentedTabs';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { trashEntity } from '../../shared/utils/archiveUtils';
 import { formatDate, localDateOnly, millisecondsUntilNextLocalDay } from '../../shared/utils/dateUtils';
@@ -108,24 +109,16 @@ export function HabitsPage({ data, onChange }: HabitsPageProps) {
         subtitle="A daily routine list with notes and preserved history."
       />
 
-      <div className="workout-tabs" role="tablist" aria-label={t('Habit sections')}>
-        {[
+      <SegmentedTabs
+        tabs={[
           { id: 'routine', label: 'Routine' },
           { id: 'history', label: 'History' },
           { id: 'charts', label: 'Charts' },
-        ].map((tab) => (
-          <button
-            className={`workout-tab${activeTab === tab.id ? ' active' : ''}`}
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id as 'routine' | 'history' | 'charts')}
-          >
-            {t(tab.label)}
-          </button>
-        ))}
-      </div>
+        ]}
+        activeTab={activeTab}
+        ariaLabel="Habit sections"
+        onChange={setActiveTab}
+      />
       <div className="habit-tab-actions">
         <div className="habit-today-label">
           <span>{t('Today')}</span>

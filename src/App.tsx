@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AppShell } from './shared/components/AppShell';
 import { LoadingState } from './shared/components/LoadingState';
-import { ModalPortal } from './shared/components/ModalPortal';
+import { Modal } from './shared/components/Modal';
 import { storageClient } from './shared/storage/storageClient';
 import type { ModuleKey } from './shared/types/common';
 import { I18nProvider, useI18n } from './shared/i18n/I18nProvider';
@@ -70,7 +70,7 @@ export function App() {
         return;
       }
       if (event.key === 'Escape') {
-        const closeButton = form.querySelector<HTMLButtonElement>('.form-heading .icon-button');
+        const closeButton = document.querySelector<HTMLButtonElement>('.app-modal-panel .form-heading .icon-button');
         closeButton?.click();
       }
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
@@ -228,30 +228,25 @@ function ReminderModal({ reminder, onDismiss, onSnooze }: { reminder: AppReminde
   }, [reminder.id]);
 
   return (
-    <ModalPortal>
-    <div
-      className="dialog-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onDismiss();
-        }
-      }}
-    >
-      <section className="confirm-dialog reminder-dialog" role="dialog" aria-modal="true" aria-labelledby="app-reminder-title">
-        <span className="reminder-kicker">{t('Reminder')}</span>
-        <h2 id="app-reminder-title">{reminder.title}</h2>
-        <p>{reminder.body}</p>
-        <div className="dialog-actions">
+    <Modal
+      size="sm"
+      panelClassName="confirm-dialog reminder-dialog"
+      showClose={false}
+      onClose={onDismiss}
+      footer={
+        <>
           <button className="button ghost" type="button" onClick={onSnooze}>
             {t('Snooze 15 min')}
           </button>
           <button className="button primary" type="button" onClick={onDismiss}>
             {t('OK')}
           </button>
-        </div>
-      </section>
-    </div>
-    </ModalPortal>
+        </>
+      }
+    >
+        <span className="reminder-kicker">{t('Reminder')}</span>
+        <h2 id="app-reminder-title">{reminder.title}</h2>
+        <p>{reminder.body}</p>
+    </Modal>
   );
 }

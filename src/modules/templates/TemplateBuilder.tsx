@@ -1,7 +1,6 @@
 import { Copy, Wand2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { CloseButton } from '../../shared/components/ActionButtons';
-import { ModalPortal } from '../../shared/components/ModalPortal';
+import { Modal } from '../../shared/components/Modal';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { copyTextToClipboard, renderTemplate } from './templateUtils';
 import type { TextTemplate } from './types';
@@ -24,27 +23,28 @@ export function TemplateBuilder({ template, onClose }: TemplateBuilderProps) {
   }
 
   return (
-    <ModalPortal>
-    <div
-      className="dialog-backdrop form-modal-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose();
-        }
-      }}
+    <Modal
+      title={template.title}
+      size="md"
+      className="form-modal-backdrop"
+      panelClassName="form-panel template-builder"
+      onClose={onClose}
+      footer={
+        <>
+          <button className="button ghost" type="button" onClick={onClose}>
+            {t('Cancel')}
+          </button>
+          <button className="button primary" type="button" onClick={() => void copyOutput()}>
+            <Copy size={17} aria-hidden="true" />
+            <span>{t(copied ? 'Copied' : 'Copy result')}</span>
+          </button>
+        </>
+      }
     >
-      <section className="panel form-panel template-builder" role="dialog" aria-modal="true" aria-labelledby="template-builder-title">
-        <div className="form-heading">
-          <div>
-            <span className="template-builder-kicker">
-              <Wand2 size={15} aria-hidden="true" />
-              {t('Build text')}
-            </span>
-            <h2 id="template-builder-title">{template.title}</h2>
-          </div>
-          <CloseButton onClick={onClose} />
-        </div>
+        <span className="template-builder-kicker">
+          <Wand2 size={15} aria-hidden="true" />
+          {t('Build text')}
+        </span>
         {template.variables.length > 0 ? (
           <div className="template-builder-fields">
             {template.variables.map((variable) => (
@@ -61,17 +61,6 @@ export function TemplateBuilder({ template, onClose }: TemplateBuilderProps) {
           {t('Result')}
           <textarea className="template-result" rows={9} readOnly value={output} />
         </label>
-        <div className="form-actions">
-          <button className="button ghost" type="button" onClick={onClose}>
-            {t('Cancel')}
-          </button>
-          <button className="button primary" type="button" onClick={() => void copyOutput()}>
-            <Copy size={17} aria-hidden="true" />
-            <span>{t(copied ? 'Copied' : 'Copy result')}</span>
-          </button>
-        </div>
-      </section>
-    </div>
-    </ModalPortal>
+    </Modal>
   );
 }

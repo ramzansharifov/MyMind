@@ -5,6 +5,7 @@ import { EntityForm } from '../../shared/components/EntityForm';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { LoadingState } from '../../shared/components/LoadingState';
 import { PageHeader } from '../../shared/components/PageHeader';
+import { SegmentedTabs } from '../../shared/components/SegmentedTabs';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, trashEntity } from '../../shared/utils/archiveUtils';
 import { formatCurrency } from '../../shared/utils/formatters';
@@ -158,20 +159,7 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
         subtitle="Starting balance, income, expenses, and tags for local financial tracking."
       />
 
-      <div className="workout-tabs" role="tablist" aria-label={t('Finance sections')}>
-        {financeTabs.map((tab) => (
-          <button
-            className={`workout-tab${view === tab.id ? ' active' : ''}`}
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={view === tab.id}
-            onClick={() => setView(tab.id)}
-          >
-            {t(tab.label)}
-          </button>
-        ))}
-      </div>
+      <SegmentedTabs tabs={financeTabs} activeTab={view} ariaLabel="Finance sections" onChange={setView} />
 
       <div className="finance-tab-actions">
         {view === 'ledger' ? (

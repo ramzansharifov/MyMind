@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
-import { ContentGroupsPanel, ContentGroupWorkspaceHeader } from '../../shared/components/ContentGroupsPanel';
 import { EmptyState } from '../../shared/components/EmptyState';
+import { GroupedCollectionLayout } from '../../shared/components/GroupedCollectionLayout';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
@@ -66,8 +66,8 @@ export function TemplatesPage({ data, onChange }: TemplatesPageProps) {
         subtitle="Reusable text blocks that can be copied or assembled from variables."
         actions={<AddButton label="Add template" onClick={() => setEditing(null)} />}
       />
-      <div className="todo-workspace">
-        <div className="todo-filters-row">
+      <GroupedCollectionLayout
+        filters={
           <CollapsibleFilters
             query={query}
             placeholder="Search templates"
@@ -100,23 +100,17 @@ export function TemplatesPage({ data, onChange }: TemplatesPageProps) {
               </div>
             </div>
           </CollapsibleFilters>
-        </div>
-        <ContentGroupsPanel
-          groups={groups}
-          totalCount={activeTemplates.length}
-          activeGroupId={activeGroupId}
-          counts={groupCounts}
-          onActiveGroupChange={setActiveGroupId}
-          onGroupsChange={(groups) => onChange({ ...data, groups })}
-        />
-        <section className="todo-list-panel">
-          <ContentGroupWorkspaceHeader
-            groups={groups}
-            activeGroupId={activeGroupId}
-            itemCount={filtered.length}
-            onRenameGroup={renameGroup}
-            onDeleteGroup={deleteGroup}
-          />
+        }
+        groups={groups}
+        totalCount={activeTemplates.length}
+        activeGroupId={activeGroupId}
+        groupCounts={groupCounts}
+        itemCount={filtered.length}
+        onActiveGroupChange={setActiveGroupId}
+        onGroupsChange={(groups) => onChange({ ...data, groups })}
+        onRenameGroup={renameGroup}
+        onDeleteGroup={deleteGroup}
+      >
           {filtered.length === 0 ? (
             <EmptyState title="No templates found" message="Add a template or relax the filters." />
           ) : (
@@ -137,8 +131,7 @@ export function TemplatesPage({ data, onChange }: TemplatesPageProps) {
               ))}
             </div>
           )}
-        </section>
-      </div>
+      </GroupedCollectionLayout>
       {editing !== undefined ? (
         <TemplateForm
           template={editing}
