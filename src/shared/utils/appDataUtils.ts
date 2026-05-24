@@ -9,6 +9,7 @@ export type FlatCollectionKey =
   | 'calendarEvents'
   | 'journalEntries'
   | 'notes'
+  | 'templates'
   | 'projects'
   | 'contacts'
   | 'goals'
@@ -46,6 +47,7 @@ const flatCollectionKeys: FlatCollectionKey[] = [
   'calendarEvents',
   'journalEntries',
   'notes',
+  'templates',
   'projects',
   'contacts',
   'goals',
@@ -60,6 +62,7 @@ const moduleLabels: Record<FlatCollectionKey, string> = {
   calendarEvents: 'Calendar',
   journalEntries: 'Diary',
   notes: 'Notes',
+  templates: 'Templates',
   projects: 'Projects',
   contacts: 'Contacts',
   goals: 'Goals',
@@ -74,6 +77,7 @@ const titleKeys: Record<FlatCollectionKey, string[]> = {
   calendarEvents: ['title'],
   journalEntries: ['title'],
   notes: ['title'],
+  templates: ['title'],
   projects: ['title'],
   contacts: ['name'],
   goals: ['title'],
@@ -88,6 +92,7 @@ const detailKeys: Record<FlatCollectionKey, string[]> = {
   calendarEvents: ['description', 'category'],
   journalEntries: ['content', 'mood'],
   notes: ['content', 'category'],
+  templates: ['body', 'category'],
   projects: ['description', 'area'],
   contacts: ['relationship', 'notes'],
   goals: ['description', 'metric'],

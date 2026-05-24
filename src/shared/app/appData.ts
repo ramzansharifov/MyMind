@@ -10,11 +10,13 @@ import type { Movie } from '../../modules/movies/types';
 import { migrateNote } from '../../modules/notes/noteUtils';
 import type { Note } from '../../modules/notes/types';
 import type { Project } from '../../modules/projects/types';
+import type { TextTemplate } from '../../modules/templates/types';
 import type { TodoData, TodoItem } from '../../modules/todos/types';
 import { DEFAULT_TODO_GROUPS } from '../../modules/todos/todoUtils';
 import type { MealRecord, NutritionEntry, WorkoutData } from '../../modules/workouts/types';
+import { appModules, moduleGroupIconDefinitions } from './moduleRegistry';
 import type { CollectionName } from '../storage/storageTypes';
-import type { AppSettings, ModuleKey } from '../types/common';
+import type { AppSettings, ModuleGroupIconKey, ModuleKey, SidebarSettings } from '../types/common';
 import { localDateOnly, weekdayNumber } from '../utils/dateUtils';
 
 export interface AppData {
@@ -26,6 +28,7 @@ export interface AppData {
   calendarEvents: CalendarEvent[];
   journalEntries: JournalEntry[];
   notes: Note[];
+  templates: TextTemplate[];
   projects: Project[];
   contacts: Contact[];
   health: HealthData;
@@ -52,6 +55,7 @@ export const emptyData: AppData = {
   calendarEvents: [],
   journalEntries: [],
   notes: [],
+  templates: [],
   projects: [],
   contacts: [],
   health: { entries: [], metrics: [] },
@@ -69,9 +73,52 @@ export function createDefaultSettings(): AppSettings {
     uiDensity: 'comfortable',
     accentColor: 'teal',
     startModule: 'dashboard',
+    sidebar: createDefaultSidebarSettings(),
     seedDataCreated: false,
     createdAt: timestamp,
     updatedAt: timestamp,
+  };
+}
+
+export function createDefaultSidebarSettings(): SidebarSettings {
+  return {
+    hiddenModules: [],
+    groups: [],
+  };
+}
+
+export function normalizeSettings(settings: AppSettings): AppSettings {
+  return {
+    ...createDefaultSettings(),
+    ...settings,
+    sidebar: normalizeSidebarSettings(settings.sidebar),
+  };
+}
+
+export function normalizeSidebarSettings(settings: SidebarSettings | undefined): SidebarSettings {
+  const hideableModules = new Set(appModules.filter((module) => module.canHide).map((module) => module.key));
+  const groupableModules = new Set(appModules.filter((module) => module.canGroup).map((module) => module.key));
+  const usedModuleKeys = new Set<ModuleKey>();
+  return {
+    hiddenModules: Array.from(new Set(settings?.hiddenModules ?? [])).filter((key) => hideableModules.has(key)),
+    groups: (settings?.groups ?? []).map((group) => {
+      const moduleKeys = Array.from(new Set(group.moduleKeys ?? [])).filter((key) => {
+        if (!groupableModules.has(key) || usedModuleKeys.has(key)) {
+          return false;
+        }
+        usedModuleKeys.add(key);
+        return true;
+      });
+      const icon = (group as Partial<{ icon: ModuleGroupIconKey }>).icon;
+      return {
+        id: group.id,
+        title: group.title || 'New group',
+        icon: icon && moduleGroupIconDefinitions.has(icon) ? icon : 'folder',
+        moduleKeys,
+        isVisible: group.isVisible ?? true,
+        isExpanded: group.isExpanded ?? true,
+      };
+    }),
   };
 }
 
@@ -84,6 +131,7 @@ export const dataCollections: AppCollectionName[] = [
   'calendar_events',
   'journal_entries',
   'notes',
+  'templates',
   'projects',
   'contacts',
   'health',
@@ -103,6 +151,7 @@ export const moduleCollections: Record<ModuleKey, AppCollectionName[]> = {
   calendar: ['calendar_events'],
   journal: ['journal_entries'],
   notes: ['notes'],
+  templates: ['templates'],
   projects: ['projects'],
   contacts: ['contacts'],
   health: ['health'],
@@ -144,6 +193,7 @@ export function normalizeData(data: AppData): AppData {
     },
     todos: normalizeTodoData(data.todos),
     notes: (data.notes ?? []).map(migrateNote),
+    templates: data.templates ?? [],
     calendarEvents: (data.calendarEvents ?? []).map((event) => ({
       ...event,
       tags: event.tags ?? (event.category ? [event.category] : []),
@@ -198,6 +248,8 @@ export function getDataCollection(data: AppData, collectionName: AppCollectionNa
       return data.journalEntries;
     case 'notes':
       return data.notes;
+    case 'templates':
+      return data.templates;
     case 'projects':
       return data.projects;
     case 'contacts':
@@ -229,6 +281,8 @@ export function setDataCollection(data: AppData, collectionName: AppCollectionNa
       return { ...data, journalEntries: Array.isArray(value) ? value as JournalEntry[] : [] };
     case 'notes':
       return { ...data, notes: Array.isArray(value) ? value as Note[] : [] };
+    case 'templates':
+      return { ...data, templates: Array.isArray(value) ? value as TextTemplate[] : [] };
     case 'projects':
       return { ...data, projects: Array.isArray(value) ? value as Project[] : [] };
     case 'contacts':

@@ -9,6 +9,7 @@ import type { Goal } from '../../modules/goals/types';
 import type { HealthData } from '../../modules/health/types';
 import type { InventoryItem } from '../../modules/inventory/types';
 import type { Project } from '../../modules/projects/types';
+import type { TextTemplate } from '../../modules/templates/types';
 import type { TodoData } from '../../modules/todos/types';
 import type { WorkoutData } from '../../modules/workouts/types';
 import type { AppSettings } from '../types/common';
@@ -22,6 +23,7 @@ export type CollectionName =
   | 'calendar_events'
   | 'journal_entries'
   | 'notes'
+  | 'templates'
   | 'projects'
   | 'contacts'
   | 'health'
@@ -38,6 +40,7 @@ export interface CollectionMap {
   calendar_events: CalendarEvent[];
   journal_entries: JournalEntry[];
   notes: Note[];
+  templates: TextTemplate[];
   projects: Project[];
   contacts: Contact[];
   health: HealthData;

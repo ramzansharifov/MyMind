@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AppShell } from './shared/components/AppShell';
-import { LoadingOverlay, LoadingState } from './shared/components/LoadingState';
+import { LoadingState } from './shared/components/LoadingState';
 import { storageClient } from './shared/storage/storageClient';
 import type { ModuleKey } from './shared/types/common';
 import { I18nProvider, useI18n } from './shared/i18n/I18nProvider';
@@ -17,17 +17,16 @@ const HabitsPage = lazy(() => import('./modules/habits/HabitsPage').then((module
 const CalendarPage = lazy(() => import('./modules/calendar/CalendarPage').then((module) => ({ default: module.CalendarPage })));
 const JournalPage = lazy(() => import('./modules/journal/JournalPage').then((module) => ({ default: module.JournalPage })));
 const NotesPage = lazy(() => import('./modules/notes/NotesPage').then((module) => ({ default: module.NotesPage })));
+const TemplatesPage = lazy(() => import('./modules/templates/TemplatesPage').then((module) => ({ default: module.TemplatesPage })));
 const SettingsPage = lazy(() => import('./modules/settings/SettingsPage').then((module) => ({ default: module.SettingsPage })));
 const ProjectsPage = lazy(() => import('./modules/projects/ProjectsPage').then((module) => ({ default: module.ProjectsPage })));
 const ContactsPage = lazy(() => import('./modules/contacts/ContactsPage').then((module) => ({ default: module.ContactsPage })));
 const HealthPage = lazy(() => import('./modules/health/HealthPage').then((module) => ({ default: module.HealthPage })));
 const GoalsPage = lazy(() => import('./modules/goals/GoalsPage').then((module) => ({ default: module.GoalsPage })));
 const InventoryPage = lazy(() => import('./modules/inventory/InventoryPage').then((module) => ({ default: module.InventoryPage })));
-const ArchiveTrashManager = lazy(() => import('./modules/settings/ArchiveTrashManager').then((module) => ({ default: module.ArchiveTrashManager })));
 
 export function App() {
   const [activeModule, setActiveModule] = useState<ModuleKey>('dashboard');
-  const [isArchiveManagerOpen, setIsArchiveManagerOpen] = useState(false);
   const {
     data,
     setData,
@@ -65,7 +64,7 @@ export function App() {
 
   useEffect(() => {
     function handleFormShortcuts(event: KeyboardEvent) {
-      const form = document.querySelector<HTMLFormElement>('.entity-form, .form-panel');
+      const form = document.querySelector<HTMLFormElement>('.entity-form');
       if (!form) {
         return;
       }
@@ -127,6 +126,8 @@ export function App() {
         );
       case 'notes':
         return <NotesPage notes={data.notes} onChange={(notes) => setData((current) => ({ ...current, notes }))} />;
+      case 'templates':
+        return <TemplatesPage templates={data.templates} onChange={(templates) => setData((current) => ({ ...current, templates }))} />;
       case 'projects':
         return <ProjectsPage projects={data.projects} onChange={(projects) => setData((current) => ({ ...current, projects }))} />;
       case 'contacts':
@@ -160,7 +161,8 @@ export function App() {
             onImportCollection={importCollection}
             onRecreateDemoData={recreateDemoData}
             onClearDemoData={clearDemoData}
-            onOpenArchiveManager={() => setIsArchiveManagerOpen(true)}
+            onDataChange={setData}
+            onStatusMessage={setStatusMessage}
             onSettingsChange={saveSettings}
           />
         );
@@ -180,19 +182,15 @@ export function App() {
 
   return (
     <I18nProvider language={settings.language}>
-      <AppShell active={activeModule} onNavigate={setActiveModule} reminderBadges={reminderBadges}>
+      <AppShell
+        active={activeModule}
+        onNavigate={setActiveModule}
+        sidebarSettings={settings.sidebar}
+        onSidebarSettingsChange={(sidebar) => void saveSettings({ ...settings, sidebar })}
+        reminderBadges={reminderBadges}
+      >
         <Suspense fallback={<LoadingState title="Opening module" message="Loading interface and tools..." variant="page" />}>{page}</Suspense>
         {activeReminder ? <ReminderModal reminder={activeReminder} onDismiss={() => dismissReminder(activeReminder)} onSnooze={() => snoozeReminder(activeReminder)} /> : null}
-        {isArchiveManagerOpen ? (
-          <Suspense fallback={<LoadingOverlay title="Opening archive" message="Preparing archived and trashed records..." />}>
-            <ArchiveTrashManager
-              data={data}
-              onChange={setData}
-              onClose={() => setIsArchiveManagerOpen(false)}
-              onStatusMessage={setStatusMessage}
-            />
-          </Suspense>
-        ) : null}
       </AppShell>
     </I18nProvider>
   );
@@ -214,7 +212,15 @@ function ReminderModal({ reminder, onDismiss, onSnooze }: { reminder: AppReminde
   }, [reminder.id]);
 
   return (
-    <div className="dialog-backdrop" role="presentation">
+    <div
+      className="dialog-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onDismiss();
+        }
+      }}
+    >
       <section className="confirm-dialog reminder-dialog" role="dialog" aria-modal="true" aria-labelledby="app-reminder-title">
         <span className="reminder-kicker">{t('Reminder')}</span>
         <h2 id="app-reminder-title">{reminder.title}</h2>

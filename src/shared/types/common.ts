@@ -3,6 +3,21 @@ import type { Language } from '../i18n/translations';
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type UiDensity = 'comfortable' | 'compact';
 export type AccentColor = 'teal' | 'blue' | 'violet' | 'amber';
+export type ModuleGroupIconKey = 'folder' | 'personal' | 'work' | 'creative' | 'wellness' | 'archive';
+
+export interface SidebarModuleGroup {
+  id: string;
+  title: string;
+  icon: ModuleGroupIconKey;
+  moduleKeys: ModuleKey[];
+  isVisible: boolean;
+  isExpanded: boolean;
+}
+
+export interface SidebarSettings {
+  hiddenModules: ModuleKey[];
+  groups: SidebarModuleGroup[];
+}
 
 export interface BaseEntity {
   id: string;
@@ -24,6 +39,7 @@ export interface AppSettings {
   uiDensity: UiDensity;
   accentColor: AccentColor;
   startModule: ModuleKey;
+  sidebar: SidebarSettings;
   seedDataCreated: boolean;
   createdAt: string;
   updatedAt: string;
@@ -45,6 +61,7 @@ export type ModuleKey =
   | 'calendar'
   | 'journal'
   | 'notes'
+  | 'templates'
   | 'projects'
   | 'contacts'
   | 'health'

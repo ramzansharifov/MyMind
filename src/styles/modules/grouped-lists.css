@@ -30,7 +30,11 @@
 .todo-group-tabs,
 .exercise-group-tabs {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 4px;
 }
 
 .exercise-group-row,
@@ -98,12 +102,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 0;
+  border-radius: 6px;
   background: transparent;
-  color: var(--text);
-  padding: 10px 12px;
+  color: var(--muted);
+  padding: 9px 10px;
   text-align: left;
+  font-weight: 800;
 }
 
 .todo-group-tab small,
@@ -116,6 +121,7 @@
 .exercise-group-tab.active,
 .exercise-group-tab:hover {
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-  background: var(--selected-bg);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface-strong));
+  color: var(--accent-strong);
 }
 

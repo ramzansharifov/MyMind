@@ -9,6 +9,7 @@ import {
   dataCollections,
   emptyData,
   moduleCollections,
+  normalizeSettings,
   normalizeCollectionValue,
   reminderCollections,
   setDataCollection,
@@ -42,7 +43,7 @@ export function useAppData(activeModule: ModuleKey, setActiveModule: Dispatch<Se
     try {
       const [appSettings, directory] = await Promise.all([storageClient.getAll('app_settings'), storageClient.getDataDirectory()]);
       setDataDirectory(directory);
-      const mergedSettings = { ...createDefaultSettings(), ...appSettings, dataDirectory: directory };
+      const mergedSettings = normalizeSettings({ ...createDefaultSettings(), ...appSettings, dataDirectory: directory });
       setSettings(mergedSettings);
       const startModule = mergedSettings.startModule ?? 'dashboard';
       setActiveModule(startModule);
@@ -153,6 +154,7 @@ export function useAppData(activeModule: ModuleKey, setActiveModule: Dispatch<Se
       storageClient.saveAll('calendar_events', nextData.calendarEvents),
       storageClient.saveAll('journal_entries', nextData.journalEntries),
       storageClient.saveAll('notes', nextData.notes),
+      storageClient.saveAll('templates', nextData.templates),
       storageClient.saveAll('projects', nextData.projects),
       storageClient.saveAll('contacts', nextData.contacts),
       storageClient.saveAll('health', nextData.health),
@@ -171,6 +173,7 @@ export function useAppData(activeModule: ModuleKey, setActiveModule: Dispatch<Se
       nextData.calendarEvents !== previousData.calendarEvents ? storageClient.saveAll('calendar_events', nextData.calendarEvents) : null,
       nextData.journalEntries !== previousData.journalEntries ? storageClient.saveAll('journal_entries', nextData.journalEntries) : null,
       nextData.notes !== previousData.notes ? storageClient.saveAll('notes', nextData.notes) : null,
+      nextData.templates !== previousData.templates ? storageClient.saveAll('templates', nextData.templates) : null,
       nextData.projects !== previousData.projects ? storageClient.saveAll('projects', nextData.projects) : null,
       nextData.contacts !== previousData.contacts ? storageClient.saveAll('contacts', nextData.contacts) : null,
       nextData.health !== previousData.health ? storageClient.saveAll('health', nextData.health) : null,

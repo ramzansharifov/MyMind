@@ -83,10 +83,15 @@
 }
 
 .note-mode-tabs {
-  display: flex;
+  display: inline-flex;
+  width: fit-content;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 4px;
 }
 
 .note-autosave-status {
@@ -233,6 +238,15 @@
   gap: 6px;
 }
 
+.note-toolbar-tabs {
+  width: fit-content;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 4px;
+}
+
 .note-toolbar-tab,
 .note-format-select,
 .note-inline-field,
@@ -249,10 +263,18 @@
   padding: 7px 10px;
 }
 
+.note-toolbar-tab {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.note-toolbar-tab:hover,
 .note-toolbar-tab.active {
-  border-color: var(--selected-border);
-  background: var(--selected-bg);
-  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface-strong));
+  color: var(--accent-strong);
 }
 
 .note-inline-field input {

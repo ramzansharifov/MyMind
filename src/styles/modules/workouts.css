@@ -56,13 +56,16 @@
 }
 
 .workout-tabs {
-  display: flex;
-  gap: 8px;
+  display: inline-flex;
+  width: fit-content;
+  gap: 4px;
   align-items: center;
   flex-wrap: wrap;
   margin-bottom: 22px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 4px;
 }
 
 .workout-tab {
@@ -70,18 +73,18 @@
   align-items: center;
   justify-content: center;
   min-height: 38px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-soft);
-  color: color-mix(in srgb, var(--text) 78%, var(--muted));
-  padding: 8px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 12px;
+  font-weight: 800;
 }
 
 .workout-tab:hover,
 .workout-tab.active {
-  border-color: var(--selected-border);
-  background: var(--selected-bg);
-  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface-strong));
+  color: var(--accent-strong);
 }
 
 .workout-exercise-grid {
@@ -674,6 +677,14 @@
 }
 
 @media (max-width: 560px) {
+  .workout-tabs {
+    width: 100%;
+  }
+
+  .workout-tab {
+    flex: 1;
+  }
+
   .nutrition-day-heading,
   .nutrition-meal-heading {
     display: grid;

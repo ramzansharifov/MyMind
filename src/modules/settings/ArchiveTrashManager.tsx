@@ -14,6 +14,7 @@ type ManagedCollectionKey =
   | 'calendarEvents'
   | 'journalEntries'
   | 'notes'
+  | 'templates'
   | 'projects'
   | 'contacts'
   | 'goals'
@@ -25,6 +26,23 @@ interface ArchiveTrashManagerProps {
   data: AppData;
   onChange: (data: AppData) => void;
   onClose: () => void;
+  onStatusMessage: (message: string) => void;
+}
+
+interface ArchiveTrashPageProps {
+  data: AppData;
+  mode: ArchiveTab;
+  onChange: (data: AppData) => void;
+  onStatusMessage: (message: string) => void;
+}
+
+interface ArchiveTrashContentProps {
+  data: AppData;
+  activeTab: ArchiveTab;
+  isEmbedded?: boolean;
+  onActiveTabChange?: (tab: ArchiveTab) => void;
+  onChange: (data: AppData) => void;
+  onClose?: () => void;
   onStatusMessage: (message: string) => void;
 }
 
@@ -45,6 +63,7 @@ const managedCollections: CollectionConfig[] = [
   { key: 'calendarEvents', label: 'Calendar', titleKeys: ['title'], detailKeys: ['description', 'category'] },
   { key: 'journalEntries', label: 'Diary', titleKeys: ['title'], detailKeys: ['content', 'mood'] },
   { key: 'notes', label: 'Notes', titleKeys: ['title'], detailKeys: ['content', 'category'] },
+  { key: 'templates', label: 'Templates', titleKeys: ['title'], detailKeys: ['body', 'category'] },
   { key: 'projects', label: 'Projects', fallbackStatus: 'active', setArchivedStatus: true, titleKeys: ['title'], detailKeys: ['description', 'area'] },
   { key: 'contacts', label: 'Contacts', titleKeys: ['name'], detailKeys: ['relationship', 'notes'] },
   { key: 'goals', label: 'Goals', fallbackStatus: 'active', setArchivedStatus: true, titleKeys: ['title'], detailKeys: ['description', 'metric'] },
@@ -52,12 +71,55 @@ const managedCollections: CollectionConfig[] = [
 ];
 
 export function ArchiveTrashManager({ data, onChange, onClose, onStatusMessage }: ArchiveTrashManagerProps) {
-  const { t } = useI18n();
   const archiveRows = getRows(data, 'archive');
   const trashRows = getRows(data, 'trash');
   const [activeTab, setActiveTab] = useState<ArchiveTab>(trashRows.length > 0 ? 'trash' : 'archive');
+
+  return (
+    <div
+      className="archive-window-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <ArchiveTrashContent
+        data={data}
+        activeTab={activeTab}
+        onActiveTabChange={setActiveTab}
+        onChange={onChange}
+        onClose={onClose}
+        onStatusMessage={onStatusMessage}
+      />
+    </div>
+  );
+}
+
+export function ArchiveTrashPage({ data, mode, onChange, onStatusMessage }: ArchiveTrashPageProps) {
+  return <ArchiveTrashContent data={data} activeTab={mode} isEmbedded onChange={onChange} onStatusMessage={onStatusMessage} />;
+}
+
+function ArchiveTrashContent({
+  data,
+  activeTab,
+  isEmbedded = false,
+  onActiveTabChange,
+  onChange,
+  onClose,
+  onStatusMessage,
+}: ArchiveTrashContentProps) {
+  const { t } = useI18n();
+  const archiveRows = getRows(data, 'archive');
+  const trashRows = getRows(data, 'trash');
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const rows = activeTab === 'archive' ? archiveRows : trashRows;
+  const title = onActiveTabChange ? 'Archive and Trash' : activeTab === 'archive' ? 'Archive' : 'Trash';
+  const description = onActiveTabChange
+    ? 'Review hidden records, restore them, move them to trash, or delete them forever.'
+    : activeTab === 'archive'
+      ? 'Review archived records, restore them, or move them to trash.'
+      : 'Review trashed records, restore them, archive them, or delete them forever.';
 
   function updateCollection(config: CollectionConfig, updater: (items: ManagedItem[]) => ManagedItem[], message: string) {
     const nextData = setCollectionItems(data, config.key, updater(getCollectionItems(data, config.key)));
@@ -97,28 +159,34 @@ export function ArchiveTrashManager({ data, onChange, onClose, onStatusMessage }
     setExpandedRows((current) => ({ ...current, [rowKey]: !current[rowKey] }));
   }
 
-  return (
-    <div className="archive-window-backdrop">
-      <section className="archive-window" role="dialog" aria-modal="true" aria-label={t('Archive and Trash')}>
+    return (
+      <section
+        className={`archive-window${isEmbedded ? ' archive-window-embedded' : ''}`}
+        role={isEmbedded ? 'region' : 'dialog'}
+        aria-modal={isEmbedded ? undefined : true}
+        aria-label={t(title)}
+      >
         <div className="archive-window-header">
           <div>
-            <h2>{t('Archive and Trash')}</h2>
-            <p>{t('Review hidden records, restore them, move them to trash, or delete them forever.')}</p>
+            <h2>{t(title)}</h2>
+            <p>{t(description)}</p>
           </div>
-          <CloseButton onClick={onClose} />
+          {onClose ? <CloseButton onClick={onClose} /> : null}
         </div>
-        <div className="archive-tabs" role="tablist">
-          <button className={activeTab === 'archive' ? 'active' : ''} type="button" onClick={() => setActiveTab('archive')}>
-            <Archive size={16} aria-hidden="true" />
-            <span>{t('Archive')}</span>
-            <strong>{archiveRows.length}</strong>
-          </button>
-          <button className={activeTab === 'trash' ? 'active' : ''} type="button" onClick={() => setActiveTab('trash')}>
-            <Trash2 size={16} aria-hidden="true" />
-            <span>{t('Trash')}</span>
-            <strong>{trashRows.length}</strong>
-          </button>
-        </div>
+        {onActiveTabChange ? (
+          <div className="archive-tabs" role="tablist">
+            <button className={activeTab === 'archive' ? 'active' : ''} type="button" onClick={() => onActiveTabChange('archive')}>
+              <Archive size={16} aria-hidden="true" />
+              <span>{t('Archive')}</span>
+              <strong>{archiveRows.length}</strong>
+            </button>
+            <button className={activeTab === 'trash' ? 'active' : ''} type="button" onClick={() => onActiveTabChange('trash')}>
+              <Trash2 size={16} aria-hidden="true" />
+              <span>{t('Trash')}</span>
+              <strong>{trashRows.length}</strong>
+            </button>
+          </div>
+        ) : null}
         {rows.length === 0 ? (
           <div className="empty-state archive-empty">
             <strong>{t(activeTab === 'archive' ? 'No archived items' : 'Trash is empty')}</strong>
@@ -181,8 +249,7 @@ export function ArchiveTrashManager({ data, onChange, onClose, onStatusMessage }
           </div>
         )}
       </section>
-    </div>
-  );
+    );
 }
 
 function getRows(data: AppData, state: ArchiveTab) {

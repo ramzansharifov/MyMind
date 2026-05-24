@@ -1,0 +1,70 @@
+.template-card {
+  display: grid;
+  min-height: 230px;
+  align-content: start;
+  gap: 14px;
+}
+
+.template-card-preview {
+  min-height: 72px;
+  margin: 0;
+  color: var(--text);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.template-card-chips {
+  min-height: 32px;
+}
+
+.template-variable-chip {
+  color: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-soft));
+}
+
+.template-primary-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+.template-form-body,
+.template-result {
+  font-family: inherit;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.template-variable-panel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 12px;
+}
+
+.template-builder {
+  width: min(720px, calc(100vw - 32px));
+}
+
+.template-builder-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.template-builder-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.template-result {
+  resize: vertical;
+}

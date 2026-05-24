@@ -24,7 +24,15 @@ export function ConfirmDialog({
   const { t } = useI18n();
   const Icon = action === 'archive' ? Archive : action === 'confirm' ? Check : Trash2;
   return (
-    <div className="dialog-backdrop" role="presentation">
+    <div
+      className="dialog-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onCancel();
+        }
+      }}
+    >
       <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
         <h2 id="confirm-title">{t(title)}</h2>
         <p>{t(message)}</p>

@@ -15,16 +15,26 @@ export function EntityForm({ title, saveLabel, onCancel, onSubmit, children, wid
   const { t } = useI18n();
 
   return (
-    <form className={`panel form-panel entity-form ${wide ? 'wide-form-panel' : ''}`} onSubmit={onSubmit}>
-      <div className="form-heading">
-        <h2>{t(title)}</h2>
-        <CloseButton onClick={onCancel} />
-      </div>
-      {children}
-      <div className="form-actions">
-        <CancelButton onClick={onCancel} />
-        <SaveButton label={saveLabel} />
-      </div>
-    </form>
+    <div
+      className="dialog-backdrop form-modal-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onCancel();
+        }
+      }}
+    >
+      <form className={`panel form-panel entity-form ${wide ? 'wide-form-panel' : ''}`} onSubmit={onSubmit}>
+        <div className="form-heading">
+          <h2>{t(title)}</h2>
+          <CloseButton onClick={onCancel} />
+        </div>
+        {children}
+        <div className="form-actions">
+          <CancelButton onClick={onCancel} />
+          <SaveButton label={saveLabel} />
+        </div>
+      </form>
+    </div>
   );
 }

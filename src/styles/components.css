@@ -638,6 +638,23 @@
   width: min(920px, calc(100vw - 48px));
 }
 
+.form-modal-backdrop {
+  z-index: 60;
+}
+
+.form-modal-backdrop .form-panel {
+  position: static;
+  top: auto;
+  right: auto;
+  z-index: auto;
+  width: min(560px, 100%);
+  max-height: calc(100vh - 48px);
+}
+
+.form-modal-backdrop .wide-form-panel {
+  width: min(920px, 100%);
+}
+
 .form-section {
   display: grid;
   gap: 12px;
@@ -697,18 +714,21 @@
   gap: 12px;
   min-height: 42px;
   color: var(--text);
+  font-weight: 700;
 }
 
 .checkbox-line input[type="checkbox"] {
   position: relative;
   flex: 0 0 auto;
-  width: 54px;
-  height: 30px;
-  min-height: 30px;
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  place-items: center;
   appearance: none;
   border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-strong);
+  border-radius: 6px;
+  background: var(--surface-soft);
   padding: 0;
   transition:
     background 0.16s ease,
@@ -718,27 +738,28 @@
 
 .checkbox-line input[type="checkbox"]::before {
   position: absolute;
-  top: 4px;
-  left: 4px;
-  width: 20px;
-  height: 20px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text) 82%, var(--muted));
-  box-shadow: 0 3px 8px var(--shadow);
-  content: "";
+  top: 2px;
+  left: 6px;
+  width: 6px;
+  height: 11px;
+  border: solid var(--surface-strong);
+  border-width: 0 2px 2px 0;
+  content: '';
+  opacity: 0;
   transition:
-    transform 0.16s ease,
-    background 0.16s ease;
+    opacity 0.16s ease,
+    transform 0.16s ease;
+  transform: rotate(45deg) scale(0.7);
 }
 
 .checkbox-line input[type="checkbox"]:checked {
-  border-color: var(--accent);
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  border-color: color-mix(in srgb, var(--accent) 56%, var(--border));
+  background: var(--accent);
 }
 
 .checkbox-line input[type="checkbox"]:checked::before {
-  background: #ffffff;
-  transform: translateX(24px);
+  opacity: 1;
+  transform: rotate(45deg) scale(1);
 }
 
 .checkbox-line input[type="checkbox"]:focus-visible {

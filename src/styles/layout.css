@@ -98,6 +98,25 @@
   gap: 6px;
 }
 
+.nav-group {
+  display: grid;
+  gap: 4px;
+}
+
+.nav-group-items {
+  display: grid;
+  gap: 4px;
+  padding-left: 12px;
+}
+
+.nav-subitem {
+  padding-left: 18px;
+}
+
+.nav-group-chevron {
+  margin-left: auto;
+}
+
 .nav-item {
   display: flex;
   align-items: center;
@@ -137,6 +156,10 @@
 }
 
 .sidebar.collapsed .nav-item span {
+  display: none;
+}
+
+.sidebar.collapsed .nav-group-chevron {
   display: none;
 }
 

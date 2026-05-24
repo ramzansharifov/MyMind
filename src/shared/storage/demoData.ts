@@ -32,6 +32,7 @@ export function isAppDataEmpty(data: AppData) {
     data.calendarEvents.length === 0 &&
     data.journalEntries.length === 0 &&
     data.notes.length === 0 &&
+    data.templates.length === 0 &&
     data.projects.length === 0 &&
     data.contacts.length === 0 &&
     data.health.entries.length === 0 &&
@@ -838,6 +839,18 @@ export function createDemoData(): AppData {
         category: "Reference",
         tags: ["mymind", "ideas"],
         pinned: true,
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ],
+    templates: [
+      {
+        id: createId("template"),
+        title: "Follow-up message",
+        body: "Hi {{name}},\n\nJust checking in about {{topic}}. Let me know what works best for you.",
+        category: "Messages",
+        tags: ["message", "follow-up"],
+        variables: ["name", "topic"],
         createdAt,
         updatedAt: createdAt,
       },

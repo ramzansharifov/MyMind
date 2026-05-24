@@ -7,6 +7,7 @@ export type CollectionName =
   | 'calendar_events'
   | 'journal_entries'
   | 'notes'
+  | 'templates'
   | 'projects'
   | 'contacts'
   | 'health'
@@ -23,6 +24,7 @@ export const collectionFiles: Record<CollectionName, string> = {
   calendar_events: 'calendar_events.json',
   journal_entries: 'journal_entries.json',
   notes: 'notes.json',
+  templates: 'templates.json',
   projects: 'projects.json',
   contacts: 'contacts.json',
   health: 'health.json',
@@ -37,6 +39,7 @@ export const listCollections = new Set<CollectionName>([
   'calendar_events',
   'journal_entries',
   'notes',
+  'templates',
   'projects',
   'contacts',
   'goals',
@@ -72,6 +75,7 @@ export function defaultValue(collectionName: CollectionName, dataDirectory: stri
       uiDensity: 'comfortable',
       accentColor: 'teal',
       startModule: 'dashboard',
+      sidebar: { hiddenModules: [], groups: [] },
       seedDataCreated: false,
       createdAt: nowIso(),
       updatedAt: nowIso(),
