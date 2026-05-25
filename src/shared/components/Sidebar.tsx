@@ -3,6 +3,7 @@ import { appModules, getModuleGroupIcon, type AppModuleDefinition } from '../app
 import { normalizeSidebarSettings } from '../app/appData';
 import type { ModuleKey, SidebarModuleGroup, SidebarSettings } from '../types/common';
 import { useI18n } from '../i18n/I18nProvider';
+import { Tooltip } from './Tooltip';
 
 type SidebarEntry =
   | { type: 'module'; module: AppModuleDefinition }
@@ -47,15 +48,16 @@ export function Sidebar({
           <strong>MyMind</strong>
           <small>{t('Personal OS')}</small>
         </div>
-        <button
-          className="sidebar-toggle"
-          type="button"
-          title={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
-          aria-label={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
-          onClick={onToggleCollapse}
-        >
-          <ToggleIcon size={18} aria-hidden="true" />
-        </button>
+        <Tooltip content={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}>
+          <button
+            className="sidebar-toggle"
+            type="button"
+            aria-label={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
+            onClick={onToggleCollapse}
+          >
+            <ToggleIcon size={18} aria-hidden="true" />
+          </button>
+        </Tooltip>
       </div>
       <nav>
         {entries.map((entry) =>
@@ -105,22 +107,23 @@ function SidebarGroupEntry({
 
   return (
     <div className="nav-group">
-      <button
-        className={`nav-item nav-group-trigger ${entry.modules.some((module) => module.key === active) ? 'active group-active' : ''}`}
-        type="button"
-        title={isCollapsed ? t(entry.group.title) : undefined}
-        aria-label={t(entry.group.title)}
-        aria-expanded={entry.group.isExpanded}
-        onClick={onToggle}
-      >
-        <GroupIcon size={18} aria-hidden="true" />
-        <span>{t(entry.group.title)}</span>
-        {entry.group.isExpanded ? (
-          <ChevronDown className="nav-group-chevron" size={16} aria-hidden="true" />
-        ) : (
-          <ChevronRight className="nav-group-chevron" size={16} aria-hidden="true" />
-        )}
-      </button>
+      <Tooltip content={t(entry.group.title)} disabled={!isCollapsed}>
+        <button
+          className={`nav-item nav-group-trigger ${entry.modules.some((module) => module.key === active) ? 'active group-active' : ''}`}
+          type="button"
+          aria-label={t(entry.group.title)}
+          aria-expanded={entry.group.isExpanded}
+          onClick={onToggle}
+        >
+          <GroupIcon size={18} aria-hidden="true" />
+          <span>{t(entry.group.title)}</span>
+          {entry.group.isExpanded ? (
+            <ChevronDown className="nav-group-chevron" size={16} aria-hidden="true" />
+          ) : (
+            <ChevronRight className="nav-group-chevron" size={16} aria-hidden="true" />
+          )}
+        </button>
+      </Tooltip>
       {entry.group.isExpanded && !isCollapsed ? (
         <div className="nav-group-items">
           {entry.modules.map((module) => (
@@ -159,17 +162,18 @@ function SidebarModuleButton({
   const Icon = module.icon;
   const label = t(module.label);
   return (
-    <button
-      className={`nav-item ${nested ? 'nav-subitem' : ''} ${active === module.key ? 'active' : ''}`}
-      type="button"
-      title={isCollapsed ? label : undefined}
-      aria-label={label}
-      onClick={() => onNavigate(module.key)}
-    >
-      <Icon size={18} aria-hidden="true" />
-      <span>{label}</span>
-      {reminderBadges?.[module.key] ? <strong className="nav-badge">{reminderBadges[module.key]}</strong> : null}
-    </button>
+    <Tooltip content={label} disabled={!isCollapsed}>
+      <button
+        className={`nav-item ${nested ? 'nav-subitem' : ''} ${active === module.key ? 'active' : ''}`}
+        type="button"
+        aria-label={label}
+        onClick={() => onNavigate(module.key)}
+      >
+        <Icon size={18} aria-hidden="true" />
+        <span>{label}</span>
+        {reminderBadges?.[module.key] ? <strong className="nav-badge">{reminderBadges[module.key]}</strong> : null}
+      </button>
+    </Tooltip>
   );
 }
 

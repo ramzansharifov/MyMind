@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { PageHeader } from '../../shared/components/PageHeader';
+import { Tooltip } from '../../shared/components/Tooltip';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
 import { formatDate, todayDateOnly } from '../../shared/utils/dateUtils';
@@ -135,7 +136,9 @@ export function CalendarPage({ events, onChange }: CalendarPageProps) {
                 <span>{day.dayNumber}</span>
                 <div className="calendar-day-dots" aria-label={`${day.events.length} ${t('events')}`}>
                   {day.events.slice(0, 4).map((event) => (
-                    <i className={eventImportance(event)} key={event.id} title={event.title} />
+                    <Tooltip content={event.title} position="top" key={event.id}>
+                      <i className={eventImportance(event)} />
+                    </Tooltip>
                   ))}
                   {day.events.length > 4 ? <small>+{day.events.length - 4}</small> : null}
                 </div>

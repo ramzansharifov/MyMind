@@ -40,6 +40,7 @@ import '@blocknote/mantine/style.css';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { ModalPortal } from '../../shared/components/ModalPortal';
 import { LoadingState } from '../../shared/components/LoadingState';
+import { Tooltip } from '../../shared/components/Tooltip';
 import { createId } from '../../shared/utils/idGenerator';
 import { DRAWING_BLOCK_DIRTY_EVENT } from './blocks/drawing';
 import { DRAWING_BLOCK_SELECTED_EVENT } from './blocks/drawing';
@@ -541,12 +542,19 @@ function NoteTopBar({
   onModeChange: (mode: NoteMode) => void;
   onSave: () => void;
 }) {
+  const saveStatusText = dirty ? 'Есть несохранённые изменения' : `Последнее сохранение: ${lastSavedLabel}`;
+
   return (
     <div className="note-topbar">
-      <button className="button ghost note-topbar-back" type="button" onClick={onBack}>
-        <ArrowLeft size={18} />
-        Назад к заметкам
-      </button>
+      <div className="note-topbar-leading">
+        <button className="button ghost note-topbar-back" type="button" onClick={onBack}>
+          <ArrowLeft size={18} />
+          Назад к заметкам
+        </button>
+        <Tooltip content={saveStatusText} position="bottom">
+          <span className={`note-save-status-dot${dirty ? ' dirty' : ' saved'}`} aria-label={saveStatusText} tabIndex={0} />
+        </Tooltip>
+      </div>
       <div className="note-topbar-actions">
         <button className={`button ghost${mode === 'read' ? ' active' : ''}`} type="button" onClick={() => onModeChange('read')}>
           <BookOpen size={18} />
@@ -561,11 +569,6 @@ function NoteTopBar({
           <Save size={18} />
           Сохранить
         </button>
-        <span
-          className={`note-save-status-dot${dirty ? ' dirty' : ' saved'}`}
-          aria-label={dirty ? 'Есть несохранённые изменения' : `Последнее сохранение: ${lastSavedLabel}`}
-          tabIndex={0}
-        />
       </div>
     </div>
   );
@@ -1303,36 +1306,56 @@ function NotePropertiesPanel({
             </label>
           ) : null}
           <div className="note-sidebar-tool-grid">
-            <button className={activeStyles.bold ? 'active' : ''} type="button" title="Bold" onMouseDown={preventToolbarBlur} onClick={() => toggleTextStyle('bold')}>
-              <Bold size={16} />
-            </button>
-            <button className={activeStyles.italic ? 'active' : ''} type="button" title="Italic" onMouseDown={preventToolbarBlur} onClick={() => toggleTextStyle('italic')}>
-              <Italic size={16} />
-            </button>
-            <button className={activeStyles.underline ? 'active' : ''} type="button" title="Underline" onMouseDown={preventToolbarBlur} onClick={() => toggleTextStyle('underline')}>
-              <Underline size={16} />
-            </button>
-            <button className={activeStyles.strike ? 'active' : ''} type="button" title="Strike" onMouseDown={preventToolbarBlur} onClick={() => toggleTextStyle('strike')}>
-              <Strikethrough size={16} />
-            </button>
-            <button className={currentTextAlignment === 'left' ? 'active' : ''} type="button" title="Align left" onMouseDown={preventToolbarBlur} onClick={() => setTextAlignment('left')}>
-              <AlignLeft size={16} />
-            </button>
-            <button className={currentTextAlignment === 'center' ? 'active' : ''} type="button" title="Align center" onMouseDown={preventToolbarBlur} onClick={() => setTextAlignment('center')}>
-              <AlignCenter size={16} />
-            </button>
-            <button className={currentTextAlignment === 'right' ? 'active' : ''} type="button" title="Align right" onMouseDown={preventToolbarBlur} onClick={() => setTextAlignment('right')}>
-              <AlignRight size={16} />
-            </button>
-            <button type="button" title="Indent" onMouseDown={preventToolbarBlur} onClick={() => { editor.focus(); editor.nestBlock(); onDirty(); }}>
-              <IndentIncrease size={16} />
-            </button>
-            <button type="button" title="Outdent" onMouseDown={preventToolbarBlur} onClick={() => { editor.focus(); editor.unnestBlock(); onDirty(); }}>
-              <IndentDecrease size={16} />
-            </button>
-            <button type="button" title="Link" onMouseDown={preventToolbarBlur} onClick={captureLinkTarget}>
-              <Link size={16} />
-            </button>
+            <Tooltip content="Bold" position="top">
+              <button className={activeStyles.bold ? 'active' : ''} type="button" aria-label="Bold" onMouseDown={preventToolbarBlur} onClick={() => toggleTextStyle('bold')}>
+                <Bold size={16} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Italic" position="top">
+              <button className={activeStyles.italic ? 'active' : ''} type="button" aria-label="Italic" onMouseDown={preventToolbarBlur} onClick={() => toggleTextStyle('italic')}>
+                <Italic size={16} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Underline" position="top">
+              <button className={activeStyles.underline ? 'active' : ''} type="button" aria-label="Underline" onMouseDown={preventToolbarBlur} onClick={() => toggleTextStyle('underline')}>
+                <Underline size={16} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Strike" position="top">
+              <button className={activeStyles.strike ? 'active' : ''} type="button" aria-label="Strike" onMouseDown={preventToolbarBlur} onClick={() => toggleTextStyle('strike')}>
+                <Strikethrough size={16} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Align left" position="top">
+              <button className={currentTextAlignment === 'left' ? 'active' : ''} type="button" aria-label="Align left" onMouseDown={preventToolbarBlur} onClick={() => setTextAlignment('left')}>
+                <AlignLeft size={16} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Align center" position="top">
+              <button className={currentTextAlignment === 'center' ? 'active' : ''} type="button" aria-label="Align center" onMouseDown={preventToolbarBlur} onClick={() => setTextAlignment('center')}>
+                <AlignCenter size={16} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Align right" position="top">
+              <button className={currentTextAlignment === 'right' ? 'active' : ''} type="button" aria-label="Align right" onMouseDown={preventToolbarBlur} onClick={() => setTextAlignment('right')}>
+                <AlignRight size={16} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Indent" position="top">
+              <button type="button" aria-label="Indent" onMouseDown={preventToolbarBlur} onClick={() => { editor.focus(); editor.nestBlock(); onDirty(); }}>
+                <IndentIncrease size={16} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Outdent" position="top">
+              <button type="button" aria-label="Outdent" onMouseDown={preventToolbarBlur} onClick={() => { editor.focus(); editor.unnestBlock(); onDirty(); }}>
+                <IndentDecrease size={16} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Link" position="top">
+              <button type="button" aria-label="Link" onMouseDown={preventToolbarBlur} onClick={captureLinkTarget}>
+                <Link size={16} />
+              </button>
+            </Tooltip>
           </div>
           {linkTarget ? (
             <div className="note-link-field">

@@ -2,6 +2,7 @@ import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { EntityForm } from '../../shared/components/EntityForm';
+import { Tooltip } from '../../shared/components/Tooltip';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { createId } from '../../shared/utils/idGenerator';
 import type { StartingPosition, StartingPositionMetric } from './types';
@@ -146,13 +147,15 @@ export function StartingPositionForm({ position, onCancel, onSave }: StartingPos
                     {images.map((img, i) => (
                         <div className="photo-upload-tile" key={i}>
                             <img src={img} alt={t('Uploaded photo')} />
-                            <button className="icon-button danger" title={t('Remove photo')} aria-label={t('Remove photo')}
+                            <Tooltip content={t('Remove photo')} position="top">
+                            <button className="icon-button danger" aria-label={t('Remove photo')}
                                 type="button"
                                 onClick={() => removeImage(i)}
                             >
                                 <Trash2 size={15} aria-hidden="true" />
                                 ×
                             </button>
+                            </Tooltip>
                         </div>
                     ))}
                 </div>

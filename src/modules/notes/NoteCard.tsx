@@ -6,6 +6,7 @@ import type { Note } from './types';
 
 interface NoteCardProps {
   note: Note;
+  groupTitle?: string;
   onOpen: () => void;
   onEdit: () => void;
   onPin: () => void;
@@ -13,7 +14,7 @@ interface NoteCardProps {
   onTrash: () => void;
 }
 
-export function NoteCard({ note, onOpen, onEdit, onPin, onArchive, onTrash }: NoteCardProps) {
+export function NoteCard({ note, groupTitle, onOpen, onEdit, onPin, onArchive, onTrash }: NoteCardProps) {
   const { t } = useI18n();
   return (
     <article className={`card note-card note-preview-card ${note.pinned || note.pinnedAt ? 'pinned' : ''}`}>
@@ -21,6 +22,11 @@ export function NoteCard({ note, onOpen, onEdit, onPin, onArchive, onTrash }: No
         <div className="card-title-row">
           <div>
             <h3>{note.title}</h3>
+            {groupTitle ? (
+              <small className="note-card-group">
+                {t('Group')}: {groupTitle}
+              </small>
+            ) : null}
             <small>
               {note.category || t('Uncategorized')} / {formatDate(note.updatedAt)}
             </small>

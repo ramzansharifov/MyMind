@@ -134,11 +134,14 @@
   color: color-mix(in srgb, var(--text) 78%, var(--muted));
   padding: 11px 12px;
   text-align: left;
-  transition: background 160ms ease, color 160ms ease, padding 180ms ease;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    padding 180ms ease;
 }
 
 .nav-item.active::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 9px;
   right: 0;
@@ -204,7 +207,11 @@
 .nav-item.active,
 .nav-item:hover {
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--glass-highlight) 92%, transparent), transparent),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--glass-highlight) 92%, transparent),
+      transparent
+    ),
     color-mix(in srgb, var(--accent) 13%, var(--glass-surface-strong));
   color: var(--text);
 }
@@ -276,4 +283,3 @@
   margin-top: 6px;
   color: var(--muted);
 }
-

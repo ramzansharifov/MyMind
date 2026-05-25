@@ -21,6 +21,15 @@
   color: var(--muted);
 }
 
+.note-card-group {
+  display: block;
+  margin-top: 3px;
+  color: var(--accent-strong);
+  font-size: 12px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
 .note-editor-page,
 .note-reader-page {
   --note-toolbar-sticky-top: -30px;
@@ -1222,6 +1231,13 @@
   flex: 0 0 auto;
 }
 
+.note-topbar-leading {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 12px;
+}
+
 .note-topbar-actions {
   display: flex;
   align-items: center;
@@ -1352,36 +1368,6 @@
   box-shadow:
     0 0 0 4px color-mix(in srgb, var(--warning) 14%, transparent),
     0 0 18px color-mix(in srgb, var(--warning) 38%, transparent);
-}
-
-.note-save-status-dot::after {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 10px);
-  z-index: 130;
-  width: max-content;
-  max-width: min(320px, 70vw);
-  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface) 96%, black 4%);
-  box-shadow: 0 16px 38px color-mix(in srgb, var(--shadow) 78%, transparent);
-  color: var(--text);
-  content: attr(aria-label);
-  font-size: 12px;
-  line-height: 1.35;
-  opacity: 0;
-  padding: 8px 10px;
-  pointer-events: none;
-  transform: translateY(-4px);
-  transition:
-    opacity 0.14s ease,
-    transform 0.14s ease;
-}
-
-.note-save-status-dot:hover::after,
-.note-save-status-dot:focus-visible::after {
-  opacity: 1;
-  transform: translateY(0);
 }
 
 .note-unsaved-dialog {
@@ -1825,6 +1811,11 @@
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 7px;
+}
+
+.note-sidebar-tool-grid .ui-tooltip,
+.note-sidebar-tool-grid .ui-tooltip > button {
+  width: 100%;
 }
 
 .note-sidebar-tool-grid button {

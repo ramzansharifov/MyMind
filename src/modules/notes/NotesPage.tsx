@@ -58,6 +58,7 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
   const availableCategories = noteCategories(visibleNotes);
   const activeFilterCount = tags.length + categories.length + (pinnedOnly ? 1 : 0);
   const groupCounts = countItemsByContentGroup(visibleNotes);
+  const groupTitleById = useMemo(() => new Map(groups.map((group) => [group.id, group.title])), [groups]);
 
   const loadNotes = useCallback(async () => {
     setLoadingNotes(true);
@@ -240,6 +241,7 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
               {filtered.map((note) => (
                 <NoteCard
                   note={note}
+                  groupTitle={note.groupId ? groupTitleById.get(note.groupId) : undefined}
                   key={note.id}
                   onOpen={() => {
                     setEditorInitialMode('read');

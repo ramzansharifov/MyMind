@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { DeleteButton } from '../../shared/components/ActionButtons';
 import { PageHeader } from '../../shared/components/PageHeader';
+import { Tooltip } from '../../shared/components/Tooltip';
 import { appModules, moduleGroupIcons } from '../../shared/app/moduleRegistry';
 import { ArchiveTrashPage } from './ArchiveTrashManager';
 import { useI18n } from '../../shared/i18n/I18nProvider';
@@ -383,16 +384,16 @@ function ModuleGroupCard({
             const Icon = option.icon;
             const isActive = (group.icon ?? 'folder') === option.key;
             return (
-              <button
-                className={`settings-icon-choice${isActive ? ' active' : ''}`}
-                type="button"
-                key={option.key}
-                title={t(option.label)}
-                aria-label={t(option.label)}
-                onClick={() => onUpdate((current) => ({ ...current, icon: option.key as ModuleGroupIconKey }))}
-              >
-                <Icon size={18} aria-hidden="true" />
-              </button>
+              <Tooltip content={t(option.label)} position="top" key={option.key}>
+                <button
+                  className={`settings-icon-choice${isActive ? ' active' : ''}`}
+                  type="button"
+                  aria-label={t(option.label)}
+                  onClick={() => onUpdate((current) => ({ ...current, icon: option.key as ModuleGroupIconKey }))}
+                >
+                  <Icon size={18} aria-hidden="true" />
+                </button>
+              </Tooltip>
             );
           })}
         </div>

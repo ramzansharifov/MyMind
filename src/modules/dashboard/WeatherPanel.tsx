@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { LoadingState } from '../../shared/components/LoadingState';
+import { Tooltip } from '../../shared/components/Tooltip';
 import type { AppSettings } from '../../shared/types/common';
 
 interface WeatherPanelProps {
@@ -342,14 +343,16 @@ export function WeatherPanel({ settings, onSettingsChange }: WeatherPanelProps) 
             <MapPin size={18} aria-hidden="true" />
             {city.name}
           </h3>
-          <button
-            className="icon-button ghost"
-            type="button"
-            onClick={() => setIsSearching(true)}
-            title={t('Change city')}
-          >
-            <Settings size={16} />
-          </button>
+          <Tooltip content={t('Change city')} position="bottom-end">
+            <button
+              className="icon-button ghost"
+              type="button"
+              aria-label={t('Change city')}
+              onClick={() => setIsSearching(true)}
+            >
+              <Settings size={16} />
+            </button>
+          </Tooltip>
         </div>
         <div className="stack">
           <p className="muted-text">{forecastError}</p>
@@ -388,14 +391,16 @@ export function WeatherPanel({ settings, onSettingsChange }: WeatherPanelProps) 
           <MapPin size={16} aria-hidden="true" />
           <span>{city.name}</span>
         </h3>
-        <button
-          className="icon-button ghost"
-          type="button"
-          onClick={() => setIsSearching(true)}
-          title={t('Change city')}
-        >
-          <Settings size={15} />
-        </button>
+        <Tooltip content={t('Change city')} position="bottom-end">
+          <button
+            className="icon-button ghost"
+            type="button"
+            aria-label={t('Change city')}
+            onClick={() => setIsSearching(true)}
+          >
+            <Settings size={15} />
+          </button>
+        </Tooltip>
       </div>
 
       <div className="weather-grid">

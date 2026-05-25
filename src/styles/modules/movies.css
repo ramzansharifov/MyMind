@@ -3,11 +3,9 @@
 }
 
 .movie-poster-button {
-  display: grid;
   overflow: hidden;
   width: 100%;
   aspect-ratio: 16 / 10;
-  place-items: center;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-soft);
@@ -23,7 +21,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center center;
+  object-position: center;
 }
 
 .movie-detail-poster img {
@@ -186,5 +184,3 @@
   gap: 14px;
   min-width: 0;
 }
-
-
