@@ -2,7 +2,7 @@ import type { BaseEntity, GroupedContentData } from '../../shared/types/common';
 
 export type NotePropertyType = 'text' | 'number' | 'date' | 'select' | 'multiSelect' | 'checkbox' | 'url';
 
-export type NoteLayoutWidth = 900 | 1000 | 1200;
+export type NoteLayoutWidth = 900 | 1000 | 1100 | 1200;
 export type NoteAssetType = 'image' | 'video' | 'audio' | 'file' | 'drawing';
 
 export interface NoteProperty {

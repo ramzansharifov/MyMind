@@ -3,8 +3,8 @@ import { hasCurrentNoteSchema, NOTE_SCHEMA_VERSION } from './migrations';
 
 export { NOTE_SCHEMA_VERSION } from './migrations';
 
-const NOTE_LAYOUT_WIDTHS = [900, 1000, 1200] as const satisfies readonly NoteLayoutWidth[];
-const DEFAULT_NOTE_LAYOUT_WIDTH: NoteLayoutWidth = 1000;
+const NOTE_LAYOUT_WIDTHS = [900, 1000, 1100, 1200] as const satisfies readonly NoteLayoutWidth[];
+const DEFAULT_NOTE_LAYOUT_WIDTH: NoteLayoutWidth = 1200;
 
 type MyMindEditorBlock = {
   id?: string;

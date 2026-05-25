@@ -41,7 +41,7 @@ type NoteIndexItem = {
   statusBeforeArchive?: string | null;
   statusBeforeTrash?: string | null;
   coverAssetId?: string | null;
-  layoutWidth?: 900 | 1000 | 1200;
+  layoutWidth?: 900 | 1000 | 1100 | 1200;
 };
 
 type NoteFile = NoteIndexItem & {
@@ -554,7 +554,7 @@ function normalizeNoteFile(note: Partial<NoteFile> & { id: string }): NoteFile {
     properties: Array.isArray(note.properties) ? note.properties : [],
     assets: Array.isArray(note.assets) ? note.assets : [],
     schemaVersion: Number(note.schemaVersion) || 2,
-    layoutWidth: ([900, 1000, 1200] as const).includes(note.layoutWidth as 900 | 1000 | 1200) ? note.layoutWidth as 900 | 1000 | 1200 : 1000,
+    layoutWidth: ([900, 1000, 1100, 1200] as const).includes(note.layoutWidth as 900 | 1000 | 1100 | 1200) ? note.layoutWidth as 900 | 1000 | 1100 | 1200 : 1200,
     tags: Array.isArray(note.tags) ? note.tags : [],
     category: note.category ?? '',
     groupId: note.groupId ?? null,

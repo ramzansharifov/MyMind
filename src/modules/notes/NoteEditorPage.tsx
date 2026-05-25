@@ -31,7 +31,7 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FC, type KeyboardEvent, type MouseEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FC, type KeyboardEvent, type MouseEvent } from 'react';
 import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from '@blocknote/core';
 import { BlockNoteView } from '@blocknote/mantine';
 import { getDefaultReactSlashMenuItems, SideMenu, SideMenuController, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react';
@@ -83,8 +83,8 @@ export interface NoteEditorNavigationActions {
 
 const IMAGE_MIN_WIDTH = 96;
 const IMAGE_FALLBACK_MAX_WIDTH = 1200;
-const NOTE_LAYOUT_WIDTHS = [900, 1000, 1200] as const satisfies readonly NoteLayoutWidth[];
-const DEFAULT_NOTE_LAYOUT_WIDTH: NoteLayoutWidth = 1000;
+const NOTE_LAYOUT_WIDTHS = [900, 1000, 1100, 1200] as const satisfies readonly NoteLayoutWidth[];
+const DEFAULT_NOTE_LAYOUT_WIDTH: NoteLayoutWidth = 1200;
 const LIGHTWEIGHT_EDITOR_MEDIA_BLOCK_TYPES = new Set(['image', 'video', 'audio', 'file']);
 
 export function NoteEditorPage({
@@ -556,22 +556,70 @@ function NoteTopBar({
           <Brush size={18} />
           Визуальный редактор
         </button>
-        <label className="note-layout-width-select">
-          <span>Ширина</span>
-          <select value={layoutWidth} onChange={(event) => onLayoutWidthChange(normalizeNoteLayoutWidth(Number(event.target.value)))}>
-            {NOTE_LAYOUT_WIDTHS.map((width) => (
-              <option value={width} key={width}>
-                {width}px
-              </option>
-            ))}
-          </select>
-        </label>
+        <NoteLayoutWidthPicker layoutWidth={layoutWidth} onChange={onLayoutWidthChange} />
         <button className="button accent note-save-button" type="button" onClick={onSave}>
           <Save size={18} />
           Сохранить
         </button>
-        <span className={`note-save-status${dirty ? ' dirty' : ''}`}>{dirty ? 'Есть несохранённые изменения' : `Последнее сохранение: ${lastSavedLabel}`}</span>
+        <span
+          className={`note-save-status-dot${dirty ? ' dirty' : ' saved'}`}
+          aria-label={dirty ? 'Есть несохранённые изменения' : `Последнее сохранение: ${lastSavedLabel}`}
+          tabIndex={0}
+        />
       </div>
+    </div>
+  );
+}
+
+function NoteLayoutWidthPicker({
+  layoutWidth,
+  onChange,
+}: {
+  layoutWidth: NoteLayoutWidth;
+  onChange: (value: NoteLayoutWidth) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div
+      className={`note-layout-width-select${open ? ' open' : ''}`}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false);
+        }
+      }}
+    >
+      <span>Ширина</span>
+      <button
+        className="note-layout-width-trigger"
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        {layoutWidth}px
+        <ChevronDown size={15} />
+      </button>
+      {open ? (
+        <div className="note-layout-width-menu" role="listbox" aria-label="Ширина заметки">
+          {NOTE_LAYOUT_WIDTHS.map((width) => (
+            <button
+              className={width === layoutWidth ? 'active' : ''}
+              type="button"
+              role="option"
+              aria-selected={width === layoutWidth}
+              key={width}
+              onClick={() => {
+                onChange(width);
+                setOpen(false);
+              }}
+            >
+              <span>{width}px</span>
+              {width === layoutWidth ? <span className="note-layout-width-current" /> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -753,14 +801,12 @@ function PropertyValueInput({ property, onChange }: { property: NoteProperty; on
 }
 
 function QuickBlockToolbar({ onAddBlock }: { onAddBlock: (type: string) => void }) {
-  const primaryItems = [
+  const blockItems = [
     ['paragraph', <Type size={17} />, 'Text'],
     ['list', <List size={17} />, 'List'],
     ['table', <Grid3X3 size={17} />, 'Table'],
     ['image', <ImageIcon size={17} />, 'Image'],
     ['codeBlock', <Code2 size={17} />, 'Code'],
-  ] as const;
-  const moreItems = [
     ['markdown', <Code2 size={16} />, 'Markdown'],
     ['quote', <Quote size={16} />, 'Quote'],
     ['toggle', <ChevronDown size={16} />, 'Toggle'],
@@ -770,29 +816,108 @@ function QuickBlockToolbar({ onAddBlock }: { onAddBlock: (type: string) => void 
     ['audio', <Music size={16} />, 'Audio'],
     ['file', <FileIcon size={16} />, 'File'],
   ] as const;
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const measureRef = useRef<HTMLDivElement | null>(null);
+  const moreMeasureRef = useRef<HTMLButtonElement | null>(null);
+  const moreDetailsRef = useRef<HTMLDetailsElement | null>(null);
+  const [visibleCount, setVisibleCount] = useState<number>(blockItems.length);
+
+  const updateVisibleBlocks = useCallback(() => {
+    const toolbar = toolbarRef.current;
+    const measure = measureRef.current;
+    if (!toolbar || !measure) {
+      return;
+    }
+
+    const toolbarStyles = window.getComputedStyle(toolbar);
+    const gap = Number.parseFloat(toolbarStyles.columnGap || toolbarStyles.gap || '0') || 0;
+    const horizontalPadding =
+      (Number.parseFloat(toolbarStyles.paddingLeft) || 0) + (Number.parseFloat(toolbarStyles.paddingRight) || 0);
+    const availableWidth = Math.max(0, toolbar.clientWidth - horizontalPadding);
+    const itemWidths = Array.from(measure.querySelectorAll<HTMLElement>('[data-measure-item]')).map((item) =>
+      Math.ceil(item.getBoundingClientRect().width),
+    );
+    const moreWidth = Math.ceil(moreMeasureRef.current?.getBoundingClientRect().width ?? 0);
+    const totalWidth = itemWidths.reduce((sum, width) => sum + width, 0) + gap * Math.max(0, itemWidths.length - 1);
+
+    if (totalWidth <= availableWidth) {
+      setVisibleCount(blockItems.length);
+      return;
+    }
+
+    const availableForItems = Math.max(0, availableWidth - moreWidth - gap);
+    let usedWidth = 0;
+    let nextVisibleCount = 0;
+
+    for (const width of itemWidths) {
+      const nextWidth = usedWidth + (nextVisibleCount > 0 ? gap : 0) + width;
+      if (nextWidth > availableForItems) {
+        break;
+      }
+      usedWidth = nextWidth;
+      nextVisibleCount += 1;
+    }
+
+    setVisibleCount(Math.min(blockItems.length - 1, Math.max(0, nextVisibleCount)));
+  }, [blockItems.length]);
+
+  useLayoutEffect(() => {
+    updateVisibleBlocks();
+    const resizeObserver = new ResizeObserver(updateVisibleBlocks);
+    if (toolbarRef.current) {
+      resizeObserver.observe(toolbarRef.current);
+    }
+    window.addEventListener('resize', updateVisibleBlocks);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateVisibleBlocks);
+    };
+  }, [updateVisibleBlocks]);
+
+  const visibleItems = blockItems.slice(0, visibleCount);
+  const moreItems = blockItems.slice(visibleCount);
+
+  function addBlockAndCloseMenu(type: string) {
+    onAddBlock(type);
+    moreDetailsRef.current?.removeAttribute('open');
+  }
 
   return (
-    <div className="note-quick-toolbar">
-      {primaryItems.map(([type, icon, label]) => (
-        <button className="button ghost" type="button" key={type} onClick={() => onAddBlock(type)}>
+    <div className="note-quick-toolbar" ref={toolbarRef}>
+      {visibleItems.map(([type, icon, label]) => (
+        <button className="button ghost" type="button" key={type} onClick={() => addBlockAndCloseMenu(type)}>
           {icon}
           {label}
         </button>
       ))}
-      <details className="note-more-blocks">
-        <summary className="button ghost">
+      {moreItems.length > 0 ? (
+        <details className="note-more-blocks" ref={moreDetailsRef}>
+          <summary className="button ghost">
+            <ChevronDown size={17} />
+            More blocks
+          </summary>
+          <div className="note-more-blocks-menu">
+            {moreItems.map(([type, icon, label]) => (
+              <button type="button" key={type} onClick={() => addBlockAndCloseMenu(type)}>
+                {icon}
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        </details>
+      ) : null}
+      <div className="note-quick-toolbar-measure" ref={measureRef} aria-hidden="true">
+        {blockItems.map(([type, icon, label]) => (
+          <button className="button ghost" type="button" tabIndex={-1} data-measure-item key={type}>
+            {icon}
+            {label}
+          </button>
+        ))}
+        <button className="button ghost" type="button" tabIndex={-1} ref={moreMeasureRef}>
           <ChevronDown size={17} />
           More blocks
-        </summary>
-        <div className="note-more-blocks-menu">
-          {moreItems.map(([type, icon, label]) => (
-            <button type="button" key={type} onClick={() => onAddBlock(type)}>
-              {icon}
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
-      </details>
+        </button>
+      </div>
     </div>
   );
 }

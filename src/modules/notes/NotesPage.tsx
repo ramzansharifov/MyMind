@@ -273,7 +273,7 @@ function noteFromIndexItem(item: NoteIndexItem): Note {
     properties: [],
     assets: [],
     schemaVersion: 2,
-    layoutWidth: item.layoutWidth ?? 1000,
+    layoutWidth: item.layoutWidth ?? 1200,
   };
 }
 

@@ -16,7 +16,7 @@ export function migrateV1ToV2(note: Note | NoteFile): NoteFile {
     properties: note.properties ?? [],
     assets: note.assets ?? [],
     schemaVersion: 2,
-    layoutWidth: note.layoutWidth ?? 1000,
+    layoutWidth: note.layoutWidth ?? 1200,
     tags: note.tags ?? [],
     category: note.category ?? '',
     groupId: note.groupId ?? null,
