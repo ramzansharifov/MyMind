@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { appModules, getModuleGroupIcon, type AppModuleDefinition } from '../app/moduleRegistry';
 import { normalizeSidebarSettings } from '../app/appData';
 import type { ModuleKey, SidebarModuleGroup, SidebarSettings } from '../types/common';
@@ -29,7 +29,6 @@ export function Sidebar({
   reminderBadges,
 }: SidebarProps) {
   const { t } = useI18n();
-  const ToggleIcon = isCollapsed ? PanelLeftOpen : PanelLeftClose;
   const normalizedSettings = normalizeSidebarSettings(sidebarSettings);
   const entries = buildSidebarEntries(normalizedSettings);
 
@@ -42,23 +41,20 @@ export function Sidebar({
 
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
-      <div className="brand">
-        <span className="brand-mark">M</span>
-        <div className="brand-copy">
-          <strong>MyMind</strong>
-          <small>{t('Personal OS')}</small>
-        </div>
-        <Tooltip content={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}>
-          <button
-            className="sidebar-toggle"
-            type="button"
-            aria-label={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
-            onClick={onToggleCollapse}
-          >
-            <ToggleIcon size={18} aria-hidden="true" />
-          </button>
-        </Tooltip>
-      </div>
+      <Tooltip content={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')} position="bottom">
+        <button
+          className="brand"
+          type="button"
+          aria-label={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
+          onClick={onToggleCollapse}
+        >
+          <span className="brand-mark">M</span>
+          <span className="brand-copy">
+            <strong>MyMind</strong>
+            <small>{t('Personal OS')}</small>
+          </span>
+        </button>
+      </Tooltip>
       <nav>
         {entries.map((entry) =>
           entry.type === 'module' ? (

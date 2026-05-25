@@ -29,8 +29,17 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
   margin-bottom: 26px;
-  padding: 0 8px;
+  text-align: left;
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .sidebar.collapsed .brand {
@@ -64,31 +73,8 @@
   white-space: nowrap;
 }
 
-.sidebar-toggle {
-  display: inline-grid;
-  width: 34px;
-  height: 34px;
-  margin-left: auto;
-  place-items: center;
-  border: 1px solid var(--glass-border);
-  border-radius: 8px;
-  background: var(--glass-surface-soft);
-  backdrop-filter: var(--glass-blur);
-  color: var(--muted);
-}
-
-.sidebar-toggle:hover {
-  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
-  color: var(--accent-strong);
-}
-
 .sidebar.collapsed .brand-copy {
   display: none;
-}
-
-.sidebar.collapsed .sidebar-toggle {
-  width: 42px;
-  margin-left: 0;
 }
 
 .brand small,

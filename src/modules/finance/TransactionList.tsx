@@ -18,9 +18,11 @@ export function TransactionList({ transactions, currency, onEdit, onArchive, onD
     <div className="stack finance-transaction-list">
       {transactions.map((transaction) => (
         <article className="card finance-transaction-card" key={transaction.id}>
-          <span className={`money-dot ${transaction.type}`} aria-hidden="true" />
           <div className="finance-transaction-main">
-            <h3>{transaction.title}</h3>
+            <div className="finance-transaction-title">
+              <span className={`money-dot ${transaction.type}`} aria-hidden="true" />
+              <h3>{transaction.title}</h3>
+            </div>
             <small>
               {transaction.sourceOrCategory || t('Uncategorized')} / {formatDate(transaction.date)}
             </small>

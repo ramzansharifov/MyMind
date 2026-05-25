@@ -1266,22 +1266,33 @@
 .money-dot,
 .important-dot,
 .neutral-dot {
+  display: inline-block;
+  flex: 0 0 auto;
   width: 12px;
   height: 12px;
-  border-radius: 50%;
+  border-radius: 999px;
 }
 
 .money-dot.income,
 .important-dot {
   background: var(--positive);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--positive) 14%, transparent),
+    0 0 18px color-mix(in srgb, var(--positive) 38%, transparent);
 }
 
 .money-dot.expense {
   background: var(--danger);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--danger) 14%, transparent),
+    0 0 18px color-mix(in srgb, var(--danger) 38%, transparent);
 }
 
 .neutral-dot {
   background: var(--neutral);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--neutral) 14%, transparent),
+    0 0 18px color-mix(in srgb, var(--neutral) 38%, transparent);
 }
 
 .status-message {

@@ -213,16 +213,18 @@
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 14px;
-  padding-left: 54px;
-}
-
-.finance-transaction-card .money-dot {
-  position: absolute;
-  top: 18px;
-  left: 18px;
 }
 
 .finance-transaction-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.finance-transaction-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
 }
 

@@ -110,7 +110,13 @@
 
 .content-groups-heading-main h2 {
   min-width: 0;
+  margin: 0;
+  line-height: 1;
   overflow-wrap: anywhere;
+}
+
+.content-groups-heading-main .rating-pill {
+  align-self: center;
 }
 
 .content-group-add-button {
