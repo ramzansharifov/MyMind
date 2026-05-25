@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EmptyState } from '../../shared/components/EmptyState';
@@ -12,6 +12,7 @@ import { countItemsByContentGroup, matchesContentGroup } from '../../shared/util
 import { filterNotes, noteCategories, noteTags } from './noteUtils';
 import { NoteCard } from './NoteCard';
 import type { Note } from './types';
+import type { NoteEditorNavigationActions } from './NoteEditorPage';
 import '../../styles/modules/notes.css';
 
 const NoteEditorPage = lazy(() => import('./NoteEditorPage').then((module) => ({ default: module.NoteEditorPage })));
@@ -22,9 +23,11 @@ interface NotesPageProps {
     groups: ContentGroup[];
   };
   onChange: (data: NotesPageProps['data']) => void;
+  onEditorDirtyChange?: (dirty: boolean) => void;
+  onEditorActionsChange?: (actions: NoteEditorNavigationActions | null) => void;
 }
 
-export function NotesPage({ data, onChange }: NotesPageProps) {
+export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActionsChange }: NotesPageProps) {
   const notes = data.items;
   const groups = data.groups;
   const [query, setQuery] = useState('');
@@ -49,6 +52,15 @@ export function NotesPage({ data, onChange }: NotesPageProps) {
   const availableCategories = noteCategories(visibleNotes);
   const activeFilterCount = tags.length + categories.length + (pinnedOnly ? 1 : 0);
   const groupCounts = countItemsByContentGroup(visibleNotes);
+
+  useEffect(() => {
+    if (editorNote !== undefined) {
+      return;
+    }
+
+    onEditorDirtyChange?.(false);
+    onEditorActionsChange?.(null);
+  }, [editorNote, onEditorActionsChange, onEditorDirtyChange]);
 
   function saveNote(note: Note) {
     const exists = notes.some((item) => item.id === note.id);
@@ -114,6 +126,8 @@ export function NotesPage({ data, onChange }: NotesPageProps) {
           initialMode={editorInitialMode}
           onCancel={() => setEditorNote(undefined)}
           onSave={saveNote}
+          onDirtyChange={onEditorDirtyChange}
+          onNavigationActionsChange={onEditorActionsChange}
         />
       </Suspense>
     );

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 const storage = {
   getAll: (collectionName: string) => ipcRenderer.invoke('storage:getAll', collectionName),
@@ -20,4 +20,8 @@ const storage = {
 
 contextBridge.exposeInMainWorld('mymind', {
   storage,
+  files: {
+    getPathForFile: (file: unknown) => webUtils.getPathForFile(file as any),
+    saveAsset: (payload: { name: string; data: ArrayBuffer }) => ipcRenderer.invoke('files:saveAsset', payload),
+  },
 });

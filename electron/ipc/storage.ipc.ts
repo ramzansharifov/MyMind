@@ -2,6 +2,7 @@ import { app, dialog, ipcMain, Notification, shell } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { assertCollectionName, collectionFiles, defaultValue, listCollections, nowIso, type CollectionName } from './storageRegistry';
 
 const retryableStorageErrorCodes = new Set(['EBUSY', 'EPERM', 'EACCES']);
@@ -20,8 +21,22 @@ async function ensureDataDirectory() {
   await fs.mkdir(getDataDirectory(), { recursive: true });
 }
 
+async function ensureAssetsDirectory() {
+  const assetsDirectory = path.join(getDataDirectory(), 'assets');
+  await fs.mkdir(assetsDirectory, { recursive: true });
+  return assetsDirectory;
+}
+
 function filePath(collectionName: CollectionName) {
   return path.join(getDataDirectory(), collectionFiles[collectionName]);
+}
+
+function sanitizeAssetFileName(value: unknown) {
+  const rawName = typeof value === 'string' && value.trim() ? value.trim() : 'attachment';
+  const parsed = path.parse(rawName);
+  const baseName = (parsed.name || 'attachment').replace(/[<>:"/\\|?*\x00-\x1f]/g, '-').slice(0, 80);
+  const extension = parsed.ext.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').slice(0, 16);
+  return `${baseName || 'attachment'}${extension}`;
 }
 
 function isRetryableStorageError(error: unknown) {
@@ -199,6 +214,19 @@ export function registerStorageIpc() {
     return shell.openPath(getDataDirectory());
   });
 
+  ipcMain.handle('files:saveAsset', async (_event, payload: { name?: unknown; data?: ArrayBuffer }) => {
+    if (!payload?.data || !(payload.data instanceof ArrayBuffer)) {
+      throw new Error('Asset payload is empty.');
+    }
+
+    const assetsDirectory = await ensureAssetsDirectory();
+    const safeName = sanitizeAssetFileName(payload.name);
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${safeName}`;
+    const targetPath = path.join(assetsDirectory, fileName);
+    await fs.writeFile(targetPath, Buffer.from(payload.data));
+    return pathToFileURL(targetPath).href;
+  });
+
   ipcMain.handle('storage:exportBackup', async () => {
     await ensureDataDirectory();
     const backupDirectory = path.join(getDocumentsDirectory(), 'MyMind', 'backups', `backup-${Date.now()}`);
@@ -209,6 +237,11 @@ export function registerStorageIpc() {
       } catch {
         // Continue exporting the files that exist.
       }
+    }
+    try {
+      await fs.cp(path.join(getDataDirectory(), 'assets'), path.join(backupDirectory, 'assets'), { recursive: true });
+    } catch {
+      // Assets are optional and older backups may not have them.
     }
     return backupDirectory;
   });
@@ -289,6 +322,11 @@ export function registerStorageIpc() {
       } catch {
         // Import partial backups without crashing.
       }
+    }
+    try {
+      await fs.cp(path.join(result.filePaths[0], 'assets'), path.join(getDataDirectory(), 'assets'), { recursive: true });
+    } catch {
+      // Import partial backups without crashing.
     }
     return getDataDirectory();
   });

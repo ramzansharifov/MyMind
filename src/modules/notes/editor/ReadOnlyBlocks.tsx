@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
-import { ChevronDown, File as FileIcon, Music, Video } from 'lucide-react';
+import { ChevronDown, File as FileIcon } from 'lucide-react';
 import { useI18n } from '../../../shared/i18n/I18nProvider';
 import { getCurrentDrawingData } from '../blocks/drawing';
 import { markdownToHtml } from '../noteUtils';
@@ -134,17 +134,10 @@ function renderReadOnlyBlock(block: AnyBlock, t: Translate): ReactNode {
   if (block.type === 'video') {
     const url = String((block.props as any).url ?? '');
     const caption = String((block.props as any).caption ?? '');
-    const name = String((block.props as any).name ?? t('Video'));
-    const showPreview = (block.props as any).showPreview !== false;
     return (
       <figure className="note-read-block note-read-media note-read-video" key={block.id}>
-        {url && showPreview ? (
+        {url ? (
           <video src={url} controls />
-        ) : url ? (
-          <a className="note-read-file-link" href={url} target="_blank" rel="noreferrer">
-            <Video size={18} />
-            <span>{name || url}</span>
-          </a>
         ) : (
           <div className="note-read-empty">{t('Video')}</div>
         )}
@@ -156,17 +149,10 @@ function renderReadOnlyBlock(block: AnyBlock, t: Translate): ReactNode {
   if (block.type === 'audio') {
     const url = String((block.props as any).url ?? '');
     const caption = String((block.props as any).caption ?? '');
-    const name = String((block.props as any).name ?? t('Audio'));
-    const showPreview = (block.props as any).showPreview !== false;
     return (
       <figure className="note-read-block note-read-media note-read-audio" key={block.id}>
-        {url && showPreview ? (
+        {url ? (
           <audio src={url} controls />
-        ) : url ? (
-          <a className="note-read-file-link" href={url} target="_blank" rel="noreferrer">
-            <Music size={18} />
-            <span>{name || url}</span>
-          </a>
         ) : (
           <div className="note-read-empty">{t('Audio')}</div>
         )}

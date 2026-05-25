@@ -3,6 +3,8 @@ import { getCurrentDrawingData, setCurrentDrawingData } from '../blocks/drawing'
 import { DEFAULT_DRAWING_HEIGHT, EMPTY_DOCUMENT, SUPPORTED_BLOCK_TYPES } from './constants';
 import type { AnyBlock, AnyPartialBlock } from './types';
 
+const LIGHTWEIGHT_EDITOR_MEDIA_BLOCK_TYPES = new Set(['image', 'video', 'audio', 'file']);
+
 export function sanitizeInitialContent(content: unknown): AnyPartialBlock[] {
   if (!Array.isArray(content) || content.length === 0) {
     return [...EMPTY_DOCUMENT] as AnyPartialBlock[];
@@ -50,8 +52,12 @@ export function prepareInitialEditorContent(blocks: AnyPartialBlock[]): AnyParti
 
 function prepareInitialEditorBlock(block: AnyPartialBlock): AnyPartialBlock {
   const source = block as Record<string, any>;
-  const props = source.props && typeof source.props === 'object' ? { ...source.props } : undefined;
+  let props = source.props && typeof source.props === 'object' ? { ...source.props } : undefined;
   const blockId = typeof source.id === 'string' ? source.id : source.type === 'drawing' ? createId('drawing-block') : undefined;
+
+  if (LIGHTWEIGHT_EDITOR_MEDIA_BLOCK_TYPES.has(String(source.type))) {
+    props = { ...(props ?? {}), showPreview: false };
+  }
 
   if (source.type === 'drawing' && props) {
     const drawingData = String(props.drawingData ?? '');
@@ -138,7 +144,10 @@ export function createEmptyBlock(type: string): AnyPartialBlock {
     } as any;
   }
   if (type === 'image') {
-    return { type: 'image' } as any;
+    return { type: 'image', props: { showPreview: false } } as any;
+  }
+  if (type === 'video' || type === 'audio' || type === 'file') {
+    return { type, props: { showPreview: false } } as any;
   }
   if (type === 'divider') {
     return { type: 'divider' } as any;

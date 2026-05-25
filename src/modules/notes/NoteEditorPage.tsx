@@ -31,7 +31,7 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FC, type KeyboardEvent, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FC, type KeyboardEvent, type MouseEvent } from 'react';
 import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from '@blocknote/core';
 import { BlockNoteView } from '@blocknote/mantine';
 import { getDefaultReactSlashMenuItems, SideMenu, SideMenuController, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react';
@@ -68,14 +68,31 @@ interface NoteEditorPageProps {
   initialMode?: NoteMode;
   onCancel: () => void;
   onSave: (note: Note) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  onNavigationActionsChange?: (actions: NoteEditorNavigationActions | null) => void;
+}
+
+export interface NoteEditorNavigationActions {
+  save: () => Promise<void>;
+  discard: () => void;
 }
 
 const IMAGE_MIN_WIDTH = 96;
 const IMAGE_FALLBACK_MAX_WIDTH = 1200;
 const NOTE_LAYOUT_WIDTHS = [900, 1000, 1200] as const satisfies readonly NoteLayoutWidth[];
 const DEFAULT_NOTE_LAYOUT_WIDTH: NoteLayoutWidth = 1000;
+const LIGHTWEIGHT_EDITOR_MEDIA_BLOCK_TYPES = new Set(['image', 'video', 'audio', 'file']);
 
-export function NoteEditorPage({ note, groups = [], defaultGroupId = null, initialMode, onCancel, onSave }: NoteEditorPageProps) {
+export function NoteEditorPage({
+  note,
+  groups = [],
+  defaultGroupId = null,
+  initialMode,
+  onCancel,
+  onSave,
+  onDirtyChange,
+  onNavigationActionsChange,
+}: NoteEditorPageProps) {
   const initialContent = useMemo(() => prepareInitialEditorContent(sanitizeInitialContent(getNoteEditorContent(note))), [note?.id]);
   const [mode, setMode] = useState<NoteMode>(initialMode ?? (note ? 'read' : 'edit'));
   const [title, setTitle] = useState(note?.title ?? '');
@@ -90,6 +107,9 @@ export function NoteEditorPage({ note, groups = [], defaultGroupId = null, initi
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [lastSavedLabel, setLastSavedLabel] = useState(note?.updatedAt ? 'загружено' : 'новая заметка');
   const [editorRevision, setEditorRevision] = useState(0);
+  const saveNoteRef = useRef<() => Promise<void>>(async () => undefined);
+  const discardNoteRef = useRef<() => void>(() => undefined);
+  const editorRefreshFrameRef = useRef<number | null>(null);
 
   const editor = useCreateBlockNote(
     {
@@ -115,6 +135,14 @@ export function NoteEditorPage({ note, groups = [], defaultGroupId = null, initi
     setSelectedBlock(getCurrentBlock(editor));
     setEditorRevision((current) => current + 1);
   }, [editor]);
+
+  useEffect(() => {
+    return () => {
+      if (editorRefreshFrameRef.current !== null) {
+        window.cancelAnimationFrame(editorRefreshFrameRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -171,10 +199,21 @@ export function NoteEditorPage({ note, groups = [], defaultGroupId = null, initi
     setSelectedBlock(block);
   }, [editor]);
 
+  function scheduleEditorRefresh() {
+    if (editorRefreshFrameRef.current !== null) {
+      return;
+    }
+
+    editorRefreshFrameRef.current = window.requestAnimationFrame(() => {
+      editorRefreshFrameRef.current = null;
+      setEditorRevision((current) => current + 1);
+    });
+  }
+
   function handleEditorChange() {
-    clampImagePreviewWidths(editor);
+    enforceLightweightMediaPreviews(editor);
     setDirty(true);
-    setEditorRevision((current) => current + 1);
+    scheduleEditorRefresh();
     if (selectedBlock) {
       const freshBlock = findBlockById(editor.document as AnyBlock[], selectedBlock.id);
       setSelectedBlock(freshBlock ?? getCurrentBlock(editor));
@@ -231,6 +270,22 @@ export function NoteEditorPage({ note, groups = [], defaultGroupId = null, initi
     setShowLeaveDialog(false);
     onCancel();
   }
+
+  saveNoteRef.current = saveNote;
+  discardNoteRef.current = leaveWithoutSaving;
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
+  useEffect(() => {
+    onNavigationActionsChange?.({
+      save: () => saveNoteRef.current(),
+      discard: () => discardNoteRef.current(),
+    });
+
+    return () => onNavigationActionsChange?.(null);
+  }, [onNavigationActionsChange]);
 
   function changeLayoutWidth(value: NoteLayoutWidth) {
     setLayoutWidth(value);
@@ -1331,6 +1386,26 @@ function syncVisualListGroups(editor: AnyEditor) {
   }
 }
 
+function enforceLightweightMediaPreviews(editor: AnyEditor) {
+  for (const block of flattenBlocks(editor.document as AnyBlock[])) {
+    if (!LIGHTWEIGHT_EDITOR_MEDIA_BLOCK_TYPES.has(block.type)) {
+      continue;
+    }
+
+    const props = (block.props ?? {}) as Record<string, unknown>;
+    if (props.showPreview === false) {
+      continue;
+    }
+
+    editor.updateBlock(block, {
+      props: {
+        ...props,
+        showPreview: false,
+      },
+    } as any);
+  }
+}
+
 function clampImagePreviewWidths(editor: AnyEditor) {
   const root = document.querySelector('.mymind-blocknote-editor');
   if (!root) {
@@ -1410,13 +1485,60 @@ function cssEscape(value: string) {
   return window.CSS?.escape ? window.CSS.escape(value) : value.replace(/["\\]/g, '\\$&');
 }
 
-function uploadFile(file: File) {
+async function uploadFile(file: File) {
+  const assetUrl = await saveFileAsset(file);
+  if (assetUrl) {
+    return assetUrl;
+  }
+
+  const localUrl = getLocalFileUrl(file);
+  if (localUrl) {
+    return localUrl;
+  }
+
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result ?? ''));
     reader.onerror = () => reject(reader.error ?? new Error('Не удалось загрузить файл'));
     reader.readAsDataURL(file);
   });
+}
+
+async function saveFileAsset(file: File) {
+  if (!window.mymind?.files?.saveAsset) {
+    return '';
+  }
+
+  try {
+    const data = await file.arrayBuffer();
+    return (await window.mymind.files.saveAsset({ name: file.name || 'attachment', data })) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function getLocalFileUrl(file: File) {
+  try {
+    const bridgedPath = window.mymind?.files?.getPathForFile(file);
+    if (bridgedPath) {
+      return filePathToUrl(bridgedPath);
+    }
+  } catch {
+    // Browser fallback below.
+  }
+
+  const directPath = (file as File & { path?: string }).path;
+  if (directPath) {
+    return filePathToUrl(directPath);
+  }
+
+  return '';
+}
+
+function filePathToUrl(filePath: string) {
+  const normalized = filePath.replace(/\\/g, '/');
+  const prefixed = normalized.startsWith('/') ? normalized : `/${normalized}`;
+  return encodeURI(`file://${prefixed}`);
 }
 
 function blockTypeLabel(type: string) {

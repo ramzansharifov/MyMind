@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from './shared/components/AppShell';
 import { LoadingState } from './shared/components/LoadingState';
 import { Modal } from './shared/components/Modal';
@@ -28,6 +28,9 @@ const InventoryPage = lazy(() => import('./modules/inventory/InventoryPage').the
 
 export function App() {
   const [activeModule, setActiveModule] = useState<ModuleKey>('dashboard');
+  const [pendingNavigation, setPendingNavigation] = useState<ModuleKey | null>(null);
+  const [noteEditorDirty, setNoteEditorDirty] = useState(false);
+  const [noteEditorActions, setNoteEditorActions] = useState<NoteEditorNavigationActions | null>(null);
   const {
     data,
     setData,
@@ -49,6 +52,51 @@ export function App() {
     clearDemoData,
   } = useAppData(activeModule, setActiveModule);
   const { activeReminder, reminderBadges, dismissReminder, snoozeReminder } = useAppReminders(data, setData);
+
+  const requestNavigate = useCallback(
+    (module: ModuleKey) => {
+      if (module === activeModule) {
+        return;
+      }
+
+      if (activeModule === 'notes' && noteEditorDirty && noteEditorActions) {
+        setPendingNavigation(module);
+        return;
+      }
+
+      setActiveModule(module);
+    },
+    [activeModule, noteEditorActions, noteEditorDirty],
+  );
+
+  async function saveNoteAndNavigate() {
+    const target = pendingNavigation;
+    const actions = noteEditorActions;
+    if (!target || !actions) {
+      setPendingNavigation(null);
+      return;
+    }
+
+    await actions.save();
+    setPendingNavigation(null);
+    setNoteEditorDirty(false);
+    setNoteEditorActions(null);
+    setActiveModule(target);
+  }
+
+  function discardNoteAndNavigate() {
+    const target = pendingNavigation;
+    if (!target) {
+      setPendingNavigation(null);
+      return;
+    }
+
+    noteEditorActions?.discard();
+    setPendingNavigation(null);
+    setNoteEditorDirty(false);
+    setNoteEditorActions(null);
+    setActiveModule(target);
+  }
 
   useEffect(() => {
     document.documentElement.dataset.theme = settings.themeMode;
@@ -130,6 +178,8 @@ export function App() {
           <NotesPage
             data={data.notes}
             onChange={(notes) => setData((current) => ({ ...current, notes }))}
+            onEditorDirtyChange={setNoteEditorDirty}
+            onEditorActionsChange={setNoteEditorActions}
           />
         );
       case 'templates':
@@ -167,7 +217,7 @@ export function App() {
             dataDirectory={dataDirectory}
             settings={settings}
             statusMessage={statusMessage}
-            onNavigate={setActiveModule}
+            onNavigate={requestNavigate}
             onOpenDataFolder={() => storageClient.openDataDirectory()}
             onExportBackup={exportBackup}
             onImportBackup={importBackup}
@@ -188,27 +238,75 @@ export function App() {
           <DashboardPage
             data={data}
             currency={settings.currency}
-            onNavigate={setActiveModule}
+            onNavigate={requestNavigate}
             settings={settings}
             onSettingsChange={saveSettings}
           />
         );
     }
-  }, [activeModule, data, dataDirectory, isLoading, loadedCollections, loadingCollections, settings, statusMessage]);
+  }, [activeModule, data, dataDirectory, isLoading, loadedCollections, loadingCollections, requestNavigate, settings, statusMessage]);
 
   return (
     <I18nProvider language={settings.language}>
       <AppShell
         active={activeModule}
-        onNavigate={setActiveModule}
+        onNavigate={requestNavigate}
         sidebarSettings={settings.sidebar}
         onSidebarSettingsChange={(sidebar) => void saveSettings({ ...settings, sidebar })}
         reminderBadges={reminderBadges}
       >
         <Suspense fallback={<LoadingState title="Opening module" message="Loading interface and tools..." variant="page" />}>{page}</Suspense>
+        {pendingNavigation ? (
+          <UnsavedNoteNavigationDialog
+            onCancel={() => setPendingNavigation(null)}
+            onDiscard={discardNoteAndNavigate}
+            onSave={() => void saveNoteAndNavigate()}
+          />
+        ) : null}
         {activeReminder ? <ReminderModal reminder={activeReminder} onDismiss={() => dismissReminder(activeReminder)} onSnooze={() => snoozeReminder(activeReminder)} /> : null}
       </AppShell>
     </I18nProvider>
+  );
+}
+
+interface NoteEditorNavigationActions {
+  save: () => Promise<void>;
+  discard: () => void;
+}
+
+function UnsavedNoteNavigationDialog({
+  onCancel,
+  onDiscard,
+  onSave,
+}: {
+  onCancel: () => void;
+  onDiscard: () => void;
+  onSave: () => void;
+}) {
+  const { t } = useI18n();
+
+  return (
+    <Modal
+      title="Unsaved note changes"
+      size="sm"
+      panelClassName="confirm-dialog"
+      onClose={onCancel}
+      footer={
+        <>
+          <button className="button ghost" type="button" onClick={onCancel}>
+            {t('Stay in editor')}
+          </button>
+          <button className="button danger" type="button" onClick={onDiscard}>
+            {t('Leave without saving')}
+          </button>
+          <button className="button primary" type="button" onClick={onSave}>
+            {t('Save and switch')}
+          </button>
+        </>
+      }
+    >
+      <p>{t('Save this note before switching modules?')}</p>
+    </Modal>
   );
 }
 

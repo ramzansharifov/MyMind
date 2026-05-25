@@ -66,10 +66,16 @@ export interface StorageApi {
   scheduleReminders(reminders: Array<{ id: string; title: string; body: string; at: string }>): Promise<boolean>;
 }
 
+export interface FileSystemApi {
+  getPathForFile(file: unknown): string;
+  saveAsset(payload: { name: string; data: ArrayBuffer }): Promise<string>;
+}
+
 declare global {
   interface Window {
     mymind: {
       storage: StorageApi;
+      files?: FileSystemApi;
     };
   }
 }
