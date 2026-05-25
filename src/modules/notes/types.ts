@@ -3,6 +3,7 @@ import type { BaseEntity, GroupedContentData } from '../../shared/types/common';
 export type NotePropertyType = 'text' | 'number' | 'date' | 'select' | 'multiSelect' | 'checkbox' | 'url';
 
 export type NoteLayoutWidth = 900 | 1000 | 1200;
+export type NoteAssetType = 'image' | 'video' | 'audio' | 'file' | 'drawing';
 
 export interface NoteProperty {
   id: string;
@@ -13,9 +14,17 @@ export interface NoteProperty {
 
 export interface NoteAsset {
   id: string;
-  type: 'image' | 'drawing';
+  noteId?: string;
+  type: NoteAssetType;
   name?: string;
+  mimeType?: string;
   data?: string;
+  url?: string;
+  relativePath?: string;
+  assetPath?: string;
+  size?: number;
+  sizeBytes?: number;
+  createdAt?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -37,3 +46,51 @@ export interface Note extends BaseEntity {
 }
 
 export type NotesData = GroupedContentData<Note>;
+
+export interface NoteIndexItem extends BaseEntity {
+  title: string;
+  previewText: string;
+  tags: string[];
+  category: string;
+  groupId?: string | null;
+  pinned: boolean;
+  coverAssetId?: string | null;
+  layoutWidth?: NoteLayoutWidth;
+}
+
+export interface NoteProperties {
+  custom: NoteProperty[];
+}
+
+export interface NoteFile extends BaseEntity {
+  title: string;
+  schemaVersion: number;
+  editorContent: unknown;
+  editorPlainText: string;
+  content?: string;
+  contentFormat?: 'plain' | 'html' | 'markdown';
+  editorHtml?: string;
+  properties: NoteProperty[];
+  assets: NoteAsset[];
+  layoutWidth: NoteLayoutWidth;
+  tags: string[];
+  category: string;
+  groupId?: string | null;
+  pinned: boolean;
+}
+
+export interface NoteDraft {
+  noteId: string;
+  editorContent: unknown;
+  updatedAt: string;
+}
+
+export interface NoteSearchIndexItem {
+  noteId: string;
+  title: string;
+  editorPlainText: string;
+  tags: string[];
+  category: string;
+  groupId?: string | null;
+  updatedAt: string;
+}

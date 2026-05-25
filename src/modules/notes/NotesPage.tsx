@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EmptyState } from '../../shared/components/EmptyState';
@@ -11,7 +11,8 @@ import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shar
 import { countItemsByContentGroup, matchesContentGroup } from '../../shared/utils/contentGroupUtils';
 import { filterNotes, noteCategories, noteTags } from './noteUtils';
 import { NoteCard } from './NoteCard';
-import type { Note } from './types';
+import { noteStorageClient } from './storage/noteStorageClient';
+import type { Note, NoteIndexItem, NoteSearchIndexItem } from './types';
 import type { NoteEditorNavigationActions } from './NoteEditorPage';
 import '../../styles/modules/notes.css';
 
@@ -28,18 +29,23 @@ interface NotesPageProps {
 }
 
 export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActionsChange }: NotesPageProps) {
-  const notes = data.items;
   const groups = data.groups;
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [searchIndex, setSearchIndex] = useState<NoteSearchIndexItem[]>([]);
+  const [loadingNotes, setLoadingNotes] = useState(true);
   const [query, setQuery] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [pinnedOnly, setPinnedOnly] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeGroupId, setActiveGroupId] = useState('all');
-  const [editorNote, setEditorNote] = useState<Note | null | undefined>(undefined);
+  const [editorNoteId, setEditorNoteId] = useState<string | null | undefined>(undefined);
   const [editorInitialMode, setEditorInitialMode] = useState<'read' | 'edit'>('edit');
   const visibleNotes = notes.filter((note) => !isHiddenFromRegularLists(note));
-  const searched = filterNotes(visibleNotes, query, '', '', false);
+  const searchById = useMemo(() => new Map(searchIndex.map((item) => [item.noteId, item])), [searchIndex]);
+  const searched = query.trim()
+    ? visibleNotes.filter((note) => matchesNoteSearch(note, searchById.get(note.id), query))
+    : filterNotes(visibleNotes, query, '', '', false);
   const filteredByFilters = searched.filter((note) => {
     const matchesTags = tags.length === 0 || tags.some((tag) => note.tags.includes(tag));
     const matchesCategories = categories.length === 0 || categories.includes(note.category);
@@ -53,38 +59,51 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
   const activeFilterCount = tags.length + categories.length + (pinnedOnly ? 1 : 0);
   const groupCounts = countItemsByContentGroup(visibleNotes);
 
+  const loadNotes = useCallback(async () => {
+    setLoadingNotes(true);
+    try {
+      const [index, search] = await Promise.all([noteStorageClient.listIndex(), noteStorageClient.listSearchIndex()]);
+      setNotes(index.map(noteFromIndexItem));
+      setSearchIndex(search);
+    } finally {
+      setLoadingNotes(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (editorNote !== undefined) {
+    void loadNotes();
+  }, [loadNotes]);
+
+  useEffect(() => {
+    if (editorNoteId !== undefined) {
       return;
     }
 
     onEditorDirtyChange?.(false);
     onEditorActionsChange?.(null);
-  }, [editorNote, onEditorActionsChange, onEditorDirtyChange]);
+  }, [editorNoteId, onEditorActionsChange, onEditorDirtyChange]);
 
-  function saveNote(note: Note) {
-    const exists = notes.some((item) => item.id === note.id);
-    onChange({ ...data, items: exists ? notes.map((item) => (item.id === note.id ? note : item)) : [note, ...notes] });
-    setEditorNote(undefined);
+  async function saveNote(note: Note) {
+    await noteStorageClient.saveNote(note);
+    await loadNotes();
+    setEditorNoteId(undefined);
   }
 
-  function archiveNote(note: Note) {
-    onChange({ ...data, items: notes.map((item) => (item.id === note.id ? archiveEntity(item) : item)) });
+  async function archiveNote(note: Note) {
+    await noteStorageClient.patchNoteMetadata(note.id, archiveEntity(note));
+    await loadNotes();
   }
 
-  function moveNoteToTrash(note: Note) {
-    onChange({ ...data, items: notes.map((item) => (item.id === note.id ? trashEntity(item) : item)) });
+  async function moveNoteToTrash(note: Note) {
+    await noteStorageClient.patchNoteMetadata(note.id, trashEntity(note));
+    await loadNotes();
   }
 
-  function togglePin(note: Note) {
+  async function togglePin(note: Note) {
     const timestamp = new Date().toISOString();
     const isPinned = Boolean(note.pinned || note.pinnedAt);
-    onChange({
-      ...data,
-      items: notes.map((item) =>
-        item.id === note.id ? { ...item, pinned: !isPinned, pinnedAt: isPinned ? null : timestamp, updatedAt: timestamp } : item,
-      ),
-    });
+    await noteStorageClient.patchNoteMetadata(note.id, { pinned: !isPinned, pinnedAt: isPinned ? null : timestamp, updatedAt: timestamp });
+    await loadNotes();
   }
 
   function toggleTag(value: string) {
@@ -106,25 +125,30 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
     onChange({ ...data, groups: groups.map((group) => (group.id === groupId ? { ...group, title, updatedAt: timestamp } : group)) });
   }
 
-  function deleteGroup(groupId: string) {
+  async function deleteGroup(groupId: string) {
     const timestamp = new Date().toISOString();
+    const affectedNoteIds = notes.filter((note) => note.groupId === groupId).map((note) => note.id);
+    if (affectedNoteIds.length > 0) {
+      await noteStorageClient.patchManyNoteMetadata(affectedNoteIds, { groupId: null, updatedAt: timestamp });
+      await loadNotes();
+    }
     onChange({
       ...data,
       groups: groups.filter((group) => group.id !== groupId),
-      items: notes.map((note) => (note.groupId === groupId ? { ...note, groupId: null, updatedAt: timestamp } : note)),
+      items: data.items,
     });
     setActiveGroupId('all');
   }
 
-  if (editorNote !== undefined) {
+  if (editorNoteId !== undefined) {
     return (
       <Suspense fallback={<LoadingState title="Opening editor" message="Preparing BlockNote tools and note content..." variant="page" />}>
         <NoteEditorPage
-          note={editorNote}
+          noteId={editorNoteId}
           groups={groups}
           defaultGroupId={activeGroupId === 'all' ? null : activeGroupId}
           initialMode={editorInitialMode}
-          onCancel={() => setEditorNote(undefined)}
+          onCancel={() => setEditorNoteId(undefined)}
           onSave={saveNote}
           onDirtyChange={onEditorDirtyChange}
           onNavigationActionsChange={onEditorActionsChange}
@@ -143,7 +167,7 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
             label="Add note"
             onClick={() => {
               setEditorInitialMode('edit');
-              setEditorNote(null);
+              setEditorNoteId(null);
             }}
           />
         }
@@ -207,7 +231,9 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
         onRenameGroup={renameGroup}
         onDeleteGroup={deleteGroup}
       >
-          {filtered.length === 0 ? (
+          {loadingNotes ? (
+            <LoadingState title="Loading notes" message="Preparing note index..." />
+          ) : filtered.length === 0 ? (
             <EmptyState title="No notes found" message="Capture ideas, instructions, references, and personal knowledge." />
           ) : (
             <div className="card-grid">
@@ -217,15 +243,15 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
                   key={note.id}
                   onOpen={() => {
                     setEditorInitialMode('read');
-                    setEditorNote(note);
+                    setEditorNoteId(note.id);
                   }}
                   onEdit={() => {
                     setEditorInitialMode('edit');
-                    setEditorNote(note);
+                    setEditorNoteId(note.id);
                   }}
-                  onPin={() => togglePin(note)}
-                  onArchive={() => archiveNote(note)}
-                  onTrash={() => moveNoteToTrash(note)}
+                  onPin={() => void togglePin(note)}
+                  onArchive={() => void archiveNote(note)}
+                  onTrash={() => void moveNoteToTrash(note)}
                 />
               ))}
             </div>
@@ -233,4 +259,41 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
       </GroupedCollectionLayout>
     </section>
   );
+}
+
+function noteFromIndexItem(item: NoteIndexItem): Note {
+  return {
+    ...item,
+    content: item.previewText,
+    contentFormat: 'plain',
+    editorPlainText: item.previewText,
+    category: item.category ?? '',
+    groupId: item.groupId ?? null,
+    tags: item.tags ?? [],
+    properties: [],
+    assets: [],
+    schemaVersion: 2,
+    layoutWidth: item.layoutWidth ?? 1000,
+  };
+}
+
+function matchesNoteSearch(note: Note, searchItem: NoteSearchIndexItem | undefined, query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+  const searchable = [
+    note.title,
+    note.content,
+    note.category,
+    ...(note.tags ?? []),
+    searchItem?.title,
+    searchItem?.editorPlainText,
+    searchItem?.category,
+    ...(searchItem?.tags ?? []),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return searchable.includes(normalized);
 }

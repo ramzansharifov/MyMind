@@ -125,7 +125,11 @@ function renderReadOnlyBlock(block: AnyBlock, t: Translate): ReactNode {
     const widthStyle = getMediaWidthStyle((block.props as any).previewWidth);
     return (
       <figure className="note-read-block note-read-media" key={block.id} style={widthStyle}>
-        {url ? <img src={url} alt={String((block.props as any).caption ?? t('Image'))} /> : <div className="note-read-empty">{t('Image')}</div>}
+        {url ? (
+          <img src={url} alt={String((block.props as any).caption ?? t('Image'))} loading="lazy" decoding="async" />
+        ) : (
+          <div className="note-read-empty">{t('Image')}</div>
+        )}
         {(block.props as any).caption ? <figcaption>{String((block.props as any).caption)}</figcaption> : null}
       </figure>
     );
@@ -137,7 +141,7 @@ function renderReadOnlyBlock(block: AnyBlock, t: Translate): ReactNode {
     return (
       <figure className="note-read-block note-read-media note-read-video" key={block.id}>
         {url ? (
-          <video src={url} controls />
+          <video src={url} controls preload="metadata" />
         ) : (
           <div className="note-read-empty">{t('Video')}</div>
         )}
@@ -152,7 +156,7 @@ function renderReadOnlyBlock(block: AnyBlock, t: Translate): ReactNode {
     return (
       <figure className="note-read-block note-read-media note-read-audio" key={block.id}>
         {url ? (
-          <audio src={url} controls />
+          <audio src={url} controls preload="metadata" />
         ) : (
           <div className="note-read-empty">{t('Audio')}</div>
         )}

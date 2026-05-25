@@ -4,6 +4,7 @@ import type { HabitData } from '../../modules/habits/types';
 import type { JournalData } from '../../modules/journal/types';
 import type { Movie } from '../../modules/movies/types';
 import type { NotesData } from '../../modules/notes/types';
+import type { Note, NoteAsset, NoteDraft, NoteIndexItem, NoteSearchIndexItem } from '../../modules/notes/types';
 import type { ContactsData } from '../../modules/contacts/types';
 import type { Goal } from '../../modules/goals/types';
 import type { HealthData } from '../../modules/health/types';
@@ -69,6 +70,29 @@ export interface StorageApi {
 export interface FileSystemApi {
   getPathForFile(file: unknown): string;
   saveAsset(payload: { name: string; data: ArrayBuffer }): Promise<string>;
+  listAssets(): Promise<Array<{ path: string; url: string; sizeBytes: number }>>;
+  getAssetInfo(url: string): Promise<{ url: string; exists: boolean; sizeBytes: number }>;
+}
+
+export interface NotesStorageApi {
+  listIndex(): Promise<NoteIndexItem[]>;
+  listSearchIndex(): Promise<NoteSearchIndexItem[]>;
+  get(noteId: string): Promise<Note | null>;
+  save(note: Note): Promise<Note>;
+  patchMetadata(noteId: string, patch: Partial<Note>): Promise<Note | null>;
+  patchManyMetadata(noteIds: string[], patch: Partial<Note>): Promise<boolean>;
+  delete(noteId: string): Promise<boolean>;
+  saveDraft(noteId: string, editorContent: unknown): Promise<NoteDraft>;
+  getDraft(noteId: string): Promise<NoteDraft | null>;
+  deleteDraft(noteId: string): Promise<boolean>;
+  saveAsset(payload: { noteId: string; name: string; mimeType: string; data: ArrayBuffer }): Promise<NoteAsset & { url: string }>;
+  listAssets(noteId: string): Promise<Array<NoteAsset & { url: string; exists: boolean }>>;
+  getAssetInfo(noteId: string, assetId: string): Promise<(NoteAsset & { url: string; exists: boolean }) | null>;
+  deleteAsset(noteId: string, assetId: string): Promise<boolean>;
+  cleanupUnusedAssets(noteId: string): Promise<{ deleted: NoteAsset[]; kept: NoteAsset[]; totalSizeBytes: number }>;
+  generateHtml(noteId: string): Promise<string>;
+  getCachedHtml(noteId: string): Promise<string | null>;
+  invalidateHtmlCache(noteId: string): Promise<boolean>;
 }
 
 declare global {
@@ -76,6 +100,7 @@ declare global {
     mymind: {
       storage: StorageApi;
       files?: FileSystemApi;
+      notes?: NotesStorageApi;
     };
   }
 }

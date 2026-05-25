@@ -1,10 +1,51 @@
-import { app, BrowserWindow, Menu, shell } from 'electron';
+import { app, BrowserWindow, Menu, protocol, shell } from 'electron';
 import path from 'node:path';
+import os from 'node:os';
 import { registerStorageIpc } from './ipc/storage.ipc';
 
 let mainWindow: BrowserWindow | null = null;
 
 app.setAppUserModelId('com.mymind.desktop');
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'mymind-asset',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+    },
+  },
+]);
+
+function getDocumentsDirectory() {
+  return app.getPath('documents') || path.join(os.homedir(), 'Documents');
+}
+
+function getDataDirectory() {
+  return path.join(getDocumentsDirectory(), 'MyMind', 'data');
+}
+
+function registerAssetProtocol() {
+  protocol.registerFileProtocol('mymind-asset', (request, callback) => {
+    try {
+      const url = new URL(request.url);
+      const relativePath = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+      const target = path.resolve(getDataDirectory(), relativePath);
+      const relative = path.relative(getDataDirectory(), target);
+
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        callback({ error: -10 });
+        return;
+      }
+
+      callback({ path: target });
+    } catch {
+      callback({ error: -2 });
+    }
+  });
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -38,6 +79,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
+  registerAssetProtocol();
   registerStorageIpc();
   createWindow();
 

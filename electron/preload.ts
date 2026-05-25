@@ -20,8 +20,31 @@ const storage = {
 
 contextBridge.exposeInMainWorld('mymind', {
   storage,
+  notes: {
+    listIndex: () => ipcRenderer.invoke('notes:listIndex'),
+    listSearchIndex: () => ipcRenderer.invoke('notes:listSearchIndex'),
+    get: (noteId: string) => ipcRenderer.invoke('notes:get', noteId),
+    save: (note: unknown) => ipcRenderer.invoke('notes:save', note),
+    patchMetadata: (noteId: string, patch: unknown) => ipcRenderer.invoke('notes:patchMetadata', noteId, patch),
+    patchManyMetadata: (noteIds: string[], patch: unknown) => ipcRenderer.invoke('notes:patchManyMetadata', noteIds, patch),
+    delete: (noteId: string) => ipcRenderer.invoke('notes:delete', noteId),
+    saveDraft: (noteId: string, editorContent: unknown) => ipcRenderer.invoke('notes:saveDraft', noteId, editorContent),
+    getDraft: (noteId: string) => ipcRenderer.invoke('notes:getDraft', noteId),
+    deleteDraft: (noteId: string) => ipcRenderer.invoke('notes:deleteDraft', noteId),
+    saveAsset: (payload: { noteId: string; name: string; mimeType: string; data: ArrayBuffer }) =>
+      ipcRenderer.invoke('notes:saveAsset', payload),
+    listAssets: (noteId: string) => ipcRenderer.invoke('notes:listAssets', noteId),
+    getAssetInfo: (noteId: string, assetId: string) => ipcRenderer.invoke('notes:getAssetInfo', noteId, assetId),
+    deleteAsset: (noteId: string, assetId: string) => ipcRenderer.invoke('notes:deleteAsset', noteId, assetId),
+    cleanupUnusedAssets: (noteId: string) => ipcRenderer.invoke('notes:cleanupUnusedAssets', noteId),
+    generateHtml: (noteId: string) => ipcRenderer.invoke('notes:generateHtml', noteId),
+    getCachedHtml: (noteId: string) => ipcRenderer.invoke('notes:getCachedHtml', noteId),
+    invalidateHtmlCache: (noteId: string) => ipcRenderer.invoke('notes:invalidateHtmlCache', noteId),
+  },
   files: {
     getPathForFile: (file: unknown) => webUtils.getPathForFile(file as any),
     saveAsset: (payload: { name: string; data: ArrayBuffer }) => ipcRenderer.invoke('files:saveAsset', payload),
+    listAssets: () => ipcRenderer.invoke('files:listAssets'),
+    getAssetInfo: (url: string) => ipcRenderer.invoke('files:getAssetInfo', url),
   },
 });

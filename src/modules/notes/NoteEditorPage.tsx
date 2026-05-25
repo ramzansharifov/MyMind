@@ -39,10 +39,13 @@ import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { ModalPortal } from '../../shared/components/ModalPortal';
+import { LoadingState } from '../../shared/components/LoadingState';
 import { createId } from '../../shared/utils/idGenerator';
 import { DRAWING_BLOCK_DIRTY_EVENT } from './blocks/drawing';
 import { DRAWING_BLOCK_SELECTED_EVENT } from './blocks/drawing';
 import { editorContentToPlainText, getNoteEditorContent, NOTE_SCHEMA_VERSION } from './noteUtils';
+import { buildNoteAssetDiagnostics } from './assets/noteAssets';
+import { noteStorageClient } from './storage/noteStorageClient';
 import type { ContentGroup } from '../../shared/types/common';
 import type { Note, NoteLayoutWidth, NoteProperty } from './types';
 import { ReadOnlyBlocks } from './editor/ReadOnlyBlocks';
@@ -62,6 +65,7 @@ import { noteSchema } from './editor/noteSchema';
 import type { AnyBlock, AnyEditor, NoteMode } from './editor/types';
 
 interface NoteEditorPageProps {
+  noteId?: string | null;
   note?: Note | null;
   groups?: ContentGroup[];
   defaultGroupId?: string | null;
@@ -84,6 +88,51 @@ const DEFAULT_NOTE_LAYOUT_WIDTH: NoteLayoutWidth = 1000;
 const LIGHTWEIGHT_EDITOR_MEDIA_BLOCK_TYPES = new Set(['image', 'video', 'audio', 'file']);
 
 export function NoteEditorPage({
+  noteId,
+  note: noteProp,
+  ...props
+}: NoteEditorPageProps) {
+  const [loadedNote, setLoadedNote] = useState<Note | null>(noteProp ?? null);
+  const [isLoadingNote, setIsLoadingNote] = useState(Boolean(noteId));
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadNote() {
+      if (!noteId) {
+        setLoadedNote(noteProp ?? null);
+        setIsLoadingNote(false);
+        return;
+      }
+
+      setIsLoadingNote(true);
+      try {
+        const [note, draft] = await Promise.all([noteStorageClient.getNote(noteId), noteStorageClient.getDraft(noteId)]);
+        if (isCancelled) {
+          return;
+        }
+        setLoadedNote(draft && note ? { ...note, editorContent: draft.editorContent } : note);
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingNote(false);
+        }
+      }
+    }
+
+    void loadNote();
+    return () => {
+      isCancelled = true;
+    };
+  }, [noteId, noteProp]);
+
+  if (isLoadingNote) {
+    return <LoadingState title="Opening note" message="Loading note file and draft..." variant="page" />;
+  }
+
+  return <NoteEditorWorkspace key={loadedNote?.id ?? 'new-note'} note={loadedNote} {...props} />;
+}
+
+function NoteEditorWorkspace({
   note,
   groups = [],
   defaultGroupId = null,
@@ -93,6 +142,7 @@ export function NoteEditorPage({
   onDirtyChange,
   onNavigationActionsChange,
 }: NoteEditorPageProps) {
+  const editorNoteId = useMemo(() => note?.id ?? createId('note'), [note?.id]);
   const initialContent = useMemo(() => prepareInitialEditorContent(sanitizeInitialContent(getNoteEditorContent(note))), [note?.id]);
   const [mode, setMode] = useState<NoteMode>(initialMode ?? (note ? 'read' : 'edit'));
   const [title, setTitle] = useState(note?.title ?? '');
@@ -110,6 +160,10 @@ export function NoteEditorPage({
   const saveNoteRef = useRef<() => Promise<void>>(async () => undefined);
   const discardNoteRef = useRef<() => void>(() => undefined);
   const editorRefreshFrameRef = useRef<number | null>(null);
+  const mediaPreviewFrameRef = useRef<number | null>(null);
+  const draftSaveTimeoutRef = useRef<number | null>(null);
+
+  const uploadFile = useCallback((file: File) => uploadNoteFile(editorNoteId, file), [editorNoteId]);
 
   const editor = useCreateBlockNote(
     {
@@ -126,7 +180,7 @@ export function NoteEditorPage({
         emptyDocument: 'Начните писать заметку...',
       },
     },
-    [note?.id],
+    [editorNoteId],
   );
 
   const isReadMode = mode === 'read';
@@ -141,16 +195,28 @@ export function NoteEditorPage({
       if (editorRefreshFrameRef.current !== null) {
         window.cancelAnimationFrame(editorRefreshFrameRef.current);
       }
+      if (mediaPreviewFrameRef.current !== null) {
+        window.cancelAnimationFrame(mediaPreviewFrameRef.current);
+      }
+      if (draftSaveTimeoutRef.current !== null) {
+        window.clearTimeout(draftSaveTimeoutRef.current);
+      }
     };
   }, []);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       syncVisualListGroups(editor);
-      clampImagePreviewWidths(editor);
     });
     return () => window.cancelAnimationFrame(frame);
   }, [editor, editorRevision, mode]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      clampImagePreviewWidths(editor);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [editor, mode]);
 
   useEffect(() => {
     if (mode !== 'edit') {
@@ -210,8 +276,19 @@ export function NoteEditorPage({
     });
   }
 
+  function scheduleLightweightMediaPreviewSync() {
+    if (mediaPreviewFrameRef.current !== null) {
+      return;
+    }
+
+    mediaPreviewFrameRef.current = window.requestAnimationFrame(() => {
+      mediaPreviewFrameRef.current = null;
+      enforceLightweightMediaPreviews(editor);
+    });
+  }
+
   function handleEditorChange() {
-    enforceLightweightMediaPreviews(editor);
+    scheduleLightweightMediaPreviewSync();
     setDirty(true);
     scheduleEditorRefresh();
     if (selectedBlock) {
@@ -221,12 +298,14 @@ export function NoteEditorPage({
   }
 
   async function saveNote() {
+    const saveStartedAt = performance.now();
     const blocks = mergeDrawingBlockData(editor.document as AnyBlock[]);
+    const plainTextStartedAt = performance.now();
     const plainText = editorContentToPlainText(blocks);
-    const html = await editor.blocksToHTMLLossy(blocks as any);
+    const plainTextDurationMs = performance.now() - plainTextStartedAt;
     const timestamp = new Date().toISOString();
     const saved: Note = {
-      id: note?.id ?? createId('note'),
+      id: editorNoteId,
       createdAt: note?.createdAt ?? timestamp,
       updatedAt: timestamp,
       archivedAt: note?.archivedAt ?? null,
@@ -242,18 +321,29 @@ export function NoteEditorPage({
       tags,
       properties,
       assets: note?.assets ?? [],
-      content: plainText || html,
+      content: plainText,
       contentFormat: 'plain',
       editorContent: blocks,
       editorPlainText: plainText,
-      editorHtml: html,
+      editorHtml: undefined,
       schemaVersion: NOTE_SCHEMA_VERSION,
       layoutWidth,
     };
 
+    logNoteSaveDiagnostics({
+      blocks,
+      plainTextDurationMs,
+      saveDurationMs: performance.now() - saveStartedAt,
+    });
+
     setDirty(false);
     setShowLeaveDialog(false);
     setLastSavedLabel('только что');
+    try {
+      await noteStorageClient.deleteDraft(editorNoteId);
+    } catch (error) {
+      console.warn('Failed to delete note draft:', error);
+    }
     onSave(saved);
   }
 
@@ -277,6 +367,30 @@ export function NoteEditorPage({
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
+
+  useEffect(() => {
+    if (!dirty || mode !== 'edit') {
+      return;
+    }
+
+    if (draftSaveTimeoutRef.current !== null) {
+      window.clearTimeout(draftSaveTimeoutRef.current);
+    }
+
+    draftSaveTimeoutRef.current = window.setTimeout(() => {
+      draftSaveTimeoutRef.current = null;
+      void noteStorageClient.saveDraft(editorNoteId, mergeDrawingBlockData(editor.document as AnyBlock[])).catch((error) => {
+        console.warn('Failed to save note draft:', error);
+      });
+    }, 15000);
+
+    return () => {
+      if (draftSaveTimeoutRef.current !== null) {
+        window.clearTimeout(draftSaveTimeoutRef.current);
+        draftSaveTimeoutRef.current = null;
+      }
+    };
+  }, [dirty, editor, editorNoteId, editorRevision, mode]);
 
   useEffect(() => {
     onNavigationActionsChange?.({
@@ -1338,18 +1452,39 @@ function SettingChoiceRow({
 }
 
 function EditorStatusBar({ editor, revision, lastSavedLabel }: { editor: AnyEditor; revision: number; lastSavedLabel: string }) {
-  void revision;
-  const blocks = editor.document as AnyBlock[];
-  const text = editorContentToPlainText(blocks);
-  const visualBlocks = countVisualBlocks(blocks);
+  const [stats, setStats] = useState<EditorStats>(() => calculateEditorStats(editor.document as AnyBlock[]));
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setStats(calculateEditorStats(editor.document as AnyBlock[]));
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [editor, revision]);
+
   return (
     <div className="note-editor-statusbar">
-      <span>Слов: {text ? text.split(/\s+/).length : 0}</span>
-      <span>Символов: {text.length}</span>
-      <span>Блоков: {visualBlocks}</span>
+      <span>Слов: {stats.words}</span>
+      <span>Символов: {stats.characters}</span>
+      <span>Блоков: {stats.visualBlocks}</span>
       <span>Последнее сохранение: {lastSavedLabel}</span>
     </div>
   );
+}
+
+interface EditorStats {
+  words: number;
+  characters: number;
+  visualBlocks: number;
+}
+
+function calculateEditorStats(blocks: AnyBlock[]): EditorStats {
+  const text = editorContentToPlainText(blocks);
+  return {
+    words: text ? text.split(/\s+/).length : 0,
+    characters: text.length,
+    visualBlocks: countVisualBlocks(blocks),
+  };
 }
 
 function syncVisualListGroups(editor: AnyEditor) {
@@ -1485,10 +1620,35 @@ function cssEscape(value: string) {
   return window.CSS?.escape ? window.CSS.escape(value) : value.replace(/["\\]/g, '\\$&');
 }
 
-async function uploadFile(file: File) {
-  const assetUrl = await saveFileAsset(file);
-  if (assetUrl) {
-    return assetUrl;
+function logNoteSaveDiagnostics({
+  blocks,
+  plainTextDurationMs,
+  saveDurationMs,
+}: {
+  blocks: AnyBlock[];
+  plainTextDurationMs: number;
+  saveDurationMs: number;
+}) {
+  if (!import.meta.env.DEV) {
+    return;
+  }
+
+  const diagnostics = buildNoteAssetDiagnostics(blocks);
+  console.info('[notes:save]', {
+    blockCount: flattenBlocks(blocks).length,
+    approximateEditorContentSizeBytes: diagnostics.approximateEditorContentSizeBytes,
+    assetRefs: diagnostics.assetRefs.length,
+    localAssets: diagnostics.localAssetCount,
+    embeddedBase64Media: diagnostics.embeddedBase64Count,
+    plainTextDurationMs: Math.round(plainTextDurationMs * 10) / 10,
+    saveDurationMs: Math.round(saveDurationMs * 10) / 10,
+  });
+}
+
+async function uploadNoteFile(noteId: string, file: File) {
+  const asset = await saveFileAsset(noteId, file);
+  if (asset?.url) {
+    return asset.url;
   }
 
   const localUrl = getLocalFileUrl(file);
@@ -1504,16 +1664,21 @@ async function uploadFile(file: File) {
   });
 }
 
-async function saveFileAsset(file: File) {
-  if (!window.mymind?.files?.saveAsset) {
-    return '';
+async function saveFileAsset(noteId: string, file: File) {
+  if (!window.mymind?.notes?.saveAsset) {
+    return null;
   }
 
   try {
     const data = await file.arrayBuffer();
-    return (await window.mymind.files.saveAsset({ name: file.name || 'attachment', data })) ?? '';
+    return window.mymind.notes.saveAsset({
+      noteId,
+      name: file.name || 'attachment',
+      mimeType: file.type || 'application/octet-stream',
+      data,
+    });
   } catch {
-    return '';
+    return null;
   }
 }
 

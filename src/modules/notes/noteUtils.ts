@@ -1,6 +1,7 @@
 import type { Note, NoteLayoutWidth } from './types';
+import { hasCurrentNoteSchema, NOTE_SCHEMA_VERSION } from './migrations';
 
-export const NOTE_SCHEMA_VERSION = 2;
+export { NOTE_SCHEMA_VERSION } from './migrations';
 
 const NOTE_LAYOUT_WIDTHS = [900, 1000, 1200] as const satisfies readonly NoteLayoutWidth[];
 const DEFAULT_NOTE_LAYOUT_WIDTH: NoteLayoutWidth = 1000;
@@ -223,7 +224,7 @@ export function escapeHtml(value: string) {
 }
 
 export function migrateNote(note: Note): Note {
-  if (note.schemaVersion === NOTE_SCHEMA_VERSION && Array.isArray(note.editorContent)) {
+  if (hasCurrentNoteSchema(note)) {
     const editorContent = normalizeEditorContent(note.editorContent);
     const editorPlainText = note.editorPlainText?.trim() || editorContentToPlainText(editorContent) || getNotePlainText({ ...note, editorContent });
     return {
