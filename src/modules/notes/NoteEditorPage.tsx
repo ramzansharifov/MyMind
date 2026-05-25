@@ -9,36 +9,36 @@ import {
   ChevronDown,
   Code2,
   Copy,
-  File as FileIcon,
-  Grid3X3,
-  Image as ImageIcon,
   IndentDecrease,
   IndentIncrease,
   Italic,
   Link,
-  List,
-  Music,
-  Minus,
   PanelRight,
-  Quote,
   Save,
   Settings2,
   Strikethrough,
   Tags,
   Trash2,
-  Type,
   Underline,
-  Video,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FC, type KeyboardEvent, type MouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FC,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
 import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from '@blocknote/core';
 import { BlockNoteView } from '@blocknote/mantine';
 import { getDefaultReactSlashMenuItems, SideMenu, SideMenuController, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import { useI18n } from '../../shared/i18n/I18nProvider';
-import { ModalPortal } from '../../shared/components/ModalPortal';
 import { LoadingState } from '../../shared/components/LoadingState';
 import { Tooltip } from '../../shared/components/Tooltip';
 import { createId } from '../../shared/utils/idGenerator';
@@ -62,7 +62,10 @@ import {
 } from './editor/constants';
 import { countVisualBlocks, findBlockById, flattenBlocks, getContiguousListGroup, getCurrentBlock, insertBlock, insertHardBreak, stripBlockIds } from './editor/blockActions';
 import { createEmptyBlock, mergeDrawingBlockData, prepareInitialEditorContent, sanitizeInitialContent } from './editor/contentSanitizer';
+import { NoteRange, NoteSelect } from './editor/NoteEditorControls';
 import { noteSchema } from './editor/noteSchema';
+import { QuickBlockToolbar } from './editor/QuickBlockToolbar';
+import { UnsavedNoteChangesDialog } from './editor/UnsavedNoteChangesDialog';
 import type { AnyBlock, AnyEditor, NoteMode } from './editor/types';
 
 interface NoteEditorPageProps {
@@ -158,11 +161,13 @@ function NoteEditorWorkspace({
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [lastSavedLabel, setLastSavedLabel] = useState(note?.updatedAt ? 'загружено' : 'новая заметка');
   const [editorRevision, setEditorRevision] = useState(0);
+  const selectedBlockId = selectedBlock?.id ?? null;
   const saveNoteRef = useRef<() => Promise<void>>(async () => undefined);
   const discardNoteRef = useRef<() => void>(() => undefined);
   const editorRefreshFrameRef = useRef<number | null>(null);
   const mediaPreviewFrameRef = useRef<number | null>(null);
   const draftSaveTimeoutRef = useRef<number | null>(null);
+  const sidebarInteractionUntilRef = useRef(0);
 
   const uploadFile = useCallback((file: File) => uploadNoteFile(editorNoteId, file), [editorNoteId]);
 
@@ -262,9 +267,19 @@ function NoteEditorWorkspace({
   }, [editor]);
 
   const refreshSelectedBlock = useCallback(() => {
+    if (performance.now() < sidebarInteractionUntilRef.current) {
+      return;
+    }
+
     const block = getCurrentBlock(editor);
-    setSelectedBlock(block);
+    if (block) {
+      setSelectedBlock(block);
+    }
   }, [editor]);
+
+  const markSidebarInteraction = useCallback(() => {
+    sidebarInteractionUntilRef.current = performance.now() + 1000;
+  }, []);
 
   function scheduleEditorRefresh() {
     if (editorRefreshFrameRef.current !== null) {
@@ -292,9 +307,11 @@ function NoteEditorWorkspace({
     scheduleLightweightMediaPreviewSync();
     setDirty(true);
     scheduleEditorRefresh();
-    if (selectedBlock) {
-      const freshBlock = findBlockById(editor.document as AnyBlock[], selectedBlock.id);
-      setSelectedBlock(freshBlock ?? getCurrentBlock(editor));
+    if (selectedBlockId) {
+      const freshBlock = findBlockById(editor.document as AnyBlock[], selectedBlockId);
+      if (freshBlock) {
+        setSelectedBlock(freshBlock);
+      }
     }
   }
 
@@ -445,8 +462,10 @@ function NoteEditorWorkspace({
         onSave={() => void saveNote()}
       />
       {showLeaveDialog ? (
-        <UnsavedChangesDialog
-          onClose={() => setShowLeaveDialog(false)}
+        <UnsavedNoteChangesDialog
+          message="Save this note before leaving the editor?"
+          saveLabel="Save and leave"
+          onCancel={() => setShowLeaveDialog(false)}
           onDiscard={leaveWithoutSaving}
           onSave={() => void saveNote()}
         />
@@ -457,37 +476,37 @@ function NoteEditorWorkspace({
           <ReadOnlyNoteHeader title={title} tags={tags} />
         ) : (
           <>
-        <input
-          className="note-title-input"
-          value={title}
-          placeholder="Название заметки"
-          onChange={(event) => {
-            setTitle(event.target.value);
-            setDirty(true);
-          }}
-        />
-          <NoteMetadata
-            tags={tags}
-            groups={groups}
-            groupId={groupId}
-            tagInput={tagInput}
-            properties={properties}
-            onGroupChange={(value) => {
-              setGroupId(value);
-              setDirty(true);
-            }}
-            onTagInputChange={setTagInput}
-          onAddTag={addTag}
-          onRemoveTag={removeTag}
-          onChangeProperty={(property) => {
-            setProperties((current) => current.map((item) => (item.id === property.id ? property : item)));
-            setDirty(true);
-          }}
-          onRemoveProperty={(id) => {
-            setProperties((current) => current.filter((item) => item.id !== id));
-            setDirty(true);
-          }}
-        />
+            <input
+              className="note-title-input"
+              value={title}
+              placeholder="Название заметки"
+              onChange={(event) => {
+                setTitle(event.target.value);
+                setDirty(true);
+              }}
+            />
+            <NoteMetadata
+              tags={tags}
+              groups={groups}
+              groupId={groupId}
+              tagInput={tagInput}
+              properties={properties}
+              onGroupChange={(value) => {
+                setGroupId(value);
+                setDirty(true);
+              }}
+              onTagInputChange={setTagInput}
+              onAddTag={addTag}
+              onRemoveTag={removeTag}
+              onChangeProperty={(property) => {
+                setProperties((current) => current.map((item) => (item.id === property.id ? property : item)));
+                setDirty(true);
+              }}
+              onRemoveProperty={(id) => {
+                setProperties((current) => current.filter((item) => item.id !== id));
+                setDirty(true);
+              }}
+            />
           </>
         )}
       </div>
@@ -505,6 +524,7 @@ function NoteEditorWorkspace({
                 readOnly={isReadMode}
                 onChange={handleEditorChange}
                 onSelectionChange={refreshSelectedBlock}
+                onBlockActivate={setSelectedBlock}
               />
             </div>
             <EditorStatusBar editor={editor} revision={editorRevision} lastSavedLabel={lastSavedLabel} />
@@ -514,6 +534,7 @@ function NoteEditorWorkspace({
               editor={editor}
               block={selectedBlock}
               onBlockChange={(block) => setSelectedBlock(block)}
+              onInteract={markSidebarInteraction}
               onDirty={() => setDirty(true)}
             />
           ) : null}
@@ -627,52 +648,6 @@ function NoteLayoutWidthPicker({
   );
 }
 
-function UnsavedChangesDialog({
-  onClose,
-  onDiscard,
-  onSave,
-}: {
-  onClose: () => void;
-  onDiscard: () => void;
-  onSave: () => void;
-}) {
-  return (
-    <ModalPortal>
-    <div className="dialog-backdrop note-unsaved-dialog-backdrop" role="presentation" onMouseDown={onClose}>
-      <section
-        className="dialog note-unsaved-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="note-unsaved-dialog-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="note-unsaved-dialog-header">
-          <div>
-            <h3 id="note-unsaved-dialog-title">Есть несохранённые изменения</h3>
-            <p>Сохранить заметку перед выходом или выйти без сохранения?</p>
-          </div>
-          <button className="icon-button ghost" type="button" aria-label="Закрыть" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
-        <div className="dialog-actions note-unsaved-dialog-actions">
-          <button className="button ghost" type="button" onClick={onClose}>
-            Остаться
-          </button>
-          <button className="button danger" type="button" onClick={onDiscard}>
-            Выйти без сохранения
-          </button>
-          <button className="button accent" type="button" onClick={onSave}>
-            <Save size={17} />
-            Сохранить и выйти
-          </button>
-        </div>
-      </section>
-    </div>
-    </ModalPortal>
-  );
-}
-
 function ReadOnlyNoteHeader({ title, tags }: { title: string; tags: string[] }) {
   return (
     <div className="note-read-only-header">
@@ -721,17 +696,14 @@ function NoteMetadata({
   return (
     <div className="note-metadata">
       {groups.length > 0 ? (
-        <label className="note-group-select">
+        <div className="note-group-select">
           <span>{t('Group')}</span>
-          <select value={groupId ?? ''} onChange={(event) => onGroupChange(event.target.value || null)}>
-            <option value="">{t('No group')}</option>
-            {groups.map((group) => (
-              <option value={group.id} key={group.id}>
-                {group.title}
-              </option>
-            ))}
-          </select>
-        </label>
+          <NoteSelect
+            value={groupId ?? ''}
+            options={[{ value: '', label: t('No group') }, ...groups.map((group) => ({ value: group.id, label: group.title }))]}
+            onChange={(value) => onGroupChange(value || null)}
+          />
+        </div>
       ) : null}
       <div className="note-tag-row">
         <Tags size={17} />
@@ -803,138 +775,18 @@ function PropertyValueInput({ property, onChange }: { property: NoteProperty; on
   );
 }
 
-function QuickBlockToolbar({ onAddBlock }: { onAddBlock: (type: string) => void }) {
-  const blockItems = [
-    ['paragraph', <Type size={17} />, 'Text'],
-    ['list', <List size={17} />, 'List'],
-    ['table', <Grid3X3 size={17} />, 'Table'],
-    ['image', <ImageIcon size={17} />, 'Image'],
-    ['codeBlock', <Code2 size={17} />, 'Code'],
-    ['markdown', <Code2 size={16} />, 'Markdown'],
-    ['quote', <Quote size={16} />, 'Quote'],
-    ['toggle', <ChevronDown size={16} />, 'Toggle'],
-    ['divider', <Minus size={17} />, 'Divider'],
-    ['drawing', <Brush size={16} />, 'Drawing'],
-    ['video', <Video size={16} />, 'Video'],
-    ['audio', <Music size={16} />, 'Audio'],
-    ['file', <FileIcon size={16} />, 'File'],
-  ] as const;
-  const toolbarRef = useRef<HTMLDivElement | null>(null);
-  const measureRef = useRef<HTMLDivElement | null>(null);
-  const moreMeasureRef = useRef<HTMLButtonElement | null>(null);
-  const moreDetailsRef = useRef<HTMLDetailsElement | null>(null);
-  const [visibleCount, setVisibleCount] = useState<number>(blockItems.length);
-
-  const updateVisibleBlocks = useCallback(() => {
-    const toolbar = toolbarRef.current;
-    const measure = measureRef.current;
-    if (!toolbar || !measure) {
-      return;
-    }
-
-    const toolbarStyles = window.getComputedStyle(toolbar);
-    const gap = Number.parseFloat(toolbarStyles.columnGap || toolbarStyles.gap || '0') || 0;
-    const horizontalPadding =
-      (Number.parseFloat(toolbarStyles.paddingLeft) || 0) + (Number.parseFloat(toolbarStyles.paddingRight) || 0);
-    const availableWidth = Math.max(0, toolbar.clientWidth - horizontalPadding);
-    const itemWidths = Array.from(measure.querySelectorAll<HTMLElement>('[data-measure-item]')).map((item) =>
-      Math.ceil(item.getBoundingClientRect().width),
-    );
-    const moreWidth = Math.ceil(moreMeasureRef.current?.getBoundingClientRect().width ?? 0);
-    const totalWidth = itemWidths.reduce((sum, width) => sum + width, 0) + gap * Math.max(0, itemWidths.length - 1);
-
-    if (totalWidth <= availableWidth) {
-      setVisibleCount(blockItems.length);
-      return;
-    }
-
-    const availableForItems = Math.max(0, availableWidth - moreWidth - gap);
-    let usedWidth = 0;
-    let nextVisibleCount = 0;
-
-    for (const width of itemWidths) {
-      const nextWidth = usedWidth + (nextVisibleCount > 0 ? gap : 0) + width;
-      if (nextWidth > availableForItems) {
-        break;
-      }
-      usedWidth = nextWidth;
-      nextVisibleCount += 1;
-    }
-
-    setVisibleCount(Math.min(blockItems.length - 1, Math.max(0, nextVisibleCount)));
-  }, [blockItems.length]);
-
-  useLayoutEffect(() => {
-    updateVisibleBlocks();
-    const resizeObserver = new ResizeObserver(updateVisibleBlocks);
-    if (toolbarRef.current) {
-      resizeObserver.observe(toolbarRef.current);
-    }
-    window.addEventListener('resize', updateVisibleBlocks);
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener('resize', updateVisibleBlocks);
-    };
-  }, [updateVisibleBlocks]);
-
-  const visibleItems = blockItems.slice(0, visibleCount);
-  const moreItems = blockItems.slice(visibleCount);
-
-  function addBlockAndCloseMenu(type: string) {
-    onAddBlock(type);
-    moreDetailsRef.current?.removeAttribute('open');
-  }
-
-  return (
-    <div className="note-quick-toolbar" ref={toolbarRef}>
-      {visibleItems.map(([type, icon, label]) => (
-        <button className="button ghost" type="button" key={type} onClick={() => addBlockAndCloseMenu(type)}>
-          {icon}
-          {label}
-        </button>
-      ))}
-      {moreItems.length > 0 ? (
-        <details className="note-more-blocks" ref={moreDetailsRef}>
-          <summary className="button ghost">
-            <ChevronDown size={17} />
-            More blocks
-          </summary>
-          <div className="note-more-blocks-menu">
-            {moreItems.map(([type, icon, label]) => (
-              <button type="button" key={type} onClick={() => addBlockAndCloseMenu(type)}>
-                {icon}
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
-        </details>
-      ) : null}
-      <div className="note-quick-toolbar-measure" ref={measureRef} aria-hidden="true">
-        {blockItems.map(([type, icon, label]) => (
-          <button className="button ghost" type="button" tabIndex={-1} data-measure-item key={type}>
-            {icon}
-            {label}
-          </button>
-        ))}
-        <button className="button ghost" type="button" tabIndex={-1} ref={moreMeasureRef}>
-          <ChevronDown size={17} />
-          More blocks
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function BlockNoteEditorShell({
   editor,
   readOnly,
   onChange,
   onSelectionChange,
+  onBlockActivate,
 }: {
   editor: AnyEditor;
   readOnly: boolean;
   onChange: () => void;
   onSelectionChange: () => void;
+  onBlockActivate: (block: AnyBlock) => void;
 }) {
   function handleEditorKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (readOnly || event.key !== 'Enter' || event.altKey || event.ctrlKey || event.metaKey) {
@@ -960,8 +812,30 @@ function BlockNoteEditorShell({
     onChange();
   }
 
+  function handleBlockMouseDown(event: MouseEvent<HTMLDivElement>) {
+    if (readOnly) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    const blockElement = target?.closest<HTMLElement>('.bn-block-outer[data-id]');
+    const blockId = blockElement?.dataset.id;
+    if (!blockId) {
+      return;
+    }
+
+    const block = findBlockById(editor.document as AnyBlock[], blockId);
+    if (block) {
+      onBlockActivate(block);
+    }
+  }
+
   return (
-    <div className={`mymind-blocknote-shell${readOnly ? ' read-only' : ''}`} onKeyDownCapture={handleEditorKeyDown}>
+    <div
+      className={`mymind-blocknote-shell${readOnly ? ' read-only' : ''}`}
+      onKeyDownCapture={handleEditorKeyDown}
+      onMouseDownCapture={handleBlockMouseDown}
+    >
       <BlockNoteView
         editor={editor}
         theme="dark"
@@ -1039,11 +913,13 @@ function NotePropertiesPanel({
   editor,
   block,
   onBlockChange,
+  onInteract,
   onDirty,
 }: {
   editor: AnyEditor;
   block: AnyBlock | null;
   onBlockChange: (block: AnyBlock | null) => void;
+  onInteract: () => void;
   onDirty: () => void;
 }) {
   const [linkUrl, setLinkUrl] = useState('');
@@ -1064,6 +940,7 @@ function NotePropertiesPanel({
   const currentBlock = block;
 
   function updateBlock(patch: Record<string, unknown>) {
+    onInteract();
     const currentProps = { ...(currentBlock.props as Record<string, unknown>) };
     if (currentBlock.type === 'drawing') {
       delete currentProps.drawingData;
@@ -1115,7 +992,8 @@ function NotePropertiesPanel({
   const hasHeaderRow = Boolean(tableContent.headerRows);
   const hasHeaderColumn = Boolean(tableContent.headerCols);
   const activeStyles = editor.getActiveStyles() as Record<string, unknown>;
-  const selectedBlocks = editor.getSelection()?.blocks ?? [currentBlock];
+  const rawSelectedBlocks = editor.getSelection()?.blocks;
+  const selectedBlocks = rawSelectedBlocks?.some((item) => item.id === currentBlock.id) ? rawSelectedBlocks : [currentBlock];
   const selectedListGroup =
     LIST_BLOCK_TYPES.has(currentBlock.type) && selectedBlocks.length <= 1
       ? getContiguousListGroup(editor.document as AnyBlock[], currentBlock.id)
@@ -1165,9 +1043,9 @@ function NotePropertiesPanel({
               ? { type: 'toggleListItem', props: getCommonBlockProps(item) }
               : value === 'markdown'
                 ? { type: 'codeBlock', props: { ...getCommonBlockProps(item), language: 'markdown' } }
-              : type === 'heading'
-                ? { type: 'heading', props: { ...getCommonBlockProps(item), level: Number(level || 1), isToggleable: false } }
-                : { type, props: getCommonBlockProps(item) };
+                : type === 'heading'
+                  ? { type: 'heading', props: { ...getCommonBlockProps(item), level: Number(level || 1), isToggleable: false } }
+                  : { type, props: getCommonBlockProps(item) };
         editor.updateBlock(item, patch as any);
       }
     });
@@ -1260,7 +1138,7 @@ function NotePropertiesPanel({
   }
 
   return (
-    <aside className="note-settings-panel">
+    <aside className="note-settings-panel" onPointerDownCapture={onInteract}>
       <div className="note-settings-header">
         <h3>Настройки блока</h3>
         <PanelRight size={18} />
@@ -1270,39 +1148,47 @@ function NotePropertiesPanel({
           <h4>Форматирование</h4>
           <label className="note-settings-input">
             Тип блока
-            <select value={blockTypeValue} onChange={(event) => setBlockType(event.target.value)}>
-              <option value="paragraph">Paragraph</option>
-              <option value="list">List</option>
-              <option value="toggle">Toggle</option>
-              <option value="heading-1">Heading 1</option>
-              <option value="heading-2">Heading 2</option>
-              <option value="heading-3">Heading 3</option>
-              <option value="quote">Quote</option>
-              <option value="codeBlock">Code</option>
-              <option value="markdown">Markdown</option>
-            </select>
+            <NoteSelect
+              value={blockTypeValue}
+              options={[
+                { value: 'paragraph', label: 'Paragraph' },
+                { value: 'list', label: 'List' },
+                { value: 'toggle', label: 'Toggle' },
+                { value: 'heading-1', label: 'Heading 1' },
+                { value: 'heading-2', label: 'Heading 2' },
+                { value: 'heading-3', label: 'Heading 3' },
+                { value: 'quote', label: 'Quote' },
+                { value: 'codeBlock', label: 'Code' },
+                { value: 'markdown', label: 'Markdown' },
+              ]}
+              onChange={setBlockType}
+            />
           </label>
           {LIST_BLOCK_TYPES.has(block.type) ? (
             <label className="note-settings-input">
               Marker type
-              <select value={listMarkerValue} onChange={(event) => setListMarkerType(event.target.value)}>
-                <option value="bulletListItem">Bullet</option>
-                <option value="numberedListItem">Numbered</option>
-                <option value="checkListItem">Checkbox</option>
-              </select>
+              <NoteSelect
+                value={listMarkerValue}
+                options={[
+                  { value: 'bulletListItem', label: 'Bullet' },
+                  { value: 'numberedListItem', label: 'Numbered' },
+                  { value: 'checkListItem', label: 'Checkbox' },
+                ]}
+                onChange={setListMarkerType}
+              />
             </label>
           ) : null}
           {block.type === 'toggleListItem' || (block.type === 'heading' && (block.props as any).isToggleable) ? (
             <label className="note-settings-input">
               Toggle type
-              <select value={togglePresentationValue} onChange={(event) => setTogglePresentation(event.target.value)}>
-                <option value="toggleListItem">List toggle</option>
-                {TOGGLE_HEADING_LEVELS.map((level) => (
-                  <option value={`heading-${level}`} key={level}>
-                    Heading toggle {level}
-                  </option>
-                ))}
-              </select>
+              <NoteSelect
+                value={togglePresentationValue}
+                options={[
+                  { value: 'toggleListItem', label: 'List toggle' },
+                  ...TOGGLE_HEADING_LEVELS.map((level) => ({ value: `heading-${level}`, label: `Heading toggle ${level}` })),
+                ]}
+                onChange={setTogglePresentation}
+              />
             </label>
           ) : null}
           <div className="note-sidebar-tool-grid">
@@ -1408,13 +1294,12 @@ function NotePropertiesPanel({
           </div>
           <label className="note-settings-input">
             Thickness
-            <input
-              type="range"
-              min="1"
-              max="16"
-              step="1"
+            <NoteRange
+              min={1}
+              max={16}
+              step={1}
               value={Number((block.props as any).strokeWidth ?? 3)}
-              onChange={(event) => updateBlock({ strokeWidth: Number(event.target.value) })}
+              onChange={(value) => updateBlock({ strokeWidth: value })}
             />
           </label>
           <div className="note-drawing-width-row">
@@ -1440,14 +1325,13 @@ function NotePropertiesPanel({
               onChange={(event) => updateBlock({ canvasHeight: clampNumber(Number(event.target.value), 220, 900) })}
             />
           </label>
-          <input
+          <NoteRange
             className="note-drawing-height-slider"
-            type="range"
-            min="220"
-            max="900"
-            step="20"
+            min={220}
+            max={900}
+            step={20}
             value={Number((block.props as any).canvasHeight ?? DEFAULT_DRAWING_HEIGHT)}
-            onChange={(event) => updateBlock({ canvasHeight: Number(event.target.value) })}
+            onChange={(value) => updateBlock({ canvasHeight: value })}
           />
         </div>
       ) : null}
@@ -1472,14 +1356,13 @@ function NotePropertiesPanel({
               onChange={(event) => setImageWidth(Number(event.target.value))}
             />
           </label>
-          <input
+          <NoteRange
             className="note-image-width-slider"
-            type="range"
             min={IMAGE_MIN_WIDTH}
             max={imageMaxWidth}
-            step="10"
+            step={10}
             value={imageWidthValue}
-            onChange={(event) => setImageWidth(Number(event.target.value))}
+            onChange={setImageWidth}
           />
           <button className="button ghost compact-action full-width" type="button" onClick={() => setImageWidth(imageMaxWidth)}>
             По ширине блока

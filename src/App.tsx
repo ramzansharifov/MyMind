@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react
 import { AppShell } from './shared/components/AppShell';
 import { LoadingState } from './shared/components/LoadingState';
 import { Modal } from './shared/components/Modal';
+import { UnsavedNoteChangesDialog } from './modules/notes/editor/UnsavedNoteChangesDialog';
 import { storageClient } from './shared/storage/storageClient';
 import type { ModuleKey } from './shared/types/common';
 import { I18nProvider, useI18n } from './shared/i18n/I18nProvider';
@@ -257,7 +258,7 @@ export function App() {
       >
         <Suspense fallback={<LoadingState title="Opening module" message="Loading interface and tools..." variant="page" />}>{page}</Suspense>
         {pendingNavigation ? (
-          <UnsavedNoteNavigationDialog
+          <UnsavedNoteChangesDialog
             onCancel={() => setPendingNavigation(null)}
             onDiscard={discardNoteAndNavigate}
             onSave={() => void saveNoteAndNavigate()}
@@ -272,42 +273,6 @@ export function App() {
 interface NoteEditorNavigationActions {
   save: () => Promise<void>;
   discard: () => void;
-}
-
-function UnsavedNoteNavigationDialog({
-  onCancel,
-  onDiscard,
-  onSave,
-}: {
-  onCancel: () => void;
-  onDiscard: () => void;
-  onSave: () => void;
-}) {
-  const { t } = useI18n();
-
-  return (
-    <Modal
-      title="Unsaved note changes"
-      size="sm"
-      panelClassName="confirm-dialog"
-      onClose={onCancel}
-      footer={
-        <>
-          <button className="button ghost" type="button" onClick={onCancel}>
-            {t('Stay in editor')}
-          </button>
-          <button className="button danger" type="button" onClick={onDiscard}>
-            {t('Leave without saving')}
-          </button>
-          <button className="button primary" type="button" onClick={onSave}>
-            {t('Save and switch')}
-          </button>
-        </>
-      }
-    >
-      <p>{t('Save this note before switching modules?')}</p>
-    </Modal>
-  );
 }
 
 function ReminderModal({ reminder, onDismiss, onSnooze }: { reminder: AppReminder; onDismiss: () => void; onSnooze: () => void }) {
