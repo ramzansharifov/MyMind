@@ -22,7 +22,8 @@ assertIncludes('src/modules/notes/editor/noteSchema.ts', 'drawingBlockSpec');
 assertIncludes('src/modules/notes/editor/ReadOnlyBlocks.tsx', 'note-read-video');
 assertIncludes('src/modules/notes/editor/ReadOnlyBlocks.tsx', 'note-read-audio');
 assertIncludes('src/modules/notes/editor/ReadOnlyBlocks.tsx', 'note-read-file');
-assertIncludes('src/modules/notes/NoteEditorPage.tsx', "from './editor/ReadOnlyBlocks'");
+assertIncludes('src/modules/notes/NoteEditorWorkspace.tsx', "from './editor/ReadOnlyBlocks'");
+assertIncludes('src/modules/notes/NoteEditorPage.tsx', "from './NoteEditorWorkspace'");
 assertIncludes('src/shared/components/SimpleEntityPage.tsx', 'useCollectionItems');
 assertNotIncludes('src/vite-env.d.ts', 'tldraw');
 
