@@ -1626,7 +1626,9 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--surface-soft) 88%, black 12%);
   color: var(--text);
+  font: inherit;
   padding: 10px 12px;
+  cursor: pointer;
   text-decoration: none;
 }
 
@@ -2235,6 +2237,7 @@
 }
 
 .mymind-blocknote-shell .bn-block-outer {
+  position: relative;
   border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
   border-radius: 8px;
   background: color-mix(in srgb, var(--surface) 96%, white 4%);
@@ -2252,10 +2255,21 @@
 }
 
 .mymind-blocknote-shell .bn-block-outer.note-active-block {
-  border-color: color-mix(in srgb, var(--accent) 72%, var(--border));
+  border-color: var(--accent);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent),
-    0 14px 34px color-mix(in srgb, var(--shadow) 70%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--accent) 82%, transparent),
+    0 12px 30px color-mix(in srgb, var(--shadow) 62%, transparent);
+}
+
+.mymind-blocknote-shell .bn-block-outer.note-active-block::after {
+  position: absolute;
+  inset: -1px;
+  z-index: 2;
+  border: 1px solid var(--accent);
+  border-radius: inherit;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+  content: "";
+  pointer-events: none;
 }
 
 .mymind-blocknote-shell .bn-block {
@@ -2266,6 +2280,38 @@
   min-height: 58px;
   align-items: center;
   padding: 14px 18px;
+}
+
+.mymind-blocknote-shell .bn-block-content,
+.mymind-blocknote-shell .bn-block-content:focus,
+.mymind-blocknote-shell .bn-block-content:focus-visible,
+.mymind-blocknote-shell .bn-block-content.ProseMirror-selectednode,
+.mymind-blocknote-shell .bn-block-content .ProseMirror-selectednode,
+.mymind-blocknote-shell .bn-file-block-content-wrapper.ProseMirror-selectednode,
+.mymind-blocknote-shell .bn-visual-media-wrapper.ProseMirror-selectednode,
+.mymind-blocknote-shell .bn-visual-media.ProseMirror-selectednode,
+.mymind-blocknote-shell [data-node-view-wrapper].ProseMirror-selectednode,
+.mymind-blocknote-shell [data-node-view-content].ProseMirror-selectednode,
+.mymind-blocknote-shell .ProseMirror-selectednode:not(.bn-block-outer) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.mymind-blocknote-shell .bn-block-content.ProseMirror-selectednode > *,
+.mymind-blocknote-shell .ProseMirror-selectednode > .bn-block-content > *,
+.mymind-blocknote-shell .ProseMirror-selectednode > .bn-block-content > *:focus,
+.mymind-blocknote-shell .ProseMirror-selectednode > .bn-block-content > *:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.mymind-blocknote-shell .ProseMirror-selectednode:not(.bn-block-outer) {
+  background-color: transparent !important;
+}
+
+.mymind-blocknote-shell .ProseMirror-selectednode .bn-file-name-with-icon,
+.mymind-blocknote-shell .ProseMirror-selectednode .bn-file-name-with-icon:where(.dark, .dark *) {
+  background-color: transparent !important;
 }
 
 .mymind-blocknote-shell .bn-block-content[data-content-type="heading"] {
@@ -2401,10 +2447,6 @@
 .mymind-blocknote-shell .bn-block-content[data-content-type="codeBlock"] {
   align-items: stretch;
   padding: 16px;
-}
-
-.mymind-blocknote-shell .bn-block-content {
-  outline: none !important;
 }
 
 .mymind-blocknote-shell .bn-block-content[data-content-type="codeBlock"],
@@ -2683,6 +2725,19 @@
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
   box-shadow: none;
+}
+
+.mymind-blocknote-shell .bn-block-outer.note-active-block {
+  border-color: var(--accent) !important;
+  outline: 1px solid var(--accent);
+  outline-offset: 0;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent),
+    0 12px 30px color-mix(in srgb, var(--shadow) 62%, transparent) !important;
+}
+
+.mymind-blocknote-shell .bn-block-outer.note-active-block::after {
+  border-color: var(--accent);
 }
 
 .mymind-blocknote-shell .bn-trailing-block {

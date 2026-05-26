@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { useCreateBlockNote } from '@blocknote/react';
+import { useCreateBlockNote, useSelectedBlocks } from '@blocknote/react';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import { createId } from '../../shared/utils/idGenerator';
@@ -74,6 +74,7 @@ export function NoteEditorWorkspace({
   const mediaPreviewFrameRef = useRef<number | null>(null);
   const draftSaveTimeoutRef = useRef<number | null>(null);
   const sidebarInteractionUntilRef = useRef(0);
+  const manualBlockSelectionUntilRef = useRef(0);
 
   const uploadFile = useCallback((file: File) => uploadNoteFile(editorNoteId, file), [editorNoteId]);
 
@@ -94,8 +95,26 @@ export function NoteEditorWorkspace({
     },
     [editorNoteId],
   );
+  const blockNoteSelectedBlocks = useSelectedBlocks(editor as any) as AnyBlock[];
 
   const isReadMode = mode === 'read';
+
+  const activateBlock = useCallback((block: AnyBlock | null) => {
+    if (!block) {
+      return;
+    }
+
+    manualBlockSelectionUntilRef.current = performance.now() + 900;
+    setSelectedBlock(block);
+  }, []);
+
+  const activateBlockById = useCallback(
+    (blockId: string) => {
+      const block = findBlockById(editor.document as AnyBlock[], blockId);
+      activateBlock(block);
+    },
+    [activateBlock, editor],
+  );
 
   useEffect(() => {
     setSelectedBlock(getCurrentBlock(editor));
@@ -129,6 +148,18 @@ export function NoteEditorWorkspace({
     });
     return () => window.cancelAnimationFrame(frame);
   }, [editorRevision, mode, selectedBlockId]);
+
+  useEffect(() => {
+    const now = performance.now();
+    if (mode !== 'edit' || now < sidebarInteractionUntilRef.current || now < manualBlockSelectionUntilRef.current) {
+      return;
+    }
+
+    const block = blockNoteSelectedBlocks[0];
+    if (block?.id && block.id !== selectedBlockId) {
+      setSelectedBlock(block);
+    }
+  }, [blockNoteSelectedBlocks, mode, selectedBlockId]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -165,10 +196,7 @@ export function NoteEditorWorkspace({
         return;
       }
 
-      const block = findBlockById(editor.document as AnyBlock[], blockId);
-      if (block) {
-        setSelectedBlock(block);
-      }
+      activateBlockById(blockId);
     }
 
     window.addEventListener(DRAWING_BLOCK_DIRTY_EVENT, handleDrawingDirty);
@@ -177,10 +205,11 @@ export function NoteEditorWorkspace({
       window.removeEventListener(DRAWING_BLOCK_DIRTY_EVENT, handleDrawingDirty);
       window.removeEventListener(DRAWING_BLOCK_SELECTED_EVENT, handleDrawingSelected);
     };
-  }, [editor]);
+  }, [activateBlockById]);
 
   const refreshSelectedBlock = useCallback(() => {
-    if (performance.now() < sidebarInteractionUntilRef.current) {
+    const now = performance.now();
+    if (now < sidebarInteractionUntilRef.current || now < manualBlockSelectionUntilRef.current) {
       return;
     }
 
@@ -426,7 +455,7 @@ export function NoteEditorWorkspace({
         <div className="note-editor-main">
           {isReadMode ? <ReadOnlyBlocks blocks={mergeDrawingBlockData(editor.document as AnyBlock[])} /> : null}
           <div className={isReadMode ? 'note-live-editor-hidden' : undefined} aria-hidden={isReadMode}>
-            <BlockNoteEditorShell editor={editor} readOnly={isReadMode} onChange={handleEditorChange} onSelectionChange={refreshSelectedBlock} onBlockActivate={setSelectedBlock} />
+            <BlockNoteEditorShell editor={editor} readOnly={isReadMode} onChange={handleEditorChange} onSelectionChange={refreshSelectedBlock} onBlockActivate={activateBlock} />
           </div>
           <EditorStatusBar editor={editor} revision={editorRevision} lastSavedLabel={lastSavedLabel} />
         </div>

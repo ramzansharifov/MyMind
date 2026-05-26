@@ -2,7 +2,7 @@ import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from '@blockno
 import { BlockNoteView } from '@blocknote/mantine';
 import { getDefaultReactSlashMenuItems, SideMenu, SideMenuController, SuggestionMenuController } from '@blocknote/react';
 import { Brush, Code2 } from 'lucide-react';
-import type { FC, KeyboardEvent, MouseEvent } from 'react';
+import type { FC, KeyboardEvent, MouseEvent, PointerEvent } from 'react';
 import { BLOCKS_WITH_LIBRARY_ENTER } from './constants';
 import { findBlockById, getCurrentBlock, insertHardBreak } from './blockActions';
 import { createEmptyBlock } from './contentSanitizer';
@@ -41,7 +41,7 @@ export function BlockNoteEditorShell({ editor, readOnly, onChange, onSelectionCh
     onChange();
   }
 
-  function handleBlockMouseDown(event: MouseEvent<HTMLDivElement>) {
+  function handleBlockPointerDown(event: PointerEvent<HTMLDivElement>) {
     if (readOnly) {
       return;
     }
@@ -59,11 +59,30 @@ export function BlockNoteEditorShell({ editor, readOnly, onChange, onSelectionCh
     }
   }
 
+  function handleEditorClick(event: MouseEvent<HTMLDivElement>) {
+    if (readOnly) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    const fileBlock = target?.closest<HTMLElement>('.bn-block-content[data-content-type="file"]');
+    const link = target?.closest<HTMLAnchorElement>('a[href]');
+    const url = link?.getAttribute('href') ?? link?.href ?? '';
+    if (!fileBlock || !link || !url || !window.mymind?.files?.openContainingFolder) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    void window.mymind.files.openContainingFolder(url);
+  }
+
   return (
     <div
       className={`mymind-blocknote-shell${readOnly ? ' read-only' : ''}`}
       onKeyDownCapture={handleEditorKeyDown}
-      onMouseDownCapture={handleBlockMouseDown}
+      onClickCapture={handleEditorClick}
+      onPointerDownCapture={handleBlockPointerDown}
     >
       <BlockNoteView
         editor={editor}

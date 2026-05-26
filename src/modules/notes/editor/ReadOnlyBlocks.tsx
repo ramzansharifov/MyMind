@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
-import { ChevronDown, File as FileIcon } from 'lucide-react';
+import { ChevronDown, FolderOpen } from 'lucide-react';
 import { useI18n } from '../../../shared/i18n/I18nProvider';
 import { getCurrentDrawingData } from '../blocks/drawing';
 import { markdownToHtml } from '../noteUtils';
@@ -183,10 +183,10 @@ function renderReadOnlyBlock(block: AnyBlock, t: Translate): ReactNode {
     return (
       <figure className="note-read-block note-read-file" key={block.id}>
         {url ? (
-          <a className="note-read-file-link" href={url} target="_blank" rel="noreferrer">
-            <FileIcon size={18} />
+          <button className="note-read-file-link" type="button" onClick={() => void openContainingFolder(url)}>
+            <FolderOpen size={18} />
             <span>{name || url}</span>
-          </a>
+          </button>
         ) : (
           <div className="note-read-empty">{t('File')}</div>
         )}
@@ -211,6 +211,14 @@ function renderReadOnlyBlock(block: AnyBlock, t: Translate): ReactNode {
       {children}
     </div>
   );
+}
+
+async function openContainingFolder(url: string) {
+  if (!url || !window.mymind?.files?.openContainingFolder) {
+    return;
+  }
+
+  await window.mymind.files.openContainingFolder(url);
 }
 
 function ReadOnlyToggleBlock({ block, t }: { block: AnyBlock; t: Translate }) {

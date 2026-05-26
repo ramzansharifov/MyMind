@@ -188,11 +188,8 @@ async function listAssetFiles(directory = path.join(getDataDirectory(), 'assets'
 
 async function getAssetInfoFromUrl(url: string) {
   const assetsDirectory = await ensureAssetsDirectory();
-  let targetPath = '';
-
-  try {
-    targetPath = fileURLToPath(url);
-  } catch {
+  const targetPath = getPathFromLocalAssetUrl(url);
+  if (!targetPath) {
     return { url, exists: false, sizeBytes: 0 };
   }
 
@@ -210,6 +207,31 @@ async function getAssetInfoFromUrl(url: string) {
     }
     throw error;
   }
+}
+
+function getPathFromLocalAssetUrl(url: string) {
+  try {
+    if (url.startsWith('mymind-asset:')) {
+      const parsedUrl = new URL(url);
+      const relativePath = decodeURIComponent(parsedUrl.pathname.replace(/^\/+/, ''));
+      return resolveRelativeDataPath(relativePath);
+    }
+
+    return fileURLToPath(url);
+  } catch {
+    return '';
+  }
+}
+
+async function openContainingFolderFromUrl(url: string) {
+  const targetPath = getPathFromLocalAssetUrl(url);
+  if (!targetPath) {
+    throw new Error('Invalid file URL.');
+  }
+
+  const stats = await fs.stat(targetPath);
+  const folderPath = stats.isDirectory() ? targetPath : path.dirname(targetPath);
+  return shell.openPath(folderPath);
 }
 
 function isRetryableStorageError(error: unknown) {
@@ -1020,6 +1042,10 @@ export function registerStorageIpc() {
 
   ipcMain.handle('files:getAssetInfo', async (_event, url: string) => {
     return getAssetInfoFromUrl(url);
+  });
+
+  ipcMain.handle('files:openContainingFolder', async (_event, url: string) => {
+    return openContainingFolderFromUrl(url);
   });
 
   ipcMain.handle('notes:listIndex', async () => {

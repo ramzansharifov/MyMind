@@ -9,7 +9,7 @@ export const IMAGE_FALLBACK_MAX_WIDTH = 1200;
 const LIGHTWEIGHT_EDITOR_MEDIA_BLOCK_TYPES = new Set(['image', 'video', 'audio', 'file']);
 
 export function syncVisualListGroups(editor: AnyEditor) {
-  const root = document.querySelector('.mymind-blocknote-editor');
+  const root = getBlockNoteEditorRoot();
   if (!root) {
     return;
   }
@@ -43,14 +43,23 @@ export function syncVisualListGroups(editor: AnyEditor) {
 }
 
 export function syncActiveEditorBlock(blockId: string | null) {
-  const root = document.querySelector('.mymind-blocknote-editor');
+  const root = getBlockNoteEditorRoot();
   if (!root) {
     return;
   }
 
   const blockOuters = Array.from(root.querySelectorAll<HTMLElement>('.bn-block-outer[data-id]'));
   for (const outer of blockOuters) {
-    outer.classList.toggle('note-active-block', Boolean(blockId && outer.dataset.id === blockId));
+    outer.classList.remove('note-active-block');
+  }
+
+  if (!blockId) {
+    return;
+  }
+
+  const activeOuter = getBlockOuterById(root, blockId);
+  if (activeOuter) {
+    activeOuter.classList.add('note-active-block');
   }
 }
 
@@ -75,7 +84,7 @@ export function enforceLightweightMediaPreviews(editor: AnyEditor) {
 }
 
 export function clampImagePreviewWidths(editor: AnyEditor) {
-  const root = document.querySelector<HTMLElement>('.mymind-blocknote-editor');
+  const root = getBlockNoteEditorRoot();
   if (!root) {
     return;
   }
@@ -111,12 +120,12 @@ export function clampImagePreviewWidths(editor: AnyEditor) {
 }
 
 export function getImageBlockMaxWidth(blockId: string) {
-  const root = document.querySelector<HTMLElement>('.mymind-blocknote-editor');
+  const root = getBlockNoteEditorRoot();
   if (!root) {
     return IMAGE_FALLBACK_MAX_WIDTH;
   }
 
-  const outer = root.querySelector<HTMLElement>(`.bn-block-outer[data-id="${cssEscape(blockId)}"]`);
+  const outer = getBlockOuterById(root, blockId);
   const blockNode = outer?.querySelector<HTMLElement>('.bn-block');
   const content = outer?.querySelector<HTMLElement>('.bn-block-content[data-content-type="image"]');
   const maxWidth = getBlockMediaMaxWidth(root, outer, blockNode, content);
@@ -142,6 +151,14 @@ function getHorizontalPadding(element: HTMLElement) {
   const left = Number.parseFloat(styles.paddingLeft) || 0;
   const right = Number.parseFloat(styles.paddingRight) || 0;
   return left + right;
+}
+
+function getBlockNoteEditorRoot() {
+  return document.querySelector<HTMLElement>('.mymind-blocknote-shell .mymind-blocknote-editor, .mymind-blocknote-editor');
+}
+
+function getBlockOuterById(root: HTMLElement, blockId: string) {
+  return root.querySelector<HTMLElement>(`.bn-block-outer[data-id="${cssEscape(blockId)}"]`);
 }
 
 function cssEscape(value: string) {

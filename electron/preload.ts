@@ -46,5 +46,6 @@ contextBridge.exposeInMainWorld('mymind', {
     saveAsset: (payload: { name: string; data: ArrayBuffer }) => ipcRenderer.invoke('files:saveAsset', payload),
     listAssets: () => ipcRenderer.invoke('files:listAssets'),
     getAssetInfo: (url: string) => ipcRenderer.invoke('files:getAssetInfo', url),
+    openContainingFolder: (url: string) => ipcRenderer.invoke('files:openContainingFolder', url),
   },
 });
