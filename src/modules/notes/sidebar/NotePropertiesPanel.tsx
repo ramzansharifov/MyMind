@@ -51,6 +51,9 @@ export function NotePropertiesPanel({ editor, block, onBlockChange, onInteract, 
   const selectedBlocksHaveContent = selectedBlocks.some((item) => item.content !== undefined);
   const currentTextAlignment = String((currentBlock.props as Record<string, unknown>).textAlignment ?? 'left');
   const blockTypeValue = getSidebarBlockTypeValue(block);
+  const blockTypeLabel = getBlockTypeLabel(blockTypeValue);
+  const activeHeadingLevel =
+    block.type === 'heading' && !(block.props as Record<string, unknown>).isToggleable ? Number((block.props as Record<string, unknown>).level ?? 1) : null;
   const listMarkerValue = LIST_BLOCK_TYPES.has(block.type) ? block.type : 'bulletListItem';
   const togglePresentationValue =
     block.type === 'heading' && (block.props as Record<string, unknown>).isToggleable
@@ -129,22 +132,24 @@ export function NotePropertiesPanel({ editor, block, onBlockChange, onInteract, 
     onDirty();
   }
 
-  function setBlockType(value: string) {
-    const [type, level] = value.split('-');
+  function setTextHeadingLevel(level: number | null) {
     editor.focus();
     editor.transact(() => {
       for (const item of selectedBlocks) {
-        const patch =
-          value === 'list'
-            ? { type: 'bulletListItem', props: getCommonBlockProps(item) }
-            : value === 'toggle'
-              ? { type: 'toggleListItem', props: getCommonBlockProps(item) }
-              : value === 'markdown'
-                ? { type: 'codeBlock', props: { ...getCommonBlockProps(item), language: 'markdown' } }
-                : type === 'heading'
-                  ? { type: 'heading', props: { ...getCommonBlockProps(item), level: Number(level || 1), isToggleable: false } }
-                  : { type, props: getCommonBlockProps(item) };
-        editor.updateBlock(item, patch as any);
+        const isPlainTextBlock = item.type === 'paragraph' || (item.type === 'heading' && !(item.props as Record<string, unknown>).isToggleable);
+        if (!isPlainTextBlock) {
+          continue;
+        }
+
+        if (!level) {
+          editor.updateBlock(item, { type: 'paragraph', props: getCommonBlockProps(item) } as any);
+          continue;
+        }
+
+        editor.updateBlock(item, {
+          type: 'heading',
+          props: { ...getCommonBlockProps(item), level, isToggleable: false },
+        } as any);
       }
     });
 
@@ -245,10 +250,11 @@ export function NotePropertiesPanel({ editor, block, onBlockChange, onInteract, 
       {selectedBlocksHaveContent ? (
         <FormattingSection
           block={block}
-          blockTypeValue={blockTypeValue}
+          blockTypeLabel={blockTypeLabel}
           listMarkerValue={listMarkerValue}
           togglePresentationValue={togglePresentationValue}
           currentTextAlignment={currentTextAlignment}
+          activeHeadingLevel={activeHeadingLevel}
           activeStyles={activeStyles}
           linkTarget={linkTarget}
           linkUrl={linkUrl}
@@ -256,7 +262,7 @@ export function NotePropertiesPanel({ editor, block, onBlockChange, onInteract, 
           onApplyLink={applyLink}
           onCaptureLinkTarget={captureLinkTarget}
           onPreventToolbarBlur={preventToolbarBlur}
-          onSetBlockType={setBlockType}
+          onSetTextHeadingLevel={setTextHeadingLevel}
           onSetListMarkerType={setListMarkerType}
           onSetTogglePresentation={setTogglePresentation}
           onToggleTextStyle={toggleTextStyle}
@@ -291,4 +297,27 @@ export function NotePropertiesPanel({ editor, block, onBlockChange, onInteract, 
       <BlockActionsSection onDuplicate={duplicateBlock} onDelete={deleteBlock} />
     </aside>
   );
+}
+
+function getBlockTypeLabel(value: string) {
+  const labels: Record<string, string> = {
+    paragraph: 'Text',
+    list: 'List',
+    toggle: 'Toggle',
+    'heading-1': 'Heading 1',
+    'heading-2': 'Heading 2',
+    'heading-3': 'Heading 3',
+    quote: 'Quote',
+    codeBlock: 'Code',
+    markdown: 'Markdown',
+    table: 'Table',
+    image: 'Image',
+    video: 'Video',
+    audio: 'Audio',
+    file: 'File',
+    drawing: 'Drawing',
+    divider: 'Divider',
+  };
+
+  return labels[value] ?? value;
 }

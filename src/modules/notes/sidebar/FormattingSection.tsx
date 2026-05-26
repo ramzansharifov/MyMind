@@ -1,16 +1,17 @@
 import { AlignCenter, AlignLeft, AlignRight, Bold, IndentDecrease, IndentIncrease, Italic, Link, Strikethrough, Underline } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { Tooltip } from '../../../shared/components/Tooltip';
-import { LIST_BLOCK_TYPES, TOGGLE_HEADING_LEVELS } from '../editor/constants';
+import { LIST_BLOCK_TYPES } from '../editor/constants';
 import { NoteSelect } from '../editor/NoteEditorControls';
 import type { AnyBlock } from '../editor/types';
 
 interface FormattingSectionProps {
   block: AnyBlock;
-  blockTypeValue: string;
+  blockTypeLabel: string;
   listMarkerValue: string;
   togglePresentationValue: string;
   currentTextAlignment: string;
+  activeHeadingLevel: number | null;
   activeStyles: Record<string, unknown>;
   linkTarget: { from: number; to: number; text: string } | null;
   linkUrl: string;
@@ -18,7 +19,7 @@ interface FormattingSectionProps {
   onApplyLink: () => void;
   onCaptureLinkTarget: () => void;
   onPreventToolbarBlur: (event: MouseEvent) => void;
-  onSetBlockType: (value: string) => void;
+  onSetTextHeadingLevel: (level: number | null) => void;
   onSetListMarkerType: (value: string) => void;
   onSetTogglePresentation: (value: string) => void;
   onToggleTextStyle: (style: 'bold' | 'italic' | 'underline' | 'strike') => void;
@@ -29,10 +30,11 @@ interface FormattingSectionProps {
 
 export function FormattingSection({
   block,
-  blockTypeValue,
+  blockTypeLabel,
   listMarkerValue,
   togglePresentationValue,
   currentTextAlignment,
+  activeHeadingLevel,
   activeStyles,
   linkTarget,
   linkUrl,
@@ -40,7 +42,7 @@ export function FormattingSection({
   onApplyLink,
   onCaptureLinkTarget,
   onPreventToolbarBlur,
-  onSetBlockType,
+  onSetTextHeadingLevel,
   onSetListMarkerType,
   onSetTogglePresentation,
   onToggleTextStyle,
@@ -48,27 +50,33 @@ export function FormattingSection({
   onIndent,
   onOutdent,
 }: FormattingSectionProps) {
+  const canUseHeadingStyle = block.type === 'paragraph' || (block.type === 'heading' && !(block.props as Record<string, unknown>).isToggleable);
+
   return (
     <div className="note-settings-section note-drag-menu-section">
       <h4>Форматирование</h4>
-      <label className="note-settings-input">
-        Тип блока
-        <NoteSelect
-          value={blockTypeValue}
-          options={[
-            { value: 'paragraph', label: 'Paragraph' },
-            { value: 'list', label: 'List' },
-            { value: 'toggle', label: 'Toggle' },
-            { value: 'heading-1', label: 'Heading 1' },
-            { value: 'heading-2', label: 'Heading 2' },
-            { value: 'heading-3', label: 'Heading 3' },
-            { value: 'quote', label: 'Quote' },
-            { value: 'codeBlock', label: 'Code' },
-            { value: 'markdown', label: 'Markdown' },
-          ]}
-          onChange={onSetBlockType}
-        />
-      </label>
+      <div className="note-block-type-info">
+        <span>Тип блока</span>
+        <strong>{blockTypeLabel}</strong>
+      </div>
+      {canUseHeadingStyle ? (
+        <div className="note-settings-section">
+          <span className="note-settings-label">Тип текста</span>
+          <div className="note-settings-choice-row note-heading-choice-row">
+            {[1, 2, 3].map((level) => (
+              <button
+                className={activeHeadingLevel === level ? 'active' : ''}
+                type="button"
+                key={level}
+                onMouseDown={onPreventToolbarBlur}
+                onClick={() => onSetTextHeadingLevel(activeHeadingLevel === level ? null : level)}
+              >
+                H{level}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {LIST_BLOCK_TYPES.has(block.type) ? (
         <label className="note-settings-input">
           Marker type
@@ -84,17 +92,25 @@ export function FormattingSection({
         </label>
       ) : null}
       {block.type === 'toggleListItem' || (block.type === 'heading' && (block.props as Record<string, unknown>).isToggleable) ? (
-        <label className="note-settings-input">
-          Toggle type
-          <NoteSelect
-            value={togglePresentationValue}
-            options={[
-              { value: 'toggleListItem', label: 'List toggle' },
-              ...TOGGLE_HEADING_LEVELS.map((level) => ({ value: `heading-${level}`, label: `Heading toggle ${level}` })),
-            ]}
-            onChange={onSetTogglePresentation}
-          />
-        </label>
+        <div className="note-settings-section">
+          <span className="note-settings-label">Toggle heading</span>
+          <div className="note-settings-choice-row note-heading-choice-row">
+            {[1, 2, 3].map((level) => {
+              const value = `heading-${level}`;
+              return (
+                <button
+                  className={togglePresentationValue === value ? 'active' : ''}
+                  type="button"
+                  key={level}
+                  onMouseDown={onPreventToolbarBlur}
+                  onClick={() => onSetTogglePresentation(togglePresentationValue === value ? 'toggleListItem' : value)}
+                >
+                  H{level}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       ) : null}
       <div className="note-sidebar-tool-grid">
         <Tooltip content="Bold" position="top">

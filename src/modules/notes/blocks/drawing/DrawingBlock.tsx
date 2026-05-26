@@ -93,7 +93,7 @@ export const drawingBlockSpec = createBlockSpec(drawingBlockConfig, () => ({
       const toolbar = document.createElement('div');
       toolbar.className = 'note-simple-drawing-toolbar';
 
-      undoButton = createToolbarButton('Undo', () => {
+      undoButton = createToolbarButton('Undo', 'undo', () => {
         if (session.index <= 0) {
           return;
         }
@@ -102,7 +102,7 @@ export const drawingBlockSpec = createBlockSpec(drawingBlockConfig, () => ({
         applySnapshot(session.snapshots[session.index]);
       });
 
-      redoButton = createToolbarButton('Redo', () => {
+      redoButton = createToolbarButton('Redo', 'redo', () => {
         if (session.index >= session.snapshots.length - 1) {
           return;
         }
@@ -111,7 +111,7 @@ export const drawingBlockSpec = createBlockSpec(drawingBlockConfig, () => ({
         applySnapshot(session.snapshots[session.index]);
       });
 
-      const clearButton = createToolbarButton('Clear', () => {
+      const clearButton = createToolbarButton('Clear', 'clear', () => {
         const context = getCanvasContext(canvas);
         if (!context) {
           return;
@@ -266,10 +266,13 @@ export const drawingBlockSpec = createBlockSpec(drawingBlockConfig, () => ({
   },
 }));
 
-function createToolbarButton(label: string, onClick: () => void) {
+function createToolbarButton(label: string, icon: 'undo' | 'redo' | 'clear', onClick: () => void) {
   const button = document.createElement('button');
   button.type = 'button';
-  button.textContent = label;
+  button.className = 'note-simple-drawing-tool';
+  button.setAttribute('aria-label', label);
+  button.dataset.tooltip = label;
+  button.innerHTML = DRAWING_TOOL_ICONS[icon];
   button.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -277,6 +280,15 @@ function createToolbarButton(label: string, onClick: () => void) {
   });
   return button;
 }
+
+const DRAWING_TOOL_ICONS = {
+  undo:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-2"/></svg>',
+  redo:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h2"/></svg>',
+  clear:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-.8 14H5.8L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>',
+} as const;
 
 function getDrawingSession(blockId: string, initialData: string): DrawingSession {
   const existing = drawingSessions.get(blockId);

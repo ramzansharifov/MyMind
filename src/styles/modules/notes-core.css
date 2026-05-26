@@ -2503,19 +2503,66 @@
 }
 
 .note-simple-drawing-toolbar button {
-  min-height: 30px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
   border: 1px solid var(--line-soft);
   border-radius: 6px;
   background: color-mix(in srgb, var(--surface) 88%, white 12%);
   color: var(--text);
-  font: inherit;
-  padding: 5px 10px;
+  padding: 0;
   cursor: pointer;
+}
+
+.note-simple-drawing-toolbar button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
 }
 
 .note-simple-drawing-toolbar button:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
   background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+
+.note-simple-drawing-toolbar button::after {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 30;
+  width: max-content;
+  max-width: 160px;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 90%, black 10%);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--shadow) 76%, transparent);
+  color: var(--text);
+  content: attr(data-tooltip);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  opacity: 0;
+  padding: 6px 8px;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(4px);
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease;
+  visibility: hidden;
+}
+
+.note-simple-drawing-toolbar button:hover::after,
+.note-simple-drawing-toolbar button:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  visibility: visible;
 }
 
 .note-simple-drawing-toolbar button:disabled {
@@ -2946,6 +2993,29 @@
   font-size: 13px;
 }
 
+.note-block-type-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 82%, transparent);
+  padding: 8px 10px;
+}
+
+.note-block-type-info span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.note-block-type-info strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+}
+
 .note-drag-menu-section {
   padding-bottom: 10px;
 }
@@ -3063,6 +3133,11 @@
   background: var(--surface-soft);
   color: var(--text);
   padding: 6px 9px;
+}
+
+.note-heading-choice-row button {
+  min-width: 48px;
+  font-weight: 800;
 }
 
 .note-bottom-actions {
