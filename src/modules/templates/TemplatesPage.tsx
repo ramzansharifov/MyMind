@@ -59,6 +59,17 @@ export function TemplatesPage({ data, onChange }: TemplatesPageProps) {
     setActiveGroupId('all');
   }
 
+  function addTemplatesToGroup(itemsToAdd: TextTemplate[]) {
+    const timestamp = new Date().toISOString();
+    const idsToAdd = new Set(itemsToAdd.map((item) => item.id));
+    onChange({
+      ...data,
+      items: templates.map((template) =>
+        idsToAdd.has(template.id) ? { ...template, groupId: activeGroupId, updatedAt: timestamp } : template,
+      ),
+    });
+  }
+
   return (
     <section>
       <PageHeader
@@ -110,6 +121,10 @@ export function TemplatesPage({ data, onChange }: TemplatesPageProps) {
         onGroupsChange={(groups) => onChange({ ...data, groups })}
         onRenameGroup={renameGroup}
         onDeleteGroup={deleteGroup}
+        availableItems={activeTemplates.filter((template) => template.groupId !== activeGroupId)}
+        getItemLabel={(template) => template.title}
+        getItemDescription={(template) => template.category || ''}
+        onAddItemsToGroup={addTemplatesToGroup}
       >
           {filtered.length === 0 ? (
             <EmptyState title="No templates found" message="Add a template or relax the filters." />

@@ -75,6 +75,17 @@ export function ContactsPage({ data, onChange }: ContactsPageProps) {
     setActiveGroupId('all');
   }
 
+  function addContactsToGroup(itemsToAdd: Contact[]) {
+    const timestamp = new Date().toISOString();
+    const idsToAdd = new Set(itemsToAdd.map((item) => item.id));
+    onChange({
+      ...data,
+      items: contacts.map((contact) =>
+        idsToAdd.has(contact.id) ? { ...contact, groupId: activeGroupId, updatedAt: timestamp } : contact,
+      ),
+    });
+  }
+
   return (
     <section>
       <PageHeader title="Contacts" subtitle="People, relationships, birthdays, memory notes, and social links." actions={<AddButton label="Add contact" onClick={() => setEditing(null)} />} />
@@ -89,6 +100,10 @@ export function ContactsPage({ data, onChange }: ContactsPageProps) {
           onGroupsChange={(groups) => onChange({ ...data, groups })}
         onRenameGroup={renameGroup}
         onDeleteGroup={deleteGroup}
+        availableItems={activeContacts.filter((contact) => contact.groupId !== activeGroupId)}
+        getItemLabel={(contact) => contact.name}
+        getItemDescription={(contact) => contact.relationship || ''}
+        onAddItemsToGroup={addContactsToGroup}
       >
           {visibleContacts.length === 0 ? (
             <EmptyState title="No contacts" message="Add people you want to remember and follow up with." />

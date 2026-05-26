@@ -81,6 +81,17 @@ export function JournalPage({ data, onChange }: JournalPageProps) {
     setActiveGroupId('all');
   }
 
+  function addEntriesToGroup(itemsToAdd: JournalEntry[]) {
+    const timestamp = new Date().toISOString();
+    const idsToAdd = new Set(itemsToAdd.map((item) => item.id));
+    onChange({
+      ...data,
+      items: entries.map((entry) =>
+        idsToAdd.has(entry.id) ? { ...entry, groupId: activeGroupId, updatedAt: timestamp } : entry,
+      ),
+    });
+  }
+
   return (
     <section>
       <PageHeader
@@ -138,6 +149,10 @@ export function JournalPage({ data, onChange }: JournalPageProps) {
         onGroupsChange={(groups) => onChange({ ...data, groups })}
         onRenameGroup={renameGroup}
         onDeleteGroup={deleteGroup}
+        availableItems={activeEntries.filter((entry) => entry.groupId !== activeGroupId)}
+        getItemLabel={(entry) => entry.title || entry.content.slice(0, 50)}
+        getItemDescription={(entry) => entry.createdAt.slice(0, 10)}
+        onAddItemsToGroup={addEntriesToGroup}
       >
           {filtered.length === 0 ? (
             <EmptyState title="No diary entries" message="Write local notes that stay on this machine." />

@@ -1,7 +1,8 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Edit3 } from 'lucide-react';
+import { Edit3, UserPlus } from 'lucide-react';
 import { AddButton, DeleteButton } from './ActionButtons';
 import { FormModal } from './FormModal';
+import { ItemSelectionModal } from './ItemSelectionModal';
 import { TextField } from './FormFields';
 import { useI18n } from '../i18n/I18nProvider';
 import { createId } from '../utils/idGenerator';
@@ -91,7 +92,7 @@ export function ContentGroupsPanel({
   );
 }
 
-interface ContentGroupWorkspaceHeaderProps {
+interface ContentGroupWorkspaceHeaderProps<T> {
   groups: Array<ContentGroup & { kind?: string }>;
   activeGroupId: string;
   itemCount: number;
@@ -99,9 +100,13 @@ interface ContentGroupWorkspaceHeaderProps {
   onDeleteGroup: (groupId: string) => void;
   canManageGroup?: (group: ContentGroup & { kind?: string }) => boolean;
   actions?: ReactNode;
+  availableItems?: T[];
+  getItemLabel?: (item: T) => string;
+  getItemDescription?: (item: T) => string;
+  onAddItemsToGroup?: (items: T[]) => void;
 }
 
-export function ContentGroupWorkspaceHeader({
+export function ContentGroupWorkspaceHeader<T extends { id: string }>({
   groups,
   activeGroupId,
   itemCount,
@@ -109,10 +114,15 @@ export function ContentGroupWorkspaceHeader({
   onDeleteGroup,
   canManageGroup = () => true,
   actions,
-}: ContentGroupWorkspaceHeaderProps) {
+  availableItems,
+  getItemLabel,
+  getItemDescription,
+  onAddItemsToGroup,
+}: ContentGroupWorkspaceHeaderProps<T>) {
   const { t } = useI18n();
   const group = groups.find((item) => item.id === activeGroupId);
   const [isEditing, setIsEditing] = useState(false);
+  const [isAddingItems, setIsAddingItems] = useState(false);
   const [title, setTitle] = useState(group?.title ?? '');
 
   if (!group) {
@@ -139,9 +149,19 @@ export function ContentGroupWorkspaceHeader({
           {itemCount} {t('items')}
         </small>
       </div>
-      {canManageSelectedGroup || actions ? (
+      {canManageSelectedGroup || actions || (onAddItemsToGroup && activeGroupId !== 'all') ? (
         <div className="content-group-actions">
           {actions}
+          {onAddItemsToGroup && activeGroupId !== 'all' ? (
+            <button
+              className="button ghost content-group-action-button"
+              type="button"
+              onClick={() => setIsAddingItems(true)}
+            >
+              <UserPlus size={16} aria-hidden="true" />
+              <span>{t('Add items')}</span>
+            </button>
+          ) : null}
           {canManageSelectedGroup ? (
             <>
               <button
@@ -179,6 +199,19 @@ export function ContentGroupWorkspaceHeader({
         />
       ) : null}
 
+      {isAddingItems && availableItems && getItemLabel && onAddItemsToGroup ? (
+        <ItemSelectionModal
+          title="Add items to group"
+          items={availableItems}
+          getItemLabel={getItemLabel}
+          getItemDescription={getItemDescription}
+          onCancel={() => setIsAddingItems(false)}
+          onConfirm={(selected) => {
+            onAddItemsToGroup(selected);
+            setIsAddingItems(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
