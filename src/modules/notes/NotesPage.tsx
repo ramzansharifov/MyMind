@@ -126,6 +126,13 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
     onChange({ ...data, groups: groups.map((group) => (group.id === groupId ? { ...group, title, updatedAt: timestamp } : group)) });
   }
 
+  async function addNotesToGroup(itemsToAdd: Note[]) {
+    const timestamp = new Date().toISOString();
+    const idsToAdd = new Set(itemsToAdd.map((item) => item.id));
+    await noteStorageClient.patchManyNoteMetadata(Array.from(idsToAdd), { groupId: activeGroupId, updatedAt: timestamp });
+    await loadNotes();
+  }
+
   async function deleteGroup(groupId: string) {
     const timestamp = new Date().toISOString();
     const affectedNoteIds = notes.filter((note) => note.groupId === groupId).map((note) => note.id);
@@ -231,6 +238,10 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
         onGroupsChange={(groups) => onChange({ ...data, groups })}
         onRenameGroup={renameGroup}
         onDeleteGroup={deleteGroup}
+        availableItems={visibleNotes.filter((note) => note.groupId !== activeGroupId)}
+        getItemLabel={(note) => note.title}
+        getItemDescription={(note) => note.category || ''}
+        onAddItemsToGroup={addNotesToGroup}
       >
           {loadingNotes ? (
             <LoadingState title="Loading notes" message="Preparing note index..." />

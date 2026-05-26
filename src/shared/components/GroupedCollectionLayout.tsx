@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { ContentGroupsPanel, ContentGroupWorkspaceHeader } from './ContentGroupsPanel';
 import type { ContentGroup } from '../types/common';
 
-interface GroupedCollectionLayoutProps {
+interface GroupedCollectionLayoutProps<T> {
   groups: ContentGroup[];
   totalCount: number;
   activeGroupId: string;
@@ -14,9 +14,13 @@ interface GroupedCollectionLayoutProps {
   onGroupsChange: (groups: ContentGroup[]) => void;
   onRenameGroup: (groupId: string, title: string) => void;
   onDeleteGroup: (groupId: string) => void;
+  availableItems?: T[];
+  getItemLabel?: (item: T) => string;
+  getItemDescription?: (item: T) => string;
+  onAddItemsToGroup?: (items: T[]) => void;
 }
 
-export function GroupedCollectionLayout({
+export function GroupedCollectionLayout<T extends { id: string }>({
   groups,
   totalCount,
   activeGroupId,
@@ -28,7 +32,11 @@ export function GroupedCollectionLayout({
   onGroupsChange,
   onRenameGroup,
   onDeleteGroup,
-}: GroupedCollectionLayoutProps) {
+  availableItems,
+  getItemLabel,
+  getItemDescription,
+  onAddItemsToGroup,
+}: GroupedCollectionLayoutProps<T>) {
   return (
     <div className="todo-workspace grouped-collection-layout">
       {filters ? <div className="todo-filters-row grouped-collection-filters">{filters}</div> : null}
@@ -47,6 +55,10 @@ export function GroupedCollectionLayout({
           itemCount={itemCount}
           onRenameGroup={onRenameGroup}
           onDeleteGroup={onDeleteGroup}
+          availableItems={availableItems}
+          getItemLabel={getItemLabel}
+          getItemDescription={getItemDescription}
+          onAddItemsToGroup={onAddItemsToGroup}
         />
         {children}
       </section>
