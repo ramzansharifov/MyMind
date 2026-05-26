@@ -1,7 +1,6 @@
 import { NoteRange } from '../editor/NoteEditorControls';
 import type { AnyBlock } from '../editor/types';
 import { IMAGE_MIN_WIDTH } from '../utils/noteEditorDom';
-import { SettingChoiceRow } from './SettingChoiceRow';
 
 interface ImageSettingsSectionProps {
   block: AnyBlock;
@@ -22,12 +21,6 @@ export function ImageSettingsSection({ block, imageWidthValue, imageMaxWidth, on
       <button className="button ghost compact-action full-width" type="button" onClick={() => onSetImageWidth(imageMaxWidth)}>
         По ширине блока
       </button>
-      <SettingChoiceRow
-        label="Выравнивание"
-        value={String((block.props as Record<string, unknown>).textAlignment ?? 'left')}
-        options={['left', 'center', 'right']}
-        onChange={(value) => onUpdateBlock({ textAlignment: value })}
-      />
       <label className="note-settings-input">
         Подпись
         <input value={String((block.props as Record<string, unknown>).caption ?? '')} onChange={(event) => onUpdateBlock({ caption: event.target.value })} />

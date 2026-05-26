@@ -67,6 +67,11 @@ function prepareInitialEditorBlock(block: AnyPartialBlock): AnyPartialBlock {
     delete props.drawingData;
   }
 
+  if (source.type === 'divider' && props) {
+    props.dividerColor = props.dividerColor ?? props.backgroundColor ?? 'default';
+    delete props.backgroundColor;
+  }
+
   return {
     ...source,
     ...(blockId ? { id: blockId } : {}),
@@ -150,7 +155,7 @@ export function createEmptyBlock(type: string): AnyPartialBlock {
     return { type, props: { showPreview: false } } as any;
   }
   if (type === 'divider') {
-    return { type: 'divider' } as any;
+    return { type: 'divider', props: { dividerColor: 'default' } } as any;
   }
   if (type === 'markdown') {
     return { type: 'codeBlock', props: { language: 'markdown' } } as any;

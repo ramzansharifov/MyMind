@@ -403,7 +403,7 @@ function legacyBlocksToBlockNote(blocks: MyMindEditorBlock[]): MyMindEditorConte
     }
 
     if (type === 'divider') {
-      result.push({ type: 'divider' });
+      result.push({ type: 'divider', props: { dividerColor: 'default' } });
       continue;
     }
 

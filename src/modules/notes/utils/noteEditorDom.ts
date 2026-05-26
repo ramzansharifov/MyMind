@@ -42,6 +42,18 @@ export function syncVisualListGroups(editor: AnyEditor) {
   }
 }
 
+export function syncActiveEditorBlock(blockId: string | null) {
+  const root = document.querySelector('.mymind-blocknote-editor');
+  if (!root) {
+    return;
+  }
+
+  const blockOuters = Array.from(root.querySelectorAll<HTMLElement>('.bn-block-outer[data-id]'));
+  for (const outer of blockOuters) {
+    outer.classList.toggle('note-active-block', Boolean(blockId && outer.dataset.id === blockId));
+  }
+}
+
 export function enforceLightweightMediaPreviews(editor: AnyEditor) {
   for (const block of flattenBlocks(editor.document as AnyBlock[])) {
     if (!LIGHTWEIGHT_EDITOR_MEDIA_BLOCK_TYPES.has(block.type)) {

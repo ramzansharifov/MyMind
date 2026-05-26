@@ -571,7 +571,7 @@
 .block-divider {
   width: 100%;
   border: 0;
-  border-top: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-top: 1px solid var(--note-divider-color, color-mix(in srgb, var(--accent) 45%, var(--border)));
 }
 
 .block-callout,
@@ -1491,11 +1491,31 @@
   color: color-mix(in srgb, var(--text) 88%, var(--muted));
 }
 
-.note-read-code {
-  overflow: auto;
+.note-read-code-card {
+  overflow: hidden;
   border: 1px solid var(--line-soft);
   border-radius: 6px;
   background: color-mix(in srgb, var(--surface) 72%, black 28%);
+}
+
+.note-read-code-card figcaption {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  border-bottom: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--surface-soft) 72%, black 28%);
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  padding: 0 12px;
+  text-transform: uppercase;
+}
+
+.note-read-code {
+  overflow: auto;
+  margin: 0;
+  background: transparent;
   padding: 14px;
   font-family: var(--font-mono, monospace);
   white-space: pre-wrap;
@@ -1545,7 +1565,7 @@
 .note-read-divider {
   width: 100%;
   border: 0;
-  border-top: 1px solid var(--line-soft);
+  border-top: 1px solid var(--note-divider-color, var(--line-soft));
 }
 
 .note-read-table-wrap {
@@ -2225,11 +2245,17 @@
     box-shadow 0.16s ease;
 }
 
-.mymind-blocknote-shell .bn-block-outer:hover,
-.mymind-blocknote-shell .bn-block-outer:focus-within {
+.mymind-blocknote-shell .bn-block-outer:hover {
   border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
   background: color-mix(in srgb, var(--surface) 96%, white 4%);
   box-shadow: 0 14px 34px color-mix(in srgb, var(--shadow) 70%, transparent);
+}
+
+.mymind-blocknote-shell .bn-block-outer.note-active-block {
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent),
+    0 14px 34px color-mix(in srgb, var(--shadow) 70%, transparent);
 }
 
 .mymind-blocknote-shell .bn-block {
@@ -2244,6 +2270,11 @@
 
 .mymind-blocknote-shell .bn-block-content[data-content-type="heading"] {
   min-height: 68px;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="divider"] {
+  min-height: 58px;
+  background: transparent !important;
 }
 
 .mymind-blocknote-shell .bn-block-content[data-content-type="toggleListItem"] {
@@ -2370,6 +2401,22 @@
 .mymind-blocknote-shell .bn-block-content[data-content-type="codeBlock"] {
   align-items: stretch;
   padding: 16px;
+}
+
+.mymind-blocknote-shell .bn-block-content {
+  outline: none !important;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="codeBlock"],
+.mymind-blocknote-shell .bn-block-content[data-content-type="codeBlock"] pre,
+.mymind-blocknote-shell .bn-block-content[data-content-type="codeBlock"] code,
+.mymind-blocknote-shell .bn-block-content[data-content-type="codeBlock"] [contenteditable="true"] {
+  background: color-mix(in srgb, var(--surface) 96%, white 4%) !important;
+}
+
+.mymind-blocknote-shell .bn-block-content[data-content-type="codeBlock"] pre,
+.mymind-blocknote-shell .bn-block-content[data-content-type="codeBlock"] code {
+  color: var(--text);
 }
 
 .mymind-blocknote-shell .bn-block-content[data-content-type="drawing"] {

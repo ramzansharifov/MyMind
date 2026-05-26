@@ -1,4 +1,5 @@
 import { BlockNoteSchema, defaultBlockSpecs } from '@blocknote/core';
+import { dividerBlockSpec } from '../blocks/divider';
 import { drawingBlockSpec } from '../blocks/drawing';
 import { BLOCKS_WITH_LIBRARY_ENTER } from './constants';
 
@@ -27,6 +28,7 @@ const noteBlockSpecs = Object.fromEntries(
 export const noteSchema = BlockNoteSchema.create({
   blockSpecs: {
     ...noteBlockSpecs,
+    divider: dividerBlockSpec(),
     drawing: drawingBlockSpec(),
   },
 });

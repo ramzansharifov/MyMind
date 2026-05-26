@@ -8,9 +8,14 @@ interface ColorSectionProps {
 }
 
 export function ColorSection({ block, onUpdateBlock }: ColorSectionProps) {
-  if (!supportsTextColor(block.type) && !supportsBackgroundColor(block.type)) {
+  const isDivider = block.type === 'divider';
+
+  if (!supportsTextColor(block.type) && !supportsBackgroundColor(block.type) && !isDivider) {
     return null;
   }
+
+  const backgroundLabel = isDivider ? 'Цвет дивайдера' : 'Цвет фона';
+  const backgroundValue = isDivider ? (block.props as Record<string, unknown>).dividerColor : (block.props as Record<string, unknown>).backgroundColor;
 
   return (
     <div className="note-settings-section note-drag-menu-section">
@@ -23,12 +28,12 @@ export function ColorSection({ block, onUpdateBlock }: ColorSectionProps) {
             onChange={(value) => onUpdateBlock({ textColor: value })}
           />
         ) : null}
-        {supportsBackgroundColor(block.type) ? (
+        {supportsBackgroundColor(block.type) || isDivider ? (
           <SettingColorRow
-            label="Цвет фона"
+            label={backgroundLabel}
             kind="background"
-            value={String((block.props as Record<string, unknown>).backgroundColor ?? 'default')}
-            onChange={(value) => onUpdateBlock({ backgroundColor: value })}
+            value={String(backgroundValue ?? 'default')}
+            onChange={(value) => onUpdateBlock(isDivider ? { dividerColor: value } : { backgroundColor: value })}
           />
         ) : null}
       </div>

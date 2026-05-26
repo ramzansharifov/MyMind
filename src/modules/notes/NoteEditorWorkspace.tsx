@@ -22,7 +22,7 @@ import { NotePropertiesPanel } from './sidebar/NotePropertiesPanel';
 import { editorContentToPlainText, getNoteEditorContent, NOTE_SCHEMA_VERSION } from './noteUtils';
 import { noteStorageClient } from './storage/noteStorageClient';
 import type { Note, NoteLayoutWidth, NoteProperty } from './types';
-import { clampImagePreviewWidths, enforceLightweightMediaPreviews, syncVisualListGroups } from './utils/noteEditorDom';
+import { clampImagePreviewWidths, enforceLightweightMediaPreviews, syncActiveEditorBlock, syncVisualListGroups } from './utils/noteEditorDom';
 import { logNoteSaveDiagnostics } from './utils/noteEditorStats';
 import { uploadNoteFile } from './utils/noteEditorUpload';
 
@@ -122,6 +122,13 @@ export function NoteEditorWorkspace({
     });
     return () => window.cancelAnimationFrame(frame);
   }, [editor, editorRevision, mode]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      syncActiveEditorBlock(mode === 'edit' ? selectedBlockId : null);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [editorRevision, mode, selectedBlockId]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {

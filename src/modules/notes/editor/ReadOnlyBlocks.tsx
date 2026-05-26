@@ -6,6 +6,7 @@ import { markdownToHtml } from '../noteUtils';
 import { DEFAULT_DRAWING_HEIGHT } from './constants';
 import { inlineContentToSafeString } from './contentSanitizer';
 import type { AnyBlock } from './types';
+import { resolveCssColor } from '../utils/noteEditorFormatting';
 
 export function ReadOnlyBlocks({ blocks }: { blocks: AnyBlock[] }) {
   const { t } = useI18n();
@@ -94,7 +95,8 @@ function renderReadOnlyBlock(block: AnyBlock, t: Translate): ReactNode {
   }
 
   if (block.type === 'codeBlock') {
-    const language = String((block.props as any).language ?? '').toLowerCase();
+    const languageRaw = String((block.props as any).language ?? '').trim();
+    const language = languageRaw.toLowerCase();
     if (language === 'markdown' || language === 'md') {
       return (
         <div
@@ -106,14 +108,23 @@ function renderReadOnlyBlock(block: AnyBlock, t: Translate): ReactNode {
     }
 
     return (
-      <pre className="note-read-block note-read-code" key={block.id}>
-        <code>{inlineContentToSafeString(block.content)}</code>
-      </pre>
+      <figure className="note-read-block note-read-code-card" key={block.id}>
+        {languageRaw ? <figcaption>{languageRaw}</figcaption> : null}
+        <pre className="note-read-code">
+          <code>{inlineContentToSafeString(block.content)}</code>
+        </pre>
+      </figure>
     );
   }
 
   if (block.type === 'divider') {
-    return <hr className="note-read-divider" key={block.id} />;
+    return (
+      <hr
+        className="note-read-divider"
+        key={block.id}
+        style={{ '--note-divider-color': resolveCssColor((block.props as any).dividerColor ?? (block.props as any).backgroundColor ?? 'default', 'background') } as CSSProperties}
+      />
+    );
   }
 
   if (block.type === 'table') {
