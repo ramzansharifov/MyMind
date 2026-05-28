@@ -1,5 +1,5 @@
 import type { AnyBlock } from '../editor/types';
-import { COLOR_PRESETS, LIST_BLOCK_TYPES, type BlockNoteColor } from '../editor/constants';
+import { COLOR_PRESETS, LIST_BLOCK_TYPES, TEXT_SIZE_BLOCK_TYPES, TEXT_SIZE_DEFAULT, TEXT_SIZE_MAX, TEXT_SIZE_MIN, type BlockNoteColor } from '../editor/constants';
 
 export function supportsTextColor(type: string) {
   return ['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem', 'quote', 'callout'].includes(type);
@@ -7,6 +7,10 @@ export function supportsTextColor(type: string) {
 
 export function supportsBackgroundColor(type: string) {
   return ['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem', 'quote', 'callout', 'image'].includes(type);
+}
+
+export function supportsTextSize(type: string) {
+  return TEXT_SIZE_BLOCK_TYPES.has(type);
 }
 
 export function getSidebarBlockTypeValue(block: AnyBlock) {
@@ -72,4 +76,83 @@ export function clampNumber(value: number, min: number, max: number) {
   }
 
   return Math.min(max, Math.max(min, value));
+}
+
+export function normalizeTextSize(value: unknown) {
+  const textSize = Number(value);
+  if (!Number.isFinite(textSize) || textSize <= 0) {
+    return '';
+  }
+
+  return String(Math.round(clampNumber(textSize, TEXT_SIZE_MIN, TEXT_SIZE_MAX)));
+}
+
+export function getBlockTextSizeValue(block: AnyBlock) {
+  return normalizeTextSize((block.props as Record<string, unknown>).textSize) || getInlineTextSizeValue(block.content);
+}
+
+export function getEffectiveTextSize(value: unknown) {
+  const normalized = normalizeTextSize(value);
+  return normalized ? Number(normalized) : TEXT_SIZE_DEFAULT;
+}
+
+export function getInlineTextSizeValue(content: unknown): string {
+  if (!Array.isArray(content)) {
+    return '';
+  }
+
+  for (const item of content) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+
+    const value = item as Record<string, any>;
+    const textSize = normalizeTextSize(value.styles?.textSize);
+    if (textSize) {
+      return textSize;
+    }
+
+    const nestedTextSize = getInlineTextSizeValue(value.content);
+    if (nestedTextSize) {
+      return nestedTextSize;
+    }
+  }
+
+  return '';
+}
+
+export function applyTextSizeToInlineContent(content: unknown, value: unknown): unknown {
+  const textSize = normalizeTextSize(value);
+
+  if (typeof content === 'string') {
+    return content ? [{ type: 'text', text: content, styles: textSize ? { textSize } : {} }] : content;
+  }
+
+  if (!Array.isArray(content)) {
+    return content;
+  }
+
+  return content.map((item) => {
+    if (!item || typeof item !== 'object') {
+      return item;
+    }
+
+    const next = { ...(item as Record<string, any>) };
+
+    if (typeof next.text === 'string') {
+      const styles = { ...(next.styles ?? {}) };
+      if (textSize) {
+        styles.textSize = textSize;
+      } else {
+        delete styles.textSize;
+      }
+      next.styles = styles;
+    }
+
+    if (Array.isArray(next.content)) {
+      next.content = applyTextSizeToInlineContent(next.content, textSize);
+    }
+
+    return next;
+  });
 }

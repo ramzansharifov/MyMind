@@ -1,5 +1,6 @@
 import { createId } from '../../../shared/utils/idGenerator';
 import { getCurrentDrawingData, setCurrentDrawingData } from '../blocks/drawing';
+import { applyTextSizeToInlineContent, normalizeTextSize } from '../utils/noteEditorFormatting';
 import { DEFAULT_DRAWING_HEIGHT, EMPTY_DOCUMENT, SUPPORTED_BLOCK_TYPES } from './constants';
 import type { AnyBlock, AnyPartialBlock } from './types';
 
@@ -53,6 +54,7 @@ export function prepareInitialEditorContent(blocks: AnyPartialBlock[]): AnyParti
 function prepareInitialEditorBlock(block: AnyPartialBlock): AnyPartialBlock {
   const source = block as Record<string, any>;
   let props = source.props && typeof source.props === 'object' ? { ...source.props } : undefined;
+  let content = source.content;
   const blockId = typeof source.id === 'string' ? source.id : source.type === 'drawing' ? createId('drawing-block') : undefined;
 
   if (LIGHTWEIGHT_EDITOR_MEDIA_BLOCK_TYPES.has(String(source.type))) {
@@ -72,9 +74,18 @@ function prepareInitialEditorBlock(block: AnyPartialBlock): AnyPartialBlock {
     delete props.backgroundColor;
   }
 
+  if (props && 'textSize' in props) {
+    const textSize = normalizeTextSize(props.textSize);
+    if (textSize) {
+      content = applyTextSizeToInlineContent(content, textSize);
+    }
+    delete props.textSize;
+  }
+
   return {
     ...source,
     ...(blockId ? { id: blockId } : {}),
+    ...(content !== source.content ? { content } : {}),
     ...(props ? { props } : {}),
     ...(Array.isArray(source.children) ? { children: source.children.map((child) => prepareInitialEditorBlock(child as AnyPartialBlock)) } : {}),
   } as AnyPartialBlock;

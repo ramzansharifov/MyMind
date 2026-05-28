@@ -1,7 +1,7 @@
 import { LIST_BLOCK_TYPES } from '../editor/constants';
 import { flattenBlocks } from '../editor/blockActions';
 import type { AnyBlock, AnyEditor } from '../editor/types';
-import { clampNumber } from './noteEditorFormatting';
+import { clampNumber, getBlockTextSizeValue } from './noteEditorFormatting';
 
 export const IMAGE_MIN_WIDTH = 96;
 export const IMAGE_FALLBACK_MAX_WIDTH = 1200;
@@ -60,6 +60,34 @@ export function syncActiveEditorBlock(blockId: string | null) {
   const activeOuter = getBlockOuterById(root, blockId);
   if (activeOuter) {
     activeOuter.classList.add('note-active-block');
+  }
+}
+
+export function syncBlockTextSizeStyles(editor: AnyEditor) {
+  const root = getBlockNoteEditorRoot();
+  if (!root) {
+    return;
+  }
+
+  const textSizeById = new Map<string, string>();
+  for (const block of flattenBlocks(editor.document as AnyBlock[])) {
+    const textSize = getBlockTextSizeValue(block);
+    if (textSize) {
+      textSizeById.set(block.id, textSize);
+    }
+  }
+
+  const blockOuters = Array.from(root.querySelectorAll<HTMLElement>('.bn-block-outer[data-id]'));
+  for (const outer of blockOuters) {
+    const textSize = outer.dataset.id ? textSizeById.get(outer.dataset.id) : undefined;
+    if (!textSize) {
+      outer.classList.remove('note-text-size-custom');
+      outer.style.removeProperty('--note-block-text-size');
+      continue;
+    }
+
+    outer.classList.add('note-text-size-custom');
+    outer.style.setProperty('--note-block-text-size', `${textSize}px`);
   }
 }
 

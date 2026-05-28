@@ -30,3 +30,18 @@ export const SUPPORTED_BLOCK_TYPES = new Set([
 
 export const LIST_BLOCK_TYPES = new Set(LIST_BLOCK_TYPE_NAMES);
 export const TOGGLE_HEADING_LEVELS = [1, 2, 3] as const;
+
+export const TEXT_SIZE_BLOCK_TYPES = new Set([
+  'paragraph',
+  'heading',
+  'quote',
+  'bulletListItem',
+  'numberedListItem',
+  'checkListItem',
+  'toggleListItem',
+  'codeBlock',
+]);
+
+export const TEXT_SIZE_MIN = 10;
+export const TEXT_SIZE_MAX = 72;
+export const TEXT_SIZE_DEFAULT = 16;

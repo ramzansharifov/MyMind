@@ -11,12 +11,29 @@ import { archiveEntity, trashEntity } from '../../shared/utils/archiveUtils';
 import { formatCurrency } from '../../shared/utils/formatters';
 import { createId } from '../../shared/utils/idGenerator';
 import { Minus } from 'lucide-react';
-import { currentBalance, filterTransactions, transactionTags } from './financeUtils';
+import {
+  accountBalance,
+  filterTransactions,
+  getFinanceAccounts,
+  resolveTransactionAccountId,
+  totalBalance,
+  transactionTags,
+} from './financeUtils';
+import { FinanceAccountCard } from './FinanceAccountCard';
+import { FinanceAccountForm } from './FinanceAccountForm';
 import { SavingsGoalCard } from './SavingsGoalCard';
 import { SavingsGoalForm } from './SavingsGoalForm';
 import { TransactionForm } from './TransactionForm';
 import { TransactionList } from './TransactionList';
-import type { FinanceData, FinanceTag, FinanceTagType, FinanceTransaction, SavingsGoal, TransactionType } from './types';
+import type {
+  FinanceAccount,
+  FinanceData,
+  FinanceTag,
+  FinanceTagType,
+  FinanceTransaction,
+  SavingsGoal,
+  TransactionType,
+} from './types';
 
 const FinanceChartsSection = lazy(() => import('./FinanceChartsSection').then((module) => ({ default: module.FinanceChartsSection })));
 
@@ -29,8 +46,10 @@ interface FinancePageProps {
 type OpenForm =
   | { kind: 'transaction'; type: TransactionType; item?: FinanceTransaction | null }
   | { kind: 'goal'; item?: SavingsGoal | null }
+  | { kind: 'account'; item?: FinanceAccount | null }
   | { kind: 'start-balance' }
   | null;
+
 type FinanceView = 'ledger' | 'goals' | 'charts' | 'settings';
 
 export function FinancePage({ data, currency, onChange }: FinancePageProps) {
@@ -44,70 +63,126 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
   const [newTagName, setNewTagName] = useState('');
   const [newTagType, setNewTagType] = useState<FinanceTagType>('both');
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
+
+  const { t } = useI18n();
+
+  const accounts = getFinanceAccounts(data);
+  const fallbackAccountId = accounts[0]?.id ?? '';
+  const balance = totalBalance(data);
+
   const searchedTransactions = filterTransactions(data.transactions, query, 'all', '', date);
   const filtered = searchedTransactions.filter((transaction) => {
     const matchesType = types.length === 0 || types.includes(transaction.type);
     const matchesTags = selectedTags.length === 0 || selectedTags.some((tag) => transaction.tags.includes(tag));
+
     return matchesType && matchesTags;
   });
-  const { t } = useI18n();
+
   const availableTransactionTags = [...new Set([...transactionTags(data.transactions), ...data.tags.map((item) => item.name)])];
   const activeFilterCount = types.length + selectedTags.length + (date ? 1 : 0);
-  const balance = currentBalance(data.transactions, data.startingBalance);
   const incomeTags = data.tags.filter((tag) => tag.type === 'income' || tag.type === 'both');
   const expenseTags = data.tags.filter((tag) => tag.type === 'expense' || tag.type === 'both');
 
   function saveTransaction(transaction: FinanceTransaction) {
     const exists = data.transactions.some((item) => item.id === transaction.id);
+
     onChange({
       ...data,
       transactions: exists
         ? data.transactions.map((item) => (item.id === transaction.id ? transaction : item))
         : [transaction, ...data.transactions],
     });
+
     setOpenForm(null);
   }
 
   function saveGoal(goal: SavingsGoal) {
     const exists = data.savingsGoals.some((item) => item.id === goal.id);
+
     onChange({
       ...data,
       savingsGoals: exists ? data.savingsGoals.map((item) => (item.id === goal.id ? goal : item)) : [goal, ...data.savingsGoals],
     });
+
     setOpenForm(null);
   }
 
-  function saveStartingBalance(amount: number) {
-    onChange({ ...data, startingBalance: amount, startedAt: data.startedAt ?? new Date().toISOString() });
+  function saveAccount(account: FinanceAccount) {
+    const existingAccounts = data.accounts && data.accounts.length > 0 ? data.accounts : accounts;
+    const exists = existingAccounts.some((item) => item.id === account.id);
+
+    onChange({
+      ...data,
+      accounts: exists
+        ? existingAccounts.map((item) => (item.id === account.id ? account : item))
+        : [...existingAccounts, account],
+      startedAt: data.startedAt ?? new Date().toISOString(),
+    });
+
     setOpenForm(null);
+  }
+
+  function deleteAccount(accountId: string) {
+    const existingAccounts = data.accounts && data.accounts.length > 0 ? data.accounts : accounts;
+
+    if (existingAccounts.length <= 1) {
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    const remainingAccounts = existingAccounts.filter((account) => account.id !== accountId);
+    const nextAccountId = remainingAccounts[0]?.id ?? null;
+
+    onChange({
+      ...data,
+      accounts: remainingAccounts,
+      transactions: data.transactions.map((transaction) => {
+        const resolvedAccountId = resolveTransactionAccountId(transaction, fallbackAccountId);
+
+        if (resolvedAccountId !== accountId) {
+          return transaction;
+        }
+
+        return {
+          ...transaction,
+          accountId: nextAccountId,
+          updatedAt: timestamp,
+        };
+      }),
+    });
   }
 
   function resetFinance() {
     onChange({
       startingBalance: 0,
       startedAt: null,
+      accounts: [],
       transactions: [],
       savingsGoals: [],
       tags: [],
     });
+
     setQuery('');
     setTypes([]);
     setSelectedTags([]);
     setDate('');
     setView('settings');
-    setOpenForm({ kind: 'start-balance' });
+    setOpenForm({ kind: 'account' });
   }
 
   function addTag() {
     if (!newTagName.trim()) {
       return;
     }
+
     const normalizedName = newTagName.trim();
+
     if (data.tags.some((tagItem) => tagItem.id !== editingTagId && tagItem.name.toLowerCase() === normalizedName.toLowerCase())) {
       setNewTagName('');
       setEditingTagId(null);
       return;
     }
+
     if (editingTagId) {
       onChange({
         ...data,
@@ -115,12 +190,15 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
           tagItem.id === editingTagId ? { ...tagItem, name: normalizedName, type: newTagType } : tagItem,
         ),
       });
+
       setNewTagName('');
       setNewTagType('both');
       setEditingTagId(null);
       return;
     }
+
     const createdAt = new Date().toISOString();
+
     const nextTag: FinanceTag = {
       id: createId('tag'),
       name: normalizedName,
@@ -128,6 +206,7 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
       description: '',
       createdAt,
     };
+
     onChange({ ...data, tags: [...data.tags, nextTag] });
     setNewTagName('');
   }
@@ -156,7 +235,7 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
     <section>
       <PageHeader
         title="Finance"
-        subtitle="Starting balance, income, expenses, and tags for local financial tracking."
+        subtitle="Accounts, starting balances, income, expenses, goals, and tags for local financial tracking."
       />
 
       <div className="panel finance-tabs-panel">
@@ -172,12 +251,25 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
               </button>
             </>
           ) : null}
+
           {view === 'goals' ? <AddButton label="Add savings goal" onClick={() => setOpenForm({ kind: 'goal' })} /> : null}
+
+          {view === 'settings' ? <AddButton label="Add account" onClick={() => setOpenForm({ kind: 'account' })} /> : null}
         </div>
       </div>
 
       {view === 'ledger' ? (
         <>
+          <section className="panel finance-start-panel">
+            <div className="card-title-row">
+              <div>
+                <h2>{t('Total balance')}</h2>
+                <p className="muted-text">{t('Combined balance across all accounts.')}</p>
+              </div>
+              <strong className="finance-total-balance">{formatCurrency(balance, currency)}</strong>
+            </div>
+          </section>
+
           <CollapsibleFilters
             query={query}
             placeholder="Search transactions"
@@ -199,6 +291,7 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
                 ))}
               </div>
             </div>
+
             <div className="filter-choice-group">
               <div className="filter-choice-heading">
                 <strong>{t('Tag')}</strong>
@@ -212,6 +305,7 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
                 )) : <span className="muted-text">{t('No tags yet.')}</span>}
               </div>
             </div>
+
             <div className="filter-choice-group">
               <div className="filter-choice-heading">
                 <strong>{t('Date')}</strong>
@@ -219,8 +313,10 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
               </div>
               <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
             </div>
+
             {activeFilterCount > 0 ? <button className="button ghost filter-clear-button" type="button" onClick={clearFinanceFilters}>{t('Clear filters')}</button> : null}
           </CollapsibleFilters>
+
           <section className="panel">
             <h2>{t('Transactions')}</h2>
             {filtered.length === 0 ? (
@@ -228,6 +324,7 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
             ) : (
               <TransactionList
                 transactions={filtered}
+                accounts={accounts}
                 currency={currency}
                 onEdit={(transaction) => setOpenForm({ kind: 'transaction', type: transaction.type, item: transaction })}
                 onArchive={(transaction) =>
@@ -256,6 +353,7 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
               />
             ))}
           </div>
+
           {data.savingsGoals.length === 0 ? <EmptyState title="No savings goals" message="Create a goal when you want to track a target amount." /> : null}
         </>
       ) : null}
@@ -271,32 +369,50 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
           <section className="panel finance-start-panel">
             <div className="card-title-row">
               <div>
-                <h2>{t('Financial start')}</h2>
-                <p className="muted-text">{t('Set the amount you already have before adding income and expenses.')}</p>
+                <h2>{t('Accounts')}</h2>
+                <p className="muted-text">{t('Create separate accounts with their own starting balances.')}</p>
               </div>
+
               <div className="card-actions">
-                <EditButton label={data.startedAt ? 'Edit starting balance' : 'Set starting balance'} onClick={() => setOpenForm({ kind: 'start-balance' })} />
+                <AddButton label="Add account" onClick={() => setOpenForm({ kind: 'account' })} />
                 <DeleteButton
                   iconOnly={false}
                   label="Reset finance"
                   confirmTitle="Reset finance?"
-                  confirmMessage="This clears starting balance, transactions, tags, and savings goals so you can start again."
+                  confirmMessage="This clears accounts, transactions, tags, and savings goals so you can start again."
                   onConfirm={resetFinance}
                 />
               </div>
             </div>
+
             <div className="finance-start-value">
-              <span>{t('Starting balance')}</span>
-              <strong>{formatCurrency(data.startingBalance, currency)}</strong>
-              <small>{data.startedAt ? t('Financial tracking started') : t('Not set')}</small>
+              <span>{t('Total balance')}</span>
+              <strong>{formatCurrency(balance, currency)}</strong>
+              <small>{t('Across all accounts')}</small>
+            </div>
+
+            <div className="card-grid">
+              {accounts.map((account) => (
+                <FinanceAccountCard
+                  account={account}
+                  balance={accountBalance(account, data.transactions, fallbackAccountId)}
+                  currency={currency}
+                  canDelete={accounts.length > 1}
+                  key={account.id}
+                  onEdit={() => setOpenForm({ kind: 'account', item: account })}
+                  onDelete={() => deleteAccount(account.id)}
+                />
+              ))}
             </div>
           </section>
 
           <section className="panel finance-tags-panel">
             <h2>{t('Tag builder')}</h2>
             <p className="muted-text">{t('Create tags for income, expenses, or both. These tags appear as quick choices in the transaction form.')}</p>
+
             <div className="finance-tag-builder">
               <input placeholder={t('Tag name')} value={newTagName} onChange={(event) => setNewTagName(event.target.value)} />
+
               <div className="filter-chip-row">
                 {financeTagTypes.map((item) => (
                   <button className={`filter-chip${newTagType === item ? ' active' : ''}`} type="button" key={item} onClick={() => setNewTagType(item)}>
@@ -304,8 +420,10 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
                   </button>
                 ))}
               </div>
+
               <AddButton label={editingTagId ? 'Save tag' : 'Add tag'} onClick={addTag} />
             </div>
+
             <div className="finance-tag-columns">
               <FinanceTagGroup title="Income tags" variant="income" tags={incomeTags} data={data} onEdit={startEditTag} onChange={onChange} />
               <FinanceTagGroup title="Expense tags" variant="expense" tags={expenseTags} data={data} onEdit={startEditTag} onChange={onChange} />
@@ -313,21 +431,36 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
           </section>
         </div>
       ) : null}
+
       {openForm?.kind === 'transaction' ? (
         <TransactionForm
           type={openForm.type}
           transaction={openForm.item}
           tags={data.tags}
+          accounts={accounts}
           onCancel={() => setOpenForm(null)}
           onSave={saveTransaction}
         />
       ) : null}
+
       {openForm?.kind === 'goal' ? <SavingsGoalForm goal={openForm.item} onCancel={() => setOpenForm(null)} onSave={saveGoal} /> : null}
+
+      {openForm?.kind === 'account' ? (
+        <FinanceAccountForm
+          account={openForm.item}
+          onCancel={() => setOpenForm(null)}
+          onSave={saveAccount}
+        />
+      ) : null}
+
       {openForm?.kind === 'start-balance' ? (
         <StartingBalanceForm
           value={data.startingBalance}
           onCancel={() => setOpenForm(null)}
-          onSave={saveStartingBalance}
+          onSave={(amount) => {
+            onChange({ ...data, startingBalance: amount, startedAt: data.startedAt ?? new Date().toISOString() });
+            setOpenForm(null);
+          }}
         />
       ) : null}
     </section>
@@ -350,12 +483,14 @@ function FinanceTagGroup({
   onChange: (data: FinanceData) => void;
 }) {
   const { t } = useI18n();
+
   return (
     <div className={`finance-tag-group ${variant}`}>
       <div className="finance-tag-group-heading">
         <h3>{t(title)}</h3>
         <span>{tags.length}</span>
       </div>
+
       <div className="finance-tag-list">
         {tags.map((item) => (
           <div className={`finance-tag-card tag-${item.type}`} key={`${title}-${item.id}`}>
@@ -363,6 +498,7 @@ function FinanceTagGroup({
               <strong>{item.name}</strong>
               <small>{t(item.type === 'both' ? 'Both' : item.type === 'income' ? 'Income' : 'Expense')}</small>
             </div>
+
             <div className="finance-tag-actions">
               <EditButton className="finance-tag-icon-action" onClick={() => onEdit(item)} />
               <DeleteButton
@@ -374,6 +510,7 @@ function FinanceTagGroup({
             </div>
           </div>
         ))}
+
         {tags.length === 0 ? <span className="muted-text">{t('No tags yet.')}</span> : null}
       </div>
     </div>
@@ -401,6 +538,7 @@ function StartingBalanceForm({ value, onCancel, onSave }: { value: number; onCan
 
 const transactionTypeFilters: TransactionType[] = ['income', 'expense'];
 const financeTagTypes: FinanceTagType[] = ['both', 'income', 'expense'];
+
 const financeTabs: Array<{ id: FinanceView; label: string }> = [
   { id: 'ledger', label: 'Transactions' },
   { id: 'goals', label: 'Savings goals' },

@@ -6,7 +6,7 @@ import { markdownToHtml } from '../noteUtils';
 import { DEFAULT_DRAWING_HEIGHT } from './constants';
 import { inlineContentToSafeString } from './contentSanitizer';
 import type { AnyBlock } from './types';
-import { resolveCssColor } from '../utils/noteEditorFormatting';
+import { getBlockTextSizeValue, normalizeTextSize, resolveCssColor } from '../utils/noteEditorFormatting';
 
 export function ReadOnlyBlocks({ blocks }: { blocks: AnyBlock[] }) {
   const { t } = useI18n();
@@ -36,7 +36,7 @@ function renderReadOnlyBlocks(blocks: AnyBlock[], t: Translate) {
             {group.map((item) => {
               const checked = Boolean((item.props as any).checked);
               return (
-                <div className={`note-read-check-row${checked ? ' checked' : ''}`} key={item.id}>
+                <div className={`note-read-check-row${checked ? ' checked' : ''}`} key={item.id} style={getTextSizeStyle(item)}>
                   <span className="note-read-check" aria-hidden="true" />
                   <span>{renderInlineContent(item.content)}</span>
                 </div>
@@ -51,7 +51,7 @@ function renderReadOnlyBlocks(blocks: AnyBlock[], t: Translate) {
       output.push(
         <ListTag className={`note-read-list ${listType}`} key={block.id}>
           {group.map((item) => (
-            <li key={item.id}>
+            <li key={item.id} style={getTextSizeStyle(item)}>
               <span>{renderInlineContent(item.content)}</span>
             </li>
           ))}
@@ -78,7 +78,7 @@ function renderReadOnlyBlock(block: AnyBlock, t: Translate): ReactNode {
     const level = Math.min(3, Math.max(1, Number((block.props as any).level ?? 1)));
     const HeadingTag = `h${level + 1}` as 'h2' | 'h3' | 'h4';
     return (
-      <section className="note-read-block" key={block.id}>
+      <section className="note-read-block" key={block.id} style={getTextSizeStyle(block)}>
         <HeadingTag>{renderInlineContent(block.content)}</HeadingTag>
         {children}
       </section>
@@ -87,7 +87,7 @@ function renderReadOnlyBlock(block: AnyBlock, t: Translate): ReactNode {
 
   if (block.type === 'quote') {
     return (
-      <blockquote className="note-read-block note-read-quote" key={block.id}>
+      <blockquote className="note-read-block note-read-quote" key={block.id} style={getTextSizeStyle(block)}>
         {renderInlineContent(block.content)}
         {children}
       </blockquote>
@@ -102,13 +102,14 @@ function renderReadOnlyBlock(block: AnyBlock, t: Translate): ReactNode {
         <div
           className="note-read-block note-read-markdown"
           key={block.id}
+          style={getTextSizeStyle(block)}
           dangerouslySetInnerHTML={{ __html: markdownToHtml(inlineContentToSafeString(block.content)) }}
         />
       );
     }
 
     return (
-      <figure className="note-read-block note-read-code-card" key={block.id}>
+      <figure className="note-read-block note-read-code-card" key={block.id} style={getTextSizeStyle(block)}>
         {languageRaw ? <figcaption>{languageRaw}</figcaption> : null}
         <pre className="note-read-code">
           <code>{inlineContentToSafeString(block.content)}</code>
@@ -206,7 +207,7 @@ function renderReadOnlyBlock(block: AnyBlock, t: Translate): ReactNode {
   }
 
   return (
-    <div className="note-read-block" key={block.id}>
+    <div className="note-read-block" key={block.id} style={getTextSizeStyle(block)}>
       <p>{renderInlineContent(block.content)}</p>
       {children}
     </div>
@@ -230,7 +231,7 @@ function ReadOnlyToggleBlock({ block, t }: { block: AnyBlock; t: Translate }) {
   const title = renderInlineContent(block.content);
 
   return (
-    <section className={`note-read-block note-read-toggle${isOpen ? ' open' : ''}${isHeadingToggle ? ` heading-toggle level-${level}` : ''}`}>
+    <section className={`note-read-block note-read-toggle${isOpen ? ' open' : ''}${isHeadingToggle ? ` heading-toggle level-${level}` : ''}`} style={getTextSizeStyle(block)}>
       <button
         className="note-read-toggle-button"
         type="button"
@@ -287,6 +288,15 @@ function renderInlineContent(content: unknown): ReactNode {
   return content.map((item, index) => renderInlineItem(item, index));
 }
 
+function getTextSizeStyle(block: AnyBlock): CSSProperties | undefined {
+  const textSize = getBlockTextSizeValue(block);
+  if (!textSize) {
+    return undefined;
+  }
+
+  return { '--note-read-text-size': `${textSize}px`, fontSize: 'var(--note-read-text-size)' } as CSSProperties;
+}
+
 function renderInlineItem(item: unknown, index: number): ReactNode {
   if (!item || typeof item !== 'object') {
     return String(item ?? '');
@@ -307,6 +317,7 @@ function renderInlineItem(item: unknown, index: number): ReactNode {
 
   const text = typeof value.text === 'string' ? value.text : inlineContentToSafeString(value.content);
   const styles = value.styles ?? {};
+  const textSize = normalizeTextSize(styles.textSize);
   let node: ReactNode = text;
 
   if (styles.bold) node = <strong>{node}</strong>;
@@ -314,7 +325,11 @@ function renderInlineItem(item: unknown, index: number): ReactNode {
   if (styles.underline) node = <u>{node}</u>;
   if (styles.strike) node = <s>{node}</s>;
 
-  return <span key={index}>{node}</span>;
+  return (
+    <span key={index} style={textSize ? { fontSize: `${textSize}px` } : undefined}>
+      {node}
+    </span>
+  );
 }
 
 function isValidDrawingData(value: string) {

@@ -2,7 +2,7 @@ import { Copy, Wand2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Modal } from '../../shared/components/Modal';
 import { useI18n } from '../../shared/i18n/I18nProvider';
-import { copyTextToClipboard, renderTemplate } from './templateUtils';
+import { copyTextToClipboard, createVariableKey, formatTemplateDate, normalizeTemplateVariables, renderTemplate } from './templateUtils';
 import type { TextTemplate } from './types';
 
 interface TemplateBuilderProps {
@@ -14,12 +14,18 @@ export function TemplateBuilder({ template, onClose }: TemplateBuilderProps) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
   const { t } = useI18n();
+
+  const variables = useMemo(() => normalizeTemplateVariables(template.variables, template.body), [template.variables, template.body]);
   const output = useMemo(() => renderTemplate(template.body, values), [template.body, values]);
 
   async function copyOutput() {
     await copyTextToClipboard(output);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1400);
+  }
+
+  function setVariableValue(key: string, value: string) {
+    setValues((current) => ({ ...current, [key]: value }));
   }
 
   return (
@@ -41,26 +47,60 @@ export function TemplateBuilder({ template, onClose }: TemplateBuilderProps) {
         </>
       }
     >
-        <span className="template-builder-kicker">
-          <Wand2 size={15} aria-hidden="true" />
-          {t('Build text')}
-        </span>
-        {template.variables.length > 0 ? (
-          <div className="template-builder-fields">
-            {template.variables.map((variable) => (
-              <label key={variable}>
-                {variable}
-                <input value={values[variable] ?? ''} onChange={(event) => setValues((current) => ({ ...current, [variable]: event.target.value }))} />
+      <span className="template-builder-kicker">
+        <Wand2 size={15} aria-hidden="true" />
+        {t('Build text')}
+      </span>
+
+      {variables.length > 0 ? (
+        <div className="template-builder-fields">
+          {variables.map((variable) => {
+            const key = createVariableKey(variable);
+
+            if (variable.type === 'date') {
+              return (
+                <label key={key}>
+                  {variable.name}
+                  <input
+                    type="date"
+                    value={values[key] ?? ''}
+                    onChange={(event) => setVariableValue(key, event.target.value)}
+                  />
+                  <small>{formatTemplateDate(values[key])}</small>
+                </label>
+              );
+            }
+
+            if (variable.type === 'numberedList') {
+              return (
+                <label key={key}>
+                  {variable.name}
+                  <textarea
+                    rows={6}
+                    value={values[key] ?? ''}
+                    onChange={(event) => setVariableValue(key, event.target.value)}
+                    placeholder={t('Write each item on a new line.')}
+                  />
+                </label>
+              );
+            }
+
+            return (
+              <label key={key}>
+                {variable.name}
+                <input value={values[key] ?? ''} onChange={(event) => setVariableValue(key, event.target.value)} />
               </label>
-            ))}
-          </div>
-        ) : (
-          <p className="muted-text">{t('This template has no variables.')}</p>
-        )}
-        <label>
-          {t('Result')}
-          <textarea className="template-result" rows={9} readOnly value={output} />
-        </label>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="muted-text">{t('This template has no variables.')}</p>
+      )}
+
+      <label>
+        {t('Result')}
+        <textarea className="template-result" rows={9} readOnly value={output} />
+      </label>
     </Modal>
   );
 }

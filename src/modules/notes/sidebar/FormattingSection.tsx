@@ -1,9 +1,10 @@
 import { AlignCenter, AlignLeft, AlignRight, Bold, IndentDecrease, IndentIncrease, Italic, Link, Strikethrough, Underline } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { Tooltip } from '../../../shared/components/Tooltip';
-import { LIST_BLOCK_TYPES } from '../editor/constants';
-import { NoteSelect } from '../editor/NoteEditorControls';
+import { LIST_BLOCK_TYPES, TEXT_SIZE_MAX, TEXT_SIZE_MIN } from '../editor/constants';
+import { NoteRange, NoteSelect } from '../editor/NoteEditorControls';
 import type { AnyBlock } from '../editor/types';
+import { supportsTextSize } from '../utils/noteEditorFormatting';
 
 interface FormattingSectionProps {
   block: AnyBlock;
@@ -13,6 +14,8 @@ interface FormattingSectionProps {
   currentTextAlignment: string;
   activeHeadingLevel: number | null;
   activeStyles: Record<string, unknown>;
+  textSize: string;
+  effectiveTextSize: number;
   linkTarget: { from: number; to: number; text: string } | null;
   linkUrl: string;
   onLinkUrlChange: (value: string) => void;
@@ -22,6 +25,7 @@ interface FormattingSectionProps {
   onSetTextHeadingLevel: (level: number | null) => void;
   onSetListMarkerType: (value: string) => void;
   onSetTogglePresentation: (value: string) => void;
+  onSetTextSize: (value: number | '') => void;
   onToggleTextStyle: (style: 'bold' | 'italic' | 'underline' | 'strike') => void;
   onSetTextAlignment: (alignment: 'left' | 'center' | 'right') => void;
   onIndent: () => void;
@@ -36,6 +40,8 @@ export function FormattingSection({
   currentTextAlignment,
   activeHeadingLevel,
   activeStyles,
+  textSize,
+  effectiveTextSize,
   linkTarget,
   linkUrl,
   onLinkUrlChange,
@@ -45,6 +51,7 @@ export function FormattingSection({
   onSetTextHeadingLevel,
   onSetListMarkerType,
   onSetTogglePresentation,
+  onSetTextSize,
   onToggleTextStyle,
   onSetTextAlignment,
   onIndent,
@@ -110,6 +117,28 @@ export function FormattingSection({
               );
             })}
           </div>
+        </div>
+      ) : null}
+      {supportsTextSize(block.type) ? (
+        <div className="note-settings-section">
+          <div className="note-text-size-header">
+            <span className="note-settings-label">Text size, px</span>
+            <button className="button ghost compact-action" type="button" onMouseDown={onPreventToolbarBlur} onClick={() => onSetTextSize('')}>
+              Default
+            </button>
+          </div>
+          <label className="note-settings-input">
+            <input
+              type="number"
+              min={TEXT_SIZE_MIN}
+              max={TEXT_SIZE_MAX}
+              step="1"
+              value={textSize}
+              placeholder={String(effectiveTextSize)}
+              onChange={(event) => onSetTextSize(event.target.value === '' ? '' : Number(event.target.value))}
+            />
+          </label>
+          <NoteRange min={TEXT_SIZE_MIN} max={TEXT_SIZE_MAX} step={1} value={effectiveTextSize} onChange={onSetTextSize} />
         </div>
       ) : null}
       <div className="note-sidebar-tool-grid">

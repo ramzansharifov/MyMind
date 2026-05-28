@@ -1419,15 +1419,15 @@
 }
 
 .note-read-block h2 {
-  font-size: clamp(2rem, 4vw, 3.5rem);
+  font-size: var(--note-read-text-size, clamp(2rem, 4vw, 3.5rem));
 }
 
 .note-read-block h3 {
-  font-size: 2rem;
+  font-size: var(--note-read-text-size, 2rem);
 }
 
 .note-read-block h4 {
-  font-size: 1.5rem;
+  font-size: var(--note-read-text-size, 1.5rem);
 }
 
 .note-read-list {
@@ -1510,6 +1510,12 @@
   letter-spacing: 0;
   padding: 0 12px;
   text-transform: uppercase;
+}
+
+.note-read-code-card .note-read-code,
+.note-read-code-card .note-read-code code,
+.note-read-markdown {
+  font-size: var(--note-read-text-size, inherit);
 }
 
 .note-read-code {
@@ -2280,6 +2286,15 @@
   min-height: 58px;
   align-items: center;
   padding: 14px 18px;
+}
+
+.mymind-blocknote-shell .bn-block-outer.note-text-size-custom .bn-block-content,
+.mymind-blocknote-shell .bn-block-outer.note-text-size-custom .bn-inline-content,
+.mymind-blocknote-shell .bn-block-outer.note-text-size-custom .bn-block-content p,
+.mymind-blocknote-shell .bn-block-outer.note-text-size-custom .bn-block-content pre,
+.mymind-blocknote-shell .bn-block-outer.note-text-size-custom .bn-block-content code,
+.mymind-blocknote-shell .bn-block-outer.note-text-size-custom .bn-block-content [contenteditable="true"] {
+  font-size: var(--note-block-text-size) !important;
 }
 
 .mymind-blocknote-shell .bn-block-content,
@@ -3133,6 +3148,19 @@
   background: var(--surface-soft);
   color: var(--text);
   padding: 6px 9px;
+}
+
+.note-text-size-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.note-text-size-header .compact-action {
+  min-height: 28px;
+  padding: 5px 8px;
+  font-size: 12px;
 }
 
 .note-heading-choice-row button {

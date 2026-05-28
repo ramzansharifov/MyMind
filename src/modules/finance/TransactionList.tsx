@@ -2,18 +2,29 @@ import { ArchiveButton, DeleteButton, EditButton } from '../../shared/components
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { formatDate } from '../../shared/utils/dateUtils';
 import { formatCurrency } from '../../shared/utils/formatters';
-import type { FinanceTransaction } from './types';
+import { resolveTransactionAccountId } from './financeUtils';
+import type { FinanceAccount, FinanceTransaction } from './types';
 
 interface TransactionListProps {
   transactions: FinanceTransaction[];
+  accounts: FinanceAccount[];
   currency: string;
   onEdit: (transaction: FinanceTransaction) => void;
   onArchive: (transaction: FinanceTransaction) => void;
   onDelete: (transaction: FinanceTransaction) => void;
 }
 
-export function TransactionList({ transactions, currency, onEdit, onArchive, onDelete }: TransactionListProps) {
+export function TransactionList({ transactions, accounts, currency, onEdit, onArchive, onDelete }: TransactionListProps) {
   const { t } = useI18n();
+  const fallbackAccountId = accounts[0]?.id ?? '';
+  const accountMap = new Map(accounts.map((account) => [account.id, account.title]));
+
+  function accountTitle(transaction: FinanceTransaction) {
+    const accountId = resolveTransactionAccountId(transaction, fallbackAccountId);
+
+    return accountMap.get(accountId) ?? t('Unknown account');
+  }
+
   return (
     <div className="stack finance-transaction-list">
       {transactions.map((transaction) => (
@@ -24,15 +35,17 @@ export function TransactionList({ transactions, currency, onEdit, onArchive, onD
               <h3>{transaction.title}</h3>
             </div>
             <small>
-              {transaction.sourceOrCategory || t('Uncategorized')} / {formatDate(transaction.date)}
+              {transaction.sourceOrCategory || t('Uncategorized')} / {accountTitle(transaction)} / {formatDate(transaction.date)}
             </small>
           </div>
+
           <div className="finance-transaction-side">
             <strong className={`transaction-amount ${transaction.type}`}>
               {transaction.type === 'expense' ? '-' : '+'}
               {formatCurrency(transaction.amount, currency)}
             </strong>
           </div>
+
           <div className="card-actions finance-transaction-actions">
             <EditButton onClick={() => onEdit(transaction)} />
             <ArchiveButton

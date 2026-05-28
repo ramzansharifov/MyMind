@@ -1,6 +1,6 @@
 import type { CalendarEvent } from '../../modules/calendar/types';
 import type { Contact, ContactsData } from '../../modules/contacts/types';
-import type { FinanceData } from '../../modules/finance/types';
+import type { FinanceAccount, FinanceData, FinanceTransaction } from '../../modules/finance/types';
 import type { Goal } from '../../modules/goals/types';
 import type { HabitData, HabitLog } from '../../modules/habits/types';
 import type { HealthData } from '../../modules/health/types';
@@ -50,7 +50,7 @@ export const emptyData: AppData = {
     nutritionEntries: [],
   },
   todos: { items: [], groups: [] },
-  finance: { startingBalance: 0, startedAt: null, transactions: [], savingsGoals: [], tags: [] },
+  finance: { startingBalance: 0, startedAt: null, accounts: [], transactions: [], savingsGoals: [], tags: [] },
   habits: { habits: [], logs: [] },
   calendarEvents: [],
   journalEntries: { items: [], groups: [] },
@@ -168,13 +168,7 @@ export function normalizeData(data: AppData): AppData {
       entries: data.health?.entries ?? [],
       metrics: data.health?.metrics ?? [],
     },
-    finance: {
-      startingBalance: data.finance?.startingBalance ?? 0,
-      startedAt: data.finance?.startedAt ?? null,
-      transactions: data.finance?.transactions ?? [],
-      savingsGoals: data.finance?.savingsGoals ?? [],
-      tags: data.finance?.tags ?? [],
-    },
+    finance: normalizeFinanceData(data.finance),
     habits: {
       habits: (data.habits?.habits ?? []).map((habit) => ({
         ...habit,
@@ -318,6 +312,57 @@ function normalizeLegacyEventReminder(event: {
     firedAt: event.reminderFiredAt ?? null,
     firedCycle: null,
   }];
+}
+
+function normalizeFinanceData(finance: FinanceData | undefined): FinanceData {
+  const timestamp = new Date().toISOString();
+  const startedAt = finance?.startedAt ?? timestamp;
+  const legacyStartingBalance = finance?.startingBalance ?? 0;
+  const rawAccounts = finance?.accounts ?? [];
+
+  const accounts: FinanceAccount[] = rawAccounts.length > 0
+    ? rawAccounts.map((account, index) => ({
+      id: account.id || `account-${index}`,
+      title: account.title || 'Main account',
+      startingBalance: Number(account.startingBalance) || 0,
+      description: account.description ?? '',
+      createdAt: account.createdAt ?? startedAt,
+      updatedAt: account.updatedAt ?? account.createdAt ?? startedAt,
+    }))
+    : [{
+      id: 'legacy-main-account',
+      title: 'Main account',
+      startingBalance: legacyStartingBalance,
+      description: 'Default account created from the previous starting balance.',
+      createdAt: startedAt,
+      updatedAt: startedAt,
+    }];
+
+  const accountIds = new Set(accounts.map((account) => account.id));
+  const fallbackAccountId = accounts[0]?.id ?? 'legacy-main-account';
+  const transactions: FinanceTransaction[] = (finance?.transactions ?? []).map((transaction) => {
+    const accountId = transaction.accountId && accountIds.has(transaction.accountId)
+      ? transaction.accountId
+      : fallbackAccountId;
+
+    return {
+      ...transaction,
+      amount: Number(transaction.amount) || 0,
+      description: transaction.description ?? '',
+      tags: transaction.tags ?? [],
+      sourceOrCategory: transaction.sourceOrCategory ?? transaction.tags?.[0] ?? '',
+      accountId,
+    };
+  });
+
+  return {
+    startingBalance: legacyStartingBalance,
+    startedAt: finance?.startedAt ?? null,
+    accounts,
+    transactions,
+    savingsGoals: finance?.savingsGoals ?? [],
+    tags: finance?.tags ?? [],
+  };
 }
 
 function normalizeTodoData(todos: TodoData | TodoItem[] | undefined): TodoData {

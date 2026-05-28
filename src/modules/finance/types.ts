@@ -3,6 +3,12 @@ import type { BaseEntity } from '../../shared/types/common';
 export type TransactionType = 'income' | 'expense';
 export type FinanceTagType = TransactionType | 'both';
 
+export interface FinanceAccount extends BaseEntity {
+  title: string;
+  startingBalance: number;
+  description: string;
+}
+
 export interface FinanceTransaction extends BaseEntity {
   type: TransactionType;
   amount: number;
@@ -11,6 +17,7 @@ export interface FinanceTransaction extends BaseEntity {
   tags: string[];
   sourceOrCategory: string;
   date: string;
+  accountId?: string | null;
 }
 
 export interface SavingsGoal extends BaseEntity {
@@ -32,6 +39,7 @@ export interface FinanceTag {
 export interface FinanceData {
   startingBalance: number;
   startedAt: string | null;
+  accounts: FinanceAccount[];
   transactions: FinanceTransaction[];
   savingsGoals: SavingsGoal[];
   tags: FinanceTag[];

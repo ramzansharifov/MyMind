@@ -3,7 +3,16 @@ import { useState, type MouseEvent } from 'react';
 import { LIST_BLOCK_TYPES } from '../editor/constants';
 import { findBlockById, getContiguousListGroup, getCurrentBlock, stripBlockIds } from '../editor/blockActions';
 import type { AnyBlock, AnyEditor } from '../editor/types';
-import { getCommonBlockProps, getSidebarBlockTypeValue, clampNumber } from '../utils/noteEditorFormatting';
+import {
+  applyTextSizeToInlineContent,
+  getBlockTextSizeValue,
+  getCommonBlockProps,
+  getEffectiveTextSize,
+  getSidebarBlockTypeValue,
+  clampNumber,
+  normalizeTextSize,
+  supportsTextSize,
+} from '../utils/noteEditorFormatting';
 import { getImageBlockMaxWidth, IMAGE_FALLBACK_MAX_WIDTH, IMAGE_MIN_WIDTH } from '../utils/noteEditorDom';
 import { BlockActionsSection } from './BlockActionsSection';
 import { ColorSection } from './ColorSection';
@@ -62,6 +71,7 @@ export function NotePropertiesPanel({ editor, block, onBlockChange, onInteract, 
   const imageMaxWidth = block.type === 'image' ? getImageBlockMaxWidth(block.id) : IMAGE_FALLBACK_MAX_WIDTH;
   const rawImageWidth = Number((block.props as Record<string, unknown>).previewWidth);
   const imageWidthValue = clampNumber(Number.isFinite(rawImageWidth) ? rawImageWidth : imageMaxWidth, IMAGE_MIN_WIDTH, imageMaxWidth);
+  const textSizeValue = getBlockTextSizeValue(block);
 
   function updateBlock(patch: Record<string, unknown>) {
     onInteract();
@@ -240,6 +250,31 @@ export function NotePropertiesPanel({ editor, block, onBlockChange, onInteract, 
     });
   }
 
+  function setTextSize(value: number | '') {
+    const textSize = value === '' ? '' : normalizeTextSize(value);
+    editor.focus();
+    editor.transact(() => {
+      for (const item of selectedBlocks) {
+        if (!supportsTextSize(item.type) || item.content === undefined) {
+          continue;
+        }
+
+        editor.updateBlock(item, {
+          content: applyTextSizeToInlineContent(item.content, textSize),
+        } as any);
+      }
+    });
+
+    if (textSize) {
+      editor.addStyles({ textSize } as any);
+    } else {
+      editor.removeStyles({ textSize: '' } as any);
+    }
+
+    onBlockChange(findBlockById(editor.document as AnyBlock[], currentBlock.id) ?? currentBlock);
+    onDirty();
+  }
+
   return (
     <aside className="note-settings-panel" onPointerDownCapture={onInteract}>
       <div className="note-settings-header">
@@ -256,6 +291,8 @@ export function NotePropertiesPanel({ editor, block, onBlockChange, onInteract, 
           currentTextAlignment={currentTextAlignment}
           activeHeadingLevel={activeHeadingLevel}
           activeStyles={activeStyles}
+          textSize={textSizeValue}
+          effectiveTextSize={getEffectiveTextSize(textSizeValue)}
           linkTarget={linkTarget}
           linkUrl={linkUrl}
           onLinkUrlChange={setLinkUrl}
@@ -265,6 +302,7 @@ export function NotePropertiesPanel({ editor, block, onBlockChange, onInteract, 
           onSetTextHeadingLevel={setTextHeadingLevel}
           onSetListMarkerType={setListMarkerType}
           onSetTogglePresentation={setTogglePresentation}
+          onSetTextSize={setTextSize}
           onToggleTextStyle={toggleTextStyle}
           onSetTextAlignment={setTextAlignment}
           onIndent={() => {

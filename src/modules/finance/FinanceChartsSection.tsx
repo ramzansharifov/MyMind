@@ -17,8 +17,15 @@ import { StatCard } from '../../shared/components/StatCard';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { formatDate } from '../../shared/utils/dateUtils';
 import { formatCurrency } from '../../shared/utils/formatters';
-import { currentBalance, totalByType, visibleTransactions } from './financeUtils';
-import type { FinanceData, FinanceTransaction } from './types';
+import {
+  accountBalance,
+  getFinanceAccounts,
+  totalBalance,
+  totalByType,
+  totalStartingBalance,
+  visibleTransactions,
+} from './financeUtils';
+import type { FinanceAccount, FinanceData, FinanceTransaction } from './types';
 import '../../styles/modules/charts.css';
 
 interface FinanceChartsSectionProps {
@@ -28,9 +35,13 @@ interface FinanceChartsSectionProps {
 
 export function FinanceChartsSection({ data, currency }: FinanceChartsSectionProps) {
   const { t } = useI18n();
+
+  const accounts = getFinanceAccounts(data);
   const transactions = visibleTransactions(data.transactions);
-  const dailyData = buildDailyFinanceData(transactions, data.startingBalance);
+  const dailyData = buildDailyFinanceData(transactions, totalStartingBalance(accounts));
   const tagData = buildExpenseTagData(transactions);
+  const accountData = buildAccountBalanceData(accounts, transactions);
+
   const incomeTotal = totalByType(transactions, 'income');
   const expenseTotal = totalByType(transactions, 'expense');
 
@@ -39,15 +50,16 @@ export function FinanceChartsSection({ data, currency }: FinanceChartsSectionPro
       <div className="section-heading">
         <div>
           <h2>{t('Finance charts')}</h2>
-          <p className="muted-text">{t('Income, expenses, balance, and spending structure over time.')}</p>
+          <p className="muted-text">{t('Income, expenses, balance, accounts, and spending structure over time.')}</p>
         </div>
       </div>
 
       <div className="stats-grid workout-chart-stats">
-        <StatCard label="Starting balance" value={formatCurrency(data.startingBalance, currency)} />
-        <StatCard label="Balance" value={formatCurrency(currentBalance(transactions, data.startingBalance), currency)} />
+        <StatCard label="Starting balance" value={formatCurrency(totalStartingBalance(accounts), currency)} />
+        <StatCard label="Balance" value={formatCurrency(totalBalance(data), currency)} />
         <StatCard label="Income" value={`+${formatCurrency(incomeTotal, currency)}`} />
         <StatCard label="Expenses" value={`-${formatCurrency(expenseTotal, currency)}`} />
+        <StatCard label="Accounts" value={accounts.length} />
         <StatCard label="Savings goals" value={data.savingsGoals.length} />
       </div>
 
@@ -70,7 +82,7 @@ export function FinanceChartsSection({ data, currency }: FinanceChartsSectionPro
           )}
         </ChartCard>
 
-        <ChartCard title="Balance trend" description="How your balance changes after each recorded day.">
+        <ChartCard title="Balance trend" description="How your total balance changes after each recorded day.">
           {dailyData.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={dailyData}>
@@ -83,6 +95,22 @@ export function FinanceChartsSection({ data, currency }: FinanceChartsSectionPro
             </ResponsiveContainer>
           ) : (
             <EmptyChart label={t('No transactions')} />
+          )}
+        </ChartCard>
+
+        <ChartCard title="Account balances" description="Current balance by account.">
+          {accountData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={accountData} layout="vertical" margin={{ left: 24 }}>
+                <CartesianGrid stroke="var(--line-soft)" horizontal={false} />
+                <XAxis type="number" stroke="var(--muted)" tickLine={false} axisLine={false} />
+                <YAxis dataKey="account" type="category" stroke="var(--muted)" tickLine={false} axisLine={false} width={120} />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'var(--chart-cursor-accent)' }} />
+                <Bar dataKey="balance" name={t('Balance')} fill="var(--accent-strong)" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChart label={t('No accounts')} />
           )}
         </ChartCard>
 
@@ -126,6 +154,7 @@ export function FinanceChartsSection({ data, currency }: FinanceChartsSectionPro
 
 function ChartCard({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   const { t } = useI18n();
+
   return (
     <article className="card workout-chart-card">
       <div className="workout-chart-heading">
@@ -143,6 +172,7 @@ function EmptyChart({ label }: { label: string }) {
 
 function buildDailyFinanceData(transactions: FinanceTransaction[], startingBalance: number) {
   const grouped = new Map<string, { income: number; expense: number }>();
+
   for (const transaction of transactions) {
     const date = transaction.date.slice(0, 10);
     const current = grouped.get(date) ?? { income: 0, expense: 0 };
@@ -151,10 +181,12 @@ function buildDailyFinanceData(transactions: FinanceTransaction[], startingBalan
   }
 
   let balance = startingBalance;
+
   return Array.from(grouped.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, totals]) => {
       balance += totals.income - totals.expense;
+
       return {
         label: formatDate(date),
         income: Number(totals.income.toFixed(2)),
@@ -167,8 +199,10 @@ function buildDailyFinanceData(transactions: FinanceTransaction[], startingBalan
 
 function buildExpenseTagData(transactions: FinanceTransaction[]) {
   const totals = new Map<string, number>();
+
   for (const transaction of transactions.filter((item) => item.type === 'expense')) {
     const tags = transaction.tags.length ? transaction.tags : ['untagged'];
+
     for (const tag of tags) {
       totals.set(tag, (totals.get(tag) ?? 0) + transaction.amount);
     }
@@ -178,6 +212,17 @@ function buildExpenseTagData(transactions: FinanceTransaction[]) {
     .map(([tag, total]) => ({ tag, total: Number(total.toFixed(2)) }))
     .sort((a, b) => b.total - a.total)
     .slice(0, 10);
+}
+
+function buildAccountBalanceData(accounts: FinanceAccount[], transactions: FinanceTransaction[]) {
+  const fallbackAccountId = accounts[0]?.id;
+
+  return accounts
+    .map((account) => ({
+      account: account.title,
+      balance: Number(accountBalance(account, transactions, fallbackAccountId).toFixed(2)),
+    }))
+    .sort((a, b) => b.balance - a.balance);
 }
 
 const tooltipStyle = {

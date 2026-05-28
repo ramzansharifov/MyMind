@@ -2,29 +2,34 @@ import { useState, type FormEvent } from 'react';
 import { EntityForm } from '../../shared/components/EntityForm';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { createId } from '../../shared/utils/idGenerator';
-import type { FinanceTag, FinanceTransaction, TransactionType } from './types';
+import type { FinanceAccount, FinanceTag, FinanceTransaction, TransactionType } from './types';
 
 interface TransactionFormProps {
   type: TransactionType;
   transaction?: FinanceTransaction | null;
   tags: FinanceTag[];
+  accounts: FinanceAccount[];
   onCancel: () => void;
   onSave: (transaction: FinanceTransaction) => void;
 }
 
-export function TransactionForm({ type, transaction, tags: availableTags, onCancel, onSave }: TransactionFormProps) {
+export function TransactionForm({ type, transaction, tags: availableTags, accounts, onCancel, onSave }: TransactionFormProps) {
   const [nextType, setNextType] = useState<TransactionType>(transaction?.type ?? type);
   const [title, setTitle] = useState(transaction?.title ?? '');
   const [amount, setAmount] = useState(String(transaction?.amount ?? 0));
   const [date, setDate] = useState(transaction?.date.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
+  const [selectedAccountId, setSelectedAccountId] = useState(transaction?.accountId ?? accounts[0]?.id ?? '');
   const [selectedTag, setSelectedTag] = useState(transaction?.tags?.[0] ?? '');
   const [description, setDescription] = useState(transaction?.description ?? '');
+
   const visibleTags = availableTags.filter((tag) => tag.type === 'both' || tag.type === nextType);
   const { t } = useI18n();
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
     const timestamp = new Date().toISOString();
+
     onSave({
       id: transaction?.id ?? createId('transaction'),
       type: nextType,
@@ -34,6 +39,7 @@ export function TransactionForm({ type, transaction, tags: availableTags, onCanc
       tags: selectedTag ? [selectedTag] : [],
       sourceOrCategory: selectedTag,
       date,
+      accountId: selectedAccountId || accounts[0]?.id || null,
       createdAt: transaction?.createdAt ?? timestamp,
       updatedAt: timestamp,
     });
@@ -48,20 +54,41 @@ export function TransactionForm({ type, transaction, tags: availableTags, onCanc
           <option value="expense">{t('Expense')}</option>
         </select>
       </label>
+
       <label>
         {t('Title')}
         <input required value={title} onChange={(event) => setTitle(event.target.value)} />
       </label>
+
       <div className="form-grid">
         <label>
           {t('Amount')}
-          <input required value={amount} onChange={(event) => setAmount(event.target.value)} />
+          <input
+            required
+            type="number"
+            min="0"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+          />
         </label>
+
         <label>
           {t('Date')}
           <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
         </label>
       </div>
+
+      <label>
+        {t('Account')}
+        <select value={selectedAccountId} onChange={(event) => setSelectedAccountId(event.target.value)}>
+          {accounts.map((account) => (
+            <option value={account.id} key={account.id}>
+              {account.title}
+            </option>
+          ))}
+        </select>
+      </label>
+
       <label>
         {t(nextType === 'income' ? 'Income source tag' : 'Expense category tag')}
         <select value={selectedTag} onChange={(event) => setSelectedTag(event.target.value)}>
@@ -74,6 +101,7 @@ export function TransactionForm({ type, transaction, tags: availableTags, onCanc
         </select>
         {visibleTags.length === 0 ? <small>{t('No tags for this transaction type yet.')}</small> : null}
       </label>
+
       <label>
         {t('Description')}
         <textarea rows={4} value={description} onChange={(event) => setDescription(event.target.value)} />

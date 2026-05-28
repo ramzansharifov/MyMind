@@ -144,6 +144,7 @@ export function createDemoData(): AppData {
   const strengthGroupId = createId("exercise-group");
   const coreGroupId = createId("exercise-group");
   const conditioningGroupId = createId("exercise-group");
+  const mainAccountId = createId("account");
   const squatId = createId("exercise");
   const rowsId = createId("exercise");
   const deadliftId = createId("exercise");
@@ -734,6 +735,16 @@ export function createDemoData(): AppData {
     finance: {
       startingBalance: 500,
       startedAt: createdAt,
+      accounts: [
+        {
+          id: mainAccountId,
+          title: "Main account",
+          startingBalance: 500,
+          description: "Default demo account.",
+          createdAt,
+          updatedAt: createdAt,
+        },
+      ],
       transactions: [
         {
           id: createId("transaction"),
@@ -744,6 +755,7 @@ export function createDemoData(): AppData {
           tags: ["salary"],
           sourceOrCategory: "Work",
           date: createdAt,
+          accountId: mainAccountId,
           createdAt,
           updatedAt: createdAt,
         },
@@ -756,6 +768,7 @@ export function createDemoData(): AppData {
           tags: ["home"],
           sourceOrCategory: "Food",
           date: createdAt,
+          accountId: mainAccountId,
           createdAt,
           updatedAt: createdAt,
         },
