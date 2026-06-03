@@ -64,6 +64,14 @@ export function StudySettingsPanel({
     });
   }, [block?.id, block?.type]);
 
+  const materialNodes = useMemo(() => {
+    const q = internalLinkQuery.trim().toLowerCase();
+    return nodes
+      .filter((node) => node.type === 'material')
+      .filter((node) => !q || node.title.toLowerCase().includes(q))
+      .slice(0, 10);
+  }, [nodes, internalLinkQuery]);
+
   if (!block) {
     return (
       <aside className="study-side-panel glass-panel">
@@ -114,13 +122,6 @@ export function StudySettingsPanel({
   const isTable = block.type === 'table';
   const showRichTools = block.type === 'text' || isTable;
   const hasSelectedTableCell = Boolean(isTable && tableSelection);
-
-  const materialNodes = useMemo(() => {
-    const q = internalLinkQuery.trim().toLowerCase();
-    return nodes.filter(n => n.type === 'material')
-      .filter(n => !q || n.title.toLowerCase().indexOf(q) !== -1)
-      .slice(0, 10);
-  }, [nodes, internalLinkQuery]);
 
   function insertInternalLink(title: string) {
     runRichCommand("internalLink", title);
