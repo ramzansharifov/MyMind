@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import type { StudyBlock, StudyCustomBlockTemplate, StudyNode, StudyContentBlock } from '../../types';
 import { replaceTextNodesWithInternalLinks, toEditableHtml } from '../../utils/richTextCore';
 import { isContentBlock } from '../../studyUtils';
+import { getVisualStyle } from '../../utils/editorBlockStyles';
 import { StudyFilePreview } from './StudyFilePreview';
 import { StudyLatexView } from './StudyLatexView';
 import { StudyCodeBlock } from './StudyCodeBlock';
@@ -111,13 +112,7 @@ function ReadBlock({
     <section
         className={`study-read-block type-${block.type}${collapsed ? ' is-collapsed' : ''}`}
         data-study-read-block-id={block.id}
-        style={{
-            color: block.settings?.textColor,
-            background: block.settings?.backgroundColor,
-            padding: block.settings?.padding,
-            textAlign: block.settings?.textAlign,
-            fontSize: block.settings?.fontSize,
-        }}
+        style={getVisualStyle(block)}
     >
       <div className={hasChildren ? "study-read-block-with-toggle" : ""}>
         {hasChildren && (

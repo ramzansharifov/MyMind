@@ -63,6 +63,15 @@ function pushReturnTarget(target: InternalNavigationNode, targetNodeId: string):
 export function setCurrentInternalNavigationNode(nodeId: string, title: string): void {
   if (!nodeId) return;
   sessionStorage.setItem(CURRENT_NODE_KEY, JSON.stringify({ nodeId, title: title || "Current material" }));
+
+  // Also update recent materials for command palette
+  const RECENT_KEY = "study-command-palette-recent-v1";
+  try {
+    const raw = localStorage.getItem(RECENT_KEY);
+    const ids: string[] = raw ? JSON.parse(raw) : [];
+    const next = [nodeId, ...ids.filter(id => id !== nodeId)].slice(0, 10);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch(e) {}
 }
 
 export function getCurrentInternalNavigationNode(): InternalNavigationNode | null {

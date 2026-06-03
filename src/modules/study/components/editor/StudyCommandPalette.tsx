@@ -38,6 +38,16 @@ interface CommandResult {
   action: () => void;
 }
 
+const RECENT_MATERIALS_KEY = "study-command-palette-recent-v1";
+const MAX_RECENT_MATERIALS = 10;
+
+function readRecentIds(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_MATERIALS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
 function normalize(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -103,10 +113,12 @@ export function StudyCommandPalette({
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [recentIds, setRecentIds] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (open) {
+      setRecentIds(readRecentIds());
       const timeout = window.setTimeout(() => inputRef.current?.focus(), 0);
       return () => window.clearTimeout(timeout);
     } else {
@@ -125,6 +137,19 @@ export function StudyCommandPalette({
         }
         return parts.join(' / ');
     };
+
+    const recentResults: CommandResult[] = recentIds
+      .map(id => nodes.find(n => n.id === id))
+      .filter((n): n is StudyNode => !!n && n.type === 'material')
+      .map(n => ({
+          id: `recent_${n.id}`,
+          title: n.title,
+          subtitle: `Recent Material · ${getPath(n.id)}`,
+          type: "material" as const,
+          group: "Recent",
+          keywords: `recent ${n.title}`,
+          action: () => onOpenNode(n.id),
+      }));
 
     const commandResults: CommandResult[] = [
       {
@@ -174,11 +199,11 @@ export function StudyCommandPalette({
       });
     });
 
-    const allResults = [...commandResults, ...nodeResults, ...blockResults];
+    const allResults = [...recentResults, ...commandResults, ...nodeResults, ...blockResults];
     const nQuery = normalize(query);
 
     if (!nQuery) {
-      return [...commandResults, ...nodeResults.filter(r => r.type === 'material').slice(0, 8)].slice(0, 20);
+      return [...recentResults, ...commandResults, ...nodeResults.filter(r => r.type === 'material').slice(0, 8)].slice(0, 30);
     }
 
     return allResults

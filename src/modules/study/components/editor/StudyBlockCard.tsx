@@ -13,6 +13,7 @@ import type { ReactNode } from 'react';
 import type { StudyBlock, StudyCustomBlockTemplate, StudyNode } from '../../types';
 import { getStudyBlockLabel } from '../../studyUtils';
 import { Tooltip } from '../../../../shared/components/Tooltip';
+import { getVisualStyle } from '../../utils/editorBlockStyles';
 import type { RichTextActiveMarks, RichTextCommand } from './StudyRichTextEditor';
 import { BlockEditorContent } from './StudyBlockEditors';
 
@@ -101,13 +102,7 @@ export function EditableBlockCard({
       className={`study-block glass-panel${isSelected ? ' active' : ''}`}
       data-study-block-id={block.id}
       onMouseDown={handleBlockMouseDown}
-      style={{
-        color: block.settings?.textColor,
-        background: block.settings?.backgroundColor,
-        padding: block.settings?.padding,
-        textAlign: block.settings?.textAlign,
-        fontSize: block.settings?.fontSize,
-      }}
+      style={getVisualStyle(block)}
     >
       <div className="study-block-grip">
         <GripVertical size={16} aria-hidden />
