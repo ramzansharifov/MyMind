@@ -29,25 +29,43 @@ export type StudyContentBlockType =
 
 export type StudyCustomFieldType = 'text' | 'long_text' | 'latex' | 'number' | 'checkbox' | 'select' | 'date' | 'link';
 
+export type StudyHeadingStyle = 'h1' | 'h2' | 'h3';
+export type StudyBlockTextAlign = 'left' | 'center' | 'right';
+export type StudyTableCellTextAlign = 'left' | 'center' | 'right';
+export type StudyTableCellVerticalAlign = 'top' | 'middle' | 'bottom';
+
+export interface StudyTableCellStyle {
+  backgroundColor?: string;
+  textColor?: string;
+  textAlign?: StudyTableCellTextAlign;
+  verticalAlign?: StudyTableCellVerticalAlign;
+}
+
+export interface StudyTableCellSpan {
+  rowSpan?: number;
+  colSpan?: number;
+  hidden?: boolean;
+}
+
+export interface StudyBlockSettings {
+  headingStyle?: StudyHeadingStyle;
+  fontSize?: number;
+  textColor?: string;
+  backgroundColor?: string;
+  padding?: number;
+  textAlign?: StudyBlockTextAlign;
+  codeLanguage?: string;
+  codeWrap?: boolean;
+  dividerColor?: string;
+  boardHeight?: number;
+}
+
 export interface StudyNode extends BaseEntity {
   type: StudyNodeType;
   title: string;
   parentId: string | null;
   order: number;
   collapsed?: boolean;
-}
-
-export interface StudyBlockSettings {
-  headingStyle?: 1 | 2 | 3;
-  fontSize?: number;
-  textColor?: string;
-  backgroundColor?: string;
-  padding?: number;
-  align?: 'left' | 'center' | 'right';
-  codeLanguage?: string;
-  codeWrap?: boolean;
-  dividerColor?: string;
-  boardHeight?: number;
 }
 
 export interface StudyBaseBlock {
@@ -66,19 +84,14 @@ export interface StudyContentBlock extends StudyBaseBlock {
   language?: string;
 }
 
-export interface StudyTableCellSpan {
-  rowSpan: number;
-  colSpan: number;
-}
-
 export interface StudyTableBlock extends StudyBaseBlock {
   type: 'table';
   rows: string[][];
   hasHeader: boolean;
   columnWidths?: number[];
-  cellStyles?: Record<string, StudyBlockSettings>;
+  cellStyles?: Record<string, StudyTableCellStyle>;
   cellSpans?: Record<string, StudyTableCellSpan>;
-  cellMergeBackups?: Record<string, string[][]>;
+  cellMergeBackups?: Record<string, Record<string, string>>;
 }
 
 export interface StudyBoardStrokePoint {
@@ -88,7 +101,7 @@ export interface StudyBoardStrokePoint {
 
 export interface StudyBoardStroke {
   id: string;
-  color: string;
+  color?: string;
   width: number;
   points: StudyBoardStrokePoint[];
 }
@@ -100,7 +113,7 @@ export interface StudyBoardBlock extends StudyBaseBlock {
 
 export interface StudyFileBlock extends StudyBaseBlock {
   type: 'file';
-  fileId?: string;
+  fileId: string;
   fileName: string;
   note: string;
   url?: string;
@@ -138,6 +151,7 @@ export interface StudyCustomBlockField {
   id: string;
   label: string;
   type: StudyCustomFieldType;
+  required?: boolean;
   placeholder?: string;
   options?: string[];
   defaultValue?: string | number | boolean;
@@ -158,8 +172,3 @@ export interface StudyState {
 }
 
 export type StudyData = StudyState;
-
-export interface StudyFolder extends BaseEntity {
-  title: string;
-  description?: string;
-}

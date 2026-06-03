@@ -12,7 +12,13 @@ export function collectStudyTocItems(blocks: StudyBlock[], collapsedBlockIds: Se
       ? [{
           id: block.id,
           title: block.content.replace(/\s+/g, ' ').trim() || 'Untitled heading',
-          level: Math.min(3, block.settings?.headingStyle ?? nestingLevel + 1),
+          level: (function() {
+              const style = block.settings?.headingStyle;
+              if (style === 'h1') return 1;
+              if (style === 'h2') return 2;
+              if (style === 'h3') return 3;
+              return Math.min(3, nestingLevel + 1);
+          })(),
         }]
       : [];
 

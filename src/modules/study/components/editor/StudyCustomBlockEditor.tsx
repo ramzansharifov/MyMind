@@ -1,4 +1,5 @@
 import type { StudyBlock, StudyCustomBlock, StudyCustomBlockTemplate } from '../../types';
+import { StudyLatexView } from './StudyLatexView';
 
 interface StudyCustomBlockEditorProps {
   block: StudyCustomBlock;
@@ -48,7 +49,12 @@ export function StudyCustomBlockEditor({ block, template, onChange }: StudyCusto
         return (
           <label className="form-field" key={field.id}>
             <span>{field.label}</span>
-            {field.type === 'long_text' || field.type === 'latex' ? (
+            {field.type === 'latex' ? (
+              <div className="study-custom-field-latex">
+                <textarea value={String(value)} placeholder={field.placeholder} onChange={(event) => updateValue(event.target.value)} />
+                {value && <StudyLatexView code={String(value)} displayMode={false} />}
+              </div>
+            ) : field.type === 'long_text' ? (
               <textarea value={String(value)} placeholder={field.placeholder} onChange={(event) => updateValue(event.target.value)} />
             ) : (
               <input

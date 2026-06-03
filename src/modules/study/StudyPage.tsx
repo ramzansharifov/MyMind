@@ -17,7 +17,7 @@ import {
   nowIso,
 } from './studyUtils';
 import type { StudyCustomBlockTemplate, StudyData, StudyMaterial, StudyNode, StudyNodeType } from './types';
-import { collectStudyTocItems, scrollToStudyReadBlock } from './utils/readToc';
+import { clearInternalLinkReturnTarget, getInternalLinkReturnTarget } from './utils/internalNavigationHistory';
 
 interface StudyPageProps {
   data: StudyData;
@@ -46,10 +46,8 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
   const selectedFolder = selectedNode?.type === 'folder' ? selectedNode : null;
   const rootFolders = getNodeChildren(safeData.nodes, null).filter((node) => node.type === 'folder');
   const selectedPath = getNodePath(safeData.nodes, safeData.selectedNodeId);
-  const readTocItems = useMemo(
-    () => (selectedMaterial && editorMode === 'read' ? collectStudyTocItems(selectedMaterial.blocks) : []),
-    [editorMode, selectedMaterial],
-  );
+
+  const returnTarget = selectedNode ? getInternalLinkReturnTarget(selectedNode.id) : null;
 
   function commit(next: StudyData, options: { remember?: boolean } = {}) {
     const normalized = normalizeStudyData(next);
@@ -62,6 +60,13 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
 
   function updateSelectedNode(nodeId: string | null) {
     commit({ ...safeData, selectedNodeId: nodeId }, { remember: false });
+  }
+
+  function handleGoBack() {
+    if (returnTarget && selectedNode) {
+        clearInternalLinkReturnTarget(selectedNode.id);
+        updateSelectedNode(returnTarget.id);
+    }
   }
 
   function createNode(type: StudyNodeType, parentId: string | null, title: string) {
@@ -212,9 +217,8 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
           onDeleteNode={deleteNode}
           onDuplicateMaterial={duplicateMaterial}
           onMoveNode={moveNode}
-          tocItems={readTocItems}
-          showToc={editorMode === 'read' && !!selectedMaterial}
-          onTocItemClick={scrollToStudyReadBlock}
+          showToc={false}
+          onTocItemClick={() => {}}
         />
 
         <main className="study-main">
@@ -244,19 +248,28 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
             )}
           />
 
-          {selectedPath.length > 0 ? (
-            <div className="study-breadcrumbs">
-              {selectedPath.map((node) => (
-                <button key={node.id} type="button" onClick={() => updateSelectedNode(node.id)}>
-                  {node.title}
-                </button>
-              ))}
-            </div>
-          ) : null}
+          <div className="study-top-nav">
+              {selectedPath.length > 0 ? (
+                <div className="study-breadcrumbs">
+                  {selectedPath.map((node) => (
+                    <button key={node.id} type="button" onClick={() => updateSelectedNode(node.id)}>
+                      {node.title}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {returnTarget && (
+                  <button className="button ghost study-back-link" onClick={handleGoBack}>
+                      ← Back to {returnTarget.title}
+                  </button>
+              )}
+          </div>
 
           {selectedMaterial ? (
             <StudyMaterialEditor
               material={selectedMaterial}
+              nodes={safeData.nodes}
               allMaterials={safeData.materials}
               templates={safeData.customBlockTemplates}
               mode={editorMode}

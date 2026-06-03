@@ -28,7 +28,12 @@ export function StudyBoardEditor({ block, onChange }: StudyBoardEditorProps) {
         preserveAspectRatio="none"
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
-          setDraft({ id: `stroke-${Date.now()}`, color: block.settings?.textColor ?? '#e5eef8', width: 0.8, points: [getPoint(event)] });
+          setDraft({
+            id: `stroke-${Date.now()}`,
+            color: block.settings?.textColor ?? 'currentColor',
+            width: 0.8,
+            points: [getPoint(event)]
+          });
         }}
         onPointerMove={(event) => {
           if (!draft) {
@@ -42,10 +47,15 @@ export function StudyBoardEditor({ block, onChange }: StudyBoardEditorProps) {
           }
           const stroke = draft;
           setDraft(null);
-          onChange((item) => ({ ...(item as StudyBoardBlock), strokes: [...(item as StudyBoardBlock).strokes, stroke] }));
+          if (stroke.points.length > 1) {
+            onChange((item) => ({
+              ...(item as StudyBoardBlock),
+              strokes: [...(item as StudyBoardBlock).strokes, stroke]
+            }));
+          }
         }}
       >
-        {[...block.strokes, ...(draft ? [draft] : [])].map((stroke) => (
+        {block.strokes.map((stroke) => (
           <polyline
             key={stroke.id}
             points={stroke.points.map((point) => `${point.x},${point.y}`).join(' ')}
@@ -57,6 +67,17 @@ export function StudyBoardEditor({ block, onChange }: StudyBoardEditorProps) {
             vectorEffect="non-scaling-stroke"
           />
         ))}
+        {draft && (
+           <polyline
+            points={draft.points.map((point) => `${point.x},${point.y}`).join(' ')}
+            fill="none"
+            stroke={draft.color}
+            strokeWidth={draft.width}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
       </svg>
       <div className="study-board-toolbar">
         <button className="button ghost" type="button" onClick={() => onChange((item) => ({ ...(item as StudyBoardBlock), strokes: (item as StudyBoardBlock).strokes.slice(0, -1) }))}>
