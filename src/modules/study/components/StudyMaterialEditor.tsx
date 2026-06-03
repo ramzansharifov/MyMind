@@ -179,7 +179,7 @@ export function StudyMaterialEditor({
   }
 
   const renderBlocks = (blocks: StudyBlock[], level = 0): React.ReactNode => {
-      return blocks.map(block => (
+      return blocks.map((block, index) => (
         <EditableBlockCard
             key={block.id}
             block={block}
@@ -189,6 +189,7 @@ export function StudyMaterialEditor({
             selectedBlockId={selectedBlockId}
             collapsedBlockIds={collapsedBlockIds}
             richTextCommand={selectedBlockId === block.id ? richTextCommand : null}
+            index={index}
             onRichTextMarksChange={(marks) => {
                 if (selectedBlockId === block.id) setRichTextMarks(marks);
             }}
