@@ -6,6 +6,7 @@ import {
 } from "./StudyRichTextEditor";
 import type { StudyBlock, StudyContentBlock, StudyNode } from "../../types";
 import { StudyLatexView } from './StudyLatexView';
+import { StudyCodeBlock } from './StudyCodeBlock';
 
 interface StudyContentEditorProps {
   block: StudyContentBlock;
@@ -55,11 +56,16 @@ export function StudyContentEditor({
 
   if (block.type === "code") {
     return (
-      <textarea
+      <StudyCodeBlock
         value={block.content}
-        onChange={(event) => updateContent(event.target.value)}
-        className="study-raw-editor"
-        placeholder="Paste code here..."
+        language={block.language || block.settings?.codeLanguage}
+        editable={true}
+        wrap={block.settings?.codeWrap}
+        fontSize={block.settings?.fontSize}
+        textColor={block.settings?.textColor}
+        backgroundColor={block.settings?.backgroundColor}
+        padding={block.settings?.padding}
+        onChange={updateContent}
       />
     );
   }

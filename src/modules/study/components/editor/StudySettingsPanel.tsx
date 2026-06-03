@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import type {
   StudyBlock,
   StudyBlockSettings,
@@ -18,6 +18,7 @@ import type {
   RichTextCommandType,
 } from './StudyRichTextEditor';
 import { CodeLanguageInput } from './CodeLanguageInput';
+import { StudyInternalLinkInput } from './StudyInternalLinkInput';
 
 interface StudySettingsPanelProps {
   block: StudyBlock | null;
@@ -44,6 +45,7 @@ export function StudySettingsPanel({
 }: StudySettingsPanelProps) {
   const [inlineFontSize, setInlineFontSize] = useState(16);
   const [tableSelection, setTableSelection] = useState<TableCellSelection | null>(null);
+  const [internalLinkQuery, setInternalLinkQuery] = useState("");
 
   useEffect(() => {
     setTableSelection(null);
@@ -113,6 +115,18 @@ export function StudySettingsPanel({
   const showRichTools = block.type === 'text' || isTable;
   const hasSelectedTableCell = Boolean(isTable && tableSelection);
 
+  const materialNodes = useMemo(() => {
+    const q = internalLinkQuery.trim().toLowerCase();
+    return nodes.filter(n => n.type === 'material')
+      .filter(n => !q || n.title.toLowerCase().indexOf(q) !== -1)
+      .slice(0, 10);
+  }, [nodes, internalLinkQuery]);
+
+  function insertInternalLink(title: string) {
+    runRichCommand("internalLink", title);
+    setInternalLinkQuery("");
+  }
+
   return (
     <aside className="study-side-panel glass-panel">
       <h3>Block settings</h3>
@@ -137,6 +151,8 @@ export function StudySettingsPanel({
                 <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addColumnLeft")} className="button ghost">Col ←</button>
                 <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addColumnRight")} className="button ghost">Col →</button>
                 <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("deleteColumn")} className="button ghost danger">Del Col</button>
+                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("moveRowUp")} className="button ghost">Move ↑</button>
+                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("moveRowDown")} className="button ghost">Move ↓</button>
              </div>
 
              {tableSelection && (
@@ -157,6 +173,12 @@ export function StudySettingsPanel({
                         <button key={align} type="button" onClick={() => runTableCommand("setCellTextAlign", align)} className={`button ghost ${getToolButtonClass((tableSelection.cellStyle?.textAlign ?? 'left') === align)}`}>{align}</button>
                       ))}
                    </div>
+                   <div className="study-choice-row">
+                      {(['top', 'middle', 'bottom'] as const).map(vAlign => (
+                        <button key={vAlign} type="button" onClick={() => runTableCommand("setCellVerticalAlign", vAlign)} className={`button ghost ${getToolButtonClass((tableSelection.cellStyle?.verticalAlign ?? 'top') === vAlign)}`}>{vAlign}</button>
+                      ))}
+                   </div>
+                   <button type="button" onClick={() => runTableCommand("clearCellStyle")} className="button ghost full-width">Clear Cell Style</button>
                 </div>
              )}
           </div>
@@ -182,6 +204,15 @@ export function StudySettingsPanel({
               <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("orderedList", "decimal")} className={`button ghost ${getToolButtonClass(marks.orderedList)}`}>OL</button>
               <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("unorderedList", "checkbox-list")} className={`button ghost ${getToolButtonClass(marks.listStyle === 'checkbox-list')}`}>Check</button>
             </div>
+
+            <h4 className="study-settings-group-title">Internal Link</h4>
+            <StudyInternalLinkInput
+                inputId={`settings-link-${block.id}`}
+                query={internalLinkQuery}
+                suggestions={materialNodes}
+                onQueryChange={setInternalLinkQuery}
+                onInsert={insertInternalLink}
+            />
           </div>
         )}
 
@@ -216,6 +247,14 @@ export function StudySettingsPanel({
         {block.type === 'divider' && (
            <ColorRow label="Divider color" value={settings.dividerColor} onChange={(v) => updateSetting("dividerColor", v)} />
         )}
+
+        <button
+          type="button"
+          onClick={() => onChangeSettings({})}
+          className="button ghost full-width study-reset-settings"
+        >
+          Reset Block Settings
+        </button>
 
         <div className="study-panel-actions">
           <button className="button ghost icon-text" type="button" onClick={onDuplicate}>Duplicate</button>

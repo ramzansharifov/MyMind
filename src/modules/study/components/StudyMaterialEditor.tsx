@@ -59,6 +59,8 @@ interface StudyMaterialEditorProps {
   onChange: (material: StudyMaterial) => void;
   onOpenMaterial: (nodeId: string) => void;
   onOpenTemplateManager: () => void;
+  focusBlockId?: string | null;
+  onFocusBlockConsumed?: () => void;
 }
 
 export type StudyMode = 'edit' | 'read' | 'links';
@@ -73,6 +75,8 @@ export function StudyMaterialEditor({
   onChange,
   onOpenMaterial,
   onOpenTemplateManager,
+  focusBlockId,
+  onFocusBlockConsumed,
 }: StudyMaterialEditorProps) {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(material.blocks[0]?.id ?? null);
   const [collapsedBlockIds, setCollapsedBlockIds] = useState<Set<string>>(() => new Set());
@@ -83,6 +87,20 @@ export function StudyMaterialEditor({
   const richTextCommandIdRef = useRef(0);
 
   const selectedBlock = useMemo(() => findBlockById(material.blocks, selectedBlockId), [material.blocks, selectedBlockId]);
+
+  useEffect(() => {
+    if (!focusBlockId) return;
+    const exists = findBlockById(material.blocks, focusBlockId);
+    if (!exists) {
+      onFocusBlockConsumed?.();
+      return;
+    }
+    setSelectedBlockId(focusBlockId);
+    window.setTimeout(() => {
+      document.querySelector(`[data-study-block-id="${focusBlockId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      onFocusBlockConsumed?.();
+    }, 100);
+  }, [focusBlockId, material.blocks, onFocusBlockConsumed]);
 
   useEffect(() => {
     setCurrentInternalNavigationNode(material.nodeId, material.title);
@@ -120,11 +138,14 @@ export function StudyMaterialEditor({
     setSelectedBlockId(block.id);
   }
 
+  const [pendingDeleteBlockId, setPendingDeleteBlockId] = useState<string | null>(null);
+
   function deleteBlock(blockId: string) {
     updateBlocks(deleteBlockFromTree(material.blocks, blockId));
     if (selectedBlockId === blockId) {
       setSelectedBlockId(null);
     }
+    setPendingDeleteBlockId(null);
   }
 
   function toggleCollapsed(blockId: string) {
@@ -244,7 +265,7 @@ export function StudyMaterialEditor({
             onRichTextCommand={sendRichTextCommand}
             onChangeSettings={(settings) => selectedBlock && updateBlock(selectedBlock.id, (b) => ({ ...b, settings }))}
             onDuplicate={() => selectedBlock && updateBlocks(duplicateBlockInTree(material.blocks, selectedBlock.id))}
-            onDelete={() => selectedBlock && deleteBlock(selectedBlock.id)}
+            onDelete={() => selectedBlock && setPendingDeleteBlockId(selectedBlock.id)}
           />
         </div>
       ) : mode === 'read' ? (

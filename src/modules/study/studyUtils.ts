@@ -25,7 +25,7 @@ export const emptyStudyData: StudyData = {
 export const STUDY_BLOCK_LABELS: Record<StudyBlockType, string> = {
   heading: 'Heading',
   text: 'Text',
-  latex: 'Formula',
+  latex: 'LaTeX',
   markdown: 'Markdown',
   code: 'Code',
   table: 'Table',
@@ -91,35 +91,24 @@ export function createStudyMaterial(nodeId: string, title = 'New material'): Stu
 export function createStudyBlock(type: StudyBlockType, content = ''): StudyBlock {
   const timestamp = nowIso();
   const base = {
-    id: createId('study-block'),
-    type,
+    id: createId('block'),
     createdAt: timestamp,
     updatedAt: timestamp,
     settings: {},
     children: [],
   };
 
-  if (isContentBlockType(type)) {
-    const block: StudyContentBlock = {
-      ...base,
-      type,
-      content: content || defaultContentForType(type),
-      language: type === 'code' ? 'text' : undefined,
-    };
-    block.settings = defaultSettingsForType(type);
-    return block;
-  }
-
   if (type === 'table') {
     return {
       ...base,
       type,
+      hasHeader: true,
       rows: [
-        ['', ''],
-        ['', ''],
+        ['Header 1', 'Header 2', 'Header 3'],
+        ['', '', ''],
+        ['', '', ''],
       ],
-      hasHeader: false,
-      columnWidths: [180, 180],
+      columnWidths: [180, 180, 180],
     } as StudyTableBlock;
   }
 
@@ -128,8 +117,8 @@ export function createStudyBlock(type: StudyBlockType, content = ''): StudyBlock
       ...base,
       type,
       strokes: [],
-      settings: { boardHeight: 360 },
-    } as any;
+      settings: { boardHeight: 400 },
+    } as StudyBoardBlock;
   }
 
   if (type === 'file') {
@@ -139,35 +128,54 @@ export function createStudyBlock(type: StudyBlockType, content = ''): StudyBlock
       fileId: '',
       fileName: '',
       note: '',
+      size: 0,
     } as StudyFileBlock;
   }
 
   if (type === 'divider') {
-    return {
-      ...base,
-      type,
-      settings: { dividerColor: '#000000' },
-    } as any;
+    return { ...base, type } as any;
   }
+
+  const contentByType: Record<string, string> = {
+    heading: content || "New Heading",
+    text: content || "",
+    latex: content || "v = \\frac{s}{t}",
+    markdown: content || "# Title\n\nPoint 1\n- Point 2",
+    code: content || "function example() {\n  console.log(\"Hello\");\n}",
+    definition: content || "",
+    problem: content || "",
+    solution: content || "",
+  };
+
+  const defaultSettings = type === 'code' ? {
+      fontSize: 14,
+      backgroundColor: 'var(--surface-soft)',
+      padding: 12,
+      codeLanguage: 'javascript',
+      codeWrap: true
+  } : {};
 
   return {
     ...base,
-    type: 'custom',
-    templateId: '',
-    values: {},
-  } as any;
+    type,
+    content: contentByType[type as string] ?? '',
+    settings: defaultSettings,
+  } as StudyContentBlock;
 }
 
 export function createCustomStudyBlock(template: StudyCustomBlockTemplate): StudyBlock {
   const block = createStudyBlock('custom');
-  if (block.type !== 'custom') {
-    return block;
-  }
+  if (block.type !== 'custom') return block;
+
+  const values: Record<string, any> = {};
+  template.fields.forEach(f => {
+      values[f.id] = f.type === 'checkbox' ? false : f.type === 'number' ? 0 : '';
+  });
 
   return {
     ...block,
     templateId: template.id,
-    values: Object.fromEntries(template.fields.map((field) => [field.id, field.defaultValue ?? ''])),
+    values,
   };
 }
 
@@ -177,13 +185,13 @@ export function createStudyTemplate(title = 'Custom block'): StudyCustomBlockTem
     id: createId('study-template'),
     title,
     description: '',
-    accentColor: 'var(--accent)',
+    accentColor: '#4bb7a8',
     fields: [
       {
         id: createId('study-field'),
-        label: 'Text',
+        label: 'Field 1',
         type: 'text',
-        placeholder: 'Value',
+        placeholder: '',
       },
     ],
     createdAt: timestamp,
@@ -193,15 +201,15 @@ export function createStudyTemplate(title = 'Custom block'): StudyCustomBlockTem
 
 export function cloneStudyBlock(block: StudyBlock): StudyBlock {
   const timestamp = nowIso();
-  const cloned = structuredClone(block) as StudyBlock;
+  const copy = JSON.parse(JSON.stringify(block)) as StudyBlock;
   const remap = (item: StudyBlock): StudyBlock => ({
     ...item,
-    id: createId('study-block'),
+    id: createId('block'),
     createdAt: timestamp,
     updatedAt: timestamp,
     children: (item.children ?? []).map(remap),
   });
-  return remap(cloned);
+  return remap(copy);
 }
 
 export function getStudyBlockLabel(type: StudyBlockType) {
@@ -209,20 +217,20 @@ export function getStudyBlockLabel(type: StudyBlockType) {
 }
 
 export function getStudyBlockText(block: StudyBlock): string {
-  const childText = (block.children ?? []).map(getStudyBlockText).join(' ');
+  const childrenText = (block.children ?? []).map(getStudyBlockText).join(' ');
   if (isContentBlock(block)) {
-    return `${block.content} ${childText}`.trim();
+    return `${block.content} ${childrenText}`.trim();
   }
   if (block.type === 'file') {
-    return `${block.fileName} ${block.note} ${childText}`.trim();
+    return `${block.fileName} ${block.note} ${childrenText}`.trim();
   }
   if (block.type === 'table') {
-    return `${block.rows.flat().join(' ')} ${childText}`.trim();
+    return `${block.rows.flat().join(' ')} ${childrenText}`.trim();
   }
   if (block.type === 'custom') {
-    return `${Object.values(block.values).join(' ')} ${childText}`.trim();
+    return `${Object.values(block.values).join(' ')} ${childrenText}`.trim();
   }
-  return childText.trim();
+  return childrenText.trim();
 }
 
 export function getStudyMaterialPreview(material: StudyMaterial) {
@@ -299,10 +307,10 @@ function normalizeBlocks(value: unknown): StudyBlock[] {
 
 function normalizeBlock(value: unknown): StudyBlock | null {
     const raw = (value ?? {}) as Record<string, any>;
-    const type = STUDY_BLOCK_TYPES.includes(raw.type) || raw.type === 'custom' ? raw.type : 'text';
+    const type = raw.type || 'text';
     const timestamp = nowIso();
     const base = {
-      id: String(raw.id || createId('study-block')),
+      id: String(raw.id || createId('block')),
       type,
       createdAt: String(raw.createdAt || timestamp),
       updatedAt: String(raw.updatedAt || raw.createdAt || timestamp),
@@ -341,6 +349,26 @@ function normalizeBlock(value: unknown): StudyBlock | null {
       } as StudyBoardBlock;
     }
 
+    if (type === 'file') {
+        return {
+            ...base,
+            type,
+            fileId: String(raw.fileId || ''),
+            fileName: String(raw.fileName || ''),
+            note: String(raw.note || ''),
+            size: Number(raw.size || 0),
+        } as StudyFileBlock;
+    }
+
+    if (type === 'custom') {
+        return {
+            ...base,
+            type,
+            templateId: String(raw.templateId || ''),
+            values: raw.values || {},
+        } as any;
+    }
+
     return base as StudyBlock;
 }
 
@@ -363,20 +391,6 @@ function normalizeSettings(value: unknown): StudyBlockSettings {
 function normalizeTemplates(value: any): StudyCustomBlockTemplate[] {
     if (!Array.isArray(value)) return [];
     return value;
-}
-
-function defaultContentForType(type: StudyContentBlock['type']) {
-    if (type === 'heading') return 'New heading';
-    if (type === 'definition') return 'Term: definition';
-    if (type === 'problem') return 'Problem statement';
-    if (type === 'solution') return 'Solution notes';
-    return '';
-}
-
-function defaultSettingsForType(type: StudyContentBlock['type']): StudyBlockSettings {
-    if (type === 'heading') return { headingStyle: 'h1' };
-    if (type === 'code') return { codeLanguage: 'text', codeWrap: true };
-    return {};
 }
 
 export function getNodeChildren(nodes: StudyNode[], parentId: string | null) {

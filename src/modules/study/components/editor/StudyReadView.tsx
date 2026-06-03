@@ -1,11 +1,13 @@
 import { FileText, Printer, ChevronRight, ChevronDown } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { StudyBlock, StudyCustomBlockTemplate, StudyNode, StudyContentBlock } from '../../types';
+import { replaceTextNodesWithInternalLinks, toEditableHtml } from '../../utils/richTextCore';
 import { isContentBlock } from '../../studyUtils';
 import { StudyFilePreview } from './StudyFilePreview';
 import { StudyLatexView } from './StudyLatexView';
+import { StudyCodeBlock } from './StudyCodeBlock';
 import { formatStudyFileSize } from '../../utils/fileStore';
 
 interface StudyReadViewProps {
@@ -92,6 +94,7 @@ function ReadBlock({
   collapsedBlockIds,
   onToggleCollapsed,
   onOpenNode,
+  level = 0,
 }: {
   block: StudyBlock;
   nodes: StudyNode[];
@@ -99,27 +102,52 @@ function ReadBlock({
   collapsedBlockIds: Set<string>;
   onToggleCollapsed: (blockId: string) => void;
   onOpenNode: (nodeId: string) => void;
+  level?: number;
 }) {
   const collapsed = collapsedBlockIds.has(block.id);
+  const hasChildren = (block.children ?? []).length > 0;
 
   return (
-    <section className={`study-read-block type-${block.type}`} style={{
-        color: block.settings?.textColor,
-        background: block.settings?.backgroundColor,
-        padding: block.settings?.padding,
-        textAlign: block.settings?.textAlign,
-        fontSize: block.settings?.fontSize,
-    }}>
-      <ReadBlockContent
-        block={block}
-        nodes={nodes}
-        templates={templates}
-        collapsed={collapsed}
-        onToggleCollapsed={onToggleCollapsed}
-        onOpenNode={onOpenNode}
-      />
-      {!collapsed && (block.children ?? []).length > 0 ? (
-        <div className="study-read-children">
+    <section
+        className={`study-read-block type-${block.type}${collapsed ? ' is-collapsed' : ''}`}
+        data-study-read-block-id={block.id}
+        style={{
+            color: block.settings?.textColor,
+            background: block.settings?.backgroundColor,
+            padding: block.settings?.padding,
+            textAlign: block.settings?.textAlign,
+            fontSize: block.settings?.fontSize,
+        }}
+    >
+      <div className={hasChildren ? "study-read-block-with-toggle" : ""}>
+        {hasChildren && (
+            <button
+                type="button"
+                onClick={() => onToggleCollapsed(block.id)}
+                className="study-read-toggle-btn"
+            >
+                {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+            </button>
+        )}
+        <div className="study-read-block-main">
+            <ReadBlockContent
+                block={block}
+                nodes={nodes}
+                templates={templates}
+                collapsed={collapsed}
+                onToggleCollapsed={onToggleCollapsed}
+                onOpenNode={onOpenNode}
+            />
+            {hasChildren && collapsed && (
+                <div className="study-read-collapsed-hint">
+                    Children hidden: {block.children?.length}
+                </div>
+            )}
+        </div>
+      </div>
+
+      {!collapsed && hasChildren && (
+        <div className={`study-read-children level-${level}`}>
           {(block.children ?? []).map((child) => (
             <ReadBlock
               key={child.id}
@@ -129,10 +157,11 @@ function ReadBlock({
               collapsedBlockIds={collapsedBlockIds}
               onToggleCollapsed={onToggleCollapsed}
               onOpenNode={onOpenNode}
+              level={level + 1}
             />
           ))}
         </div>
-      ) : null}
+      )}
     </section>
   );
 }
@@ -152,6 +181,14 @@ function ReadBlockContent({
   onToggleCollapsed: (blockId: string) => void;
   onOpenNode: (nodeId: string) => void;
 }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (contentRef.current) {
+        replaceTextNodesWithInternalLinks(contentRef.current, nodes, onOpenNode);
+    }
+  }, [block, nodes, onOpenNode]);
+
   if (isContentBlock(block)) {
     if (block.type === 'heading') {
       const Tag = (block.settings?.headingStyle ?? 'h1') as 'h1' | 'h2' | 'h3';
@@ -162,7 +199,7 @@ function ReadBlockContent({
               {collapsed ? <ChevronRight size={18} aria-hidden /> : <ChevronDown size={18} aria-hidden />}
             </button>
           ) : null}
-          <Tag>{block.content}</Tag>
+          <Tag ref={contentRef}>{block.content}</Tag>
         </div>
       );
     }
@@ -175,15 +212,27 @@ function ReadBlockContent({
     }
     if (block.type === 'code') {
       return (
-        <div className="study-code-preview">
-          <div className="study-code-label">{block.language || block.settings?.codeLanguage || 'text'}</div>
-          <pre><code>{block.content}</code></pre>
-        </div>
+        <StudyCodeBlock
+          value={block.content}
+          language={block.language || block.settings?.codeLanguage}
+          editable={false}
+          wrap={block.settings?.codeWrap}
+          fontSize={block.settings?.fontSize}
+          textColor={block.settings?.textColor}
+          backgroundColor={block.settings?.backgroundColor}
+          padding={block.settings?.padding}
+        />
       );
     }
 
     // Default content block rendering - simplified rich text view
-    return <div dangerouslySetInnerHTML={{ __html: block.content }} />;
+    return (
+        <div
+            ref={contentRef}
+            className="study-rich-text-view"
+            dangerouslySetInnerHTML={{ __html: toEditableHtml(block.content) }}
+        />
+    );
   }
 
   if (block.type === 'table') {

@@ -1,5 +1,5 @@
-import { FolderPlus, Plus, Redo2, Undo2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { FolderPlus, Plus, Redo2, Undo2, Folder, FileText } from 'lucide-react';
+import { useMemo, useState, useEffect } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { PageHeader } from '../../shared/components/PageHeader';
@@ -7,6 +7,12 @@ import { Tooltip } from '../../shared/components/Tooltip';
 import { StudyMaterialEditor, type StudyMode } from './components/StudyMaterialEditor';
 import { StudyTemplateManager } from './components/StudyTemplateManager';
 import { StudyTreePanel } from './components/StudyTreePanel';
+import { StudyCommandPalette } from './components/editor/StudyCommandPalette';
+import { StudyAppNoticeViewport } from './components/editor/StudyAppNoticeViewport';
+import {
+  collectStudyTocItems,
+  scrollToStudyReadBlock,
+} from './utils/readToc';
 import {
   collectNodeDescendants,
   createStudyMaterial,
@@ -35,9 +41,27 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
   const [nodeDialog, setNodeDialog] = useState<NodeDialog>(null);
   const [dialogTitle, setDialogTitle] = useState('');
   const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
   const [editorMode, setEditorMode] = useState<StudyMode>('edit');
   const [past, setPast] = useState<StudyData[]>([]);
   const [future, setFuture] = useState<StudyData[]>([]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(prev => !prev);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        setSidebarCollapsed(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const selectedNode = safeData.nodes.find((node) => node.id === safeData.selectedNodeId) ?? null;
   const selectedMaterial = selectedNode?.type === 'material'
@@ -46,6 +70,11 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
   const selectedFolder = selectedNode?.type === 'folder' ? selectedNode : null;
   const rootFolders = getNodeChildren(safeData.nodes, null).filter((node) => node.type === 'folder');
   const selectedPath = getNodePath(safeData.nodes, safeData.selectedNodeId);
+
+  const readTocItems = useMemo(
+    () => (selectedMaterial && editorMode === 'read' ? collectStudyTocItems(selectedMaterial.blocks) : []),
+    [editorMode, selectedMaterial],
+  );
 
   function commit(next: StudyData, options: { remember?: boolean } = {}) {
     const normalized = normalizeStudyData(next);
@@ -172,6 +201,12 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
     commit({ ...safeData, customBlockTemplates });
   }
 
+  function handleOpenBlock(nodeId: string, blockId: string) {
+    updateSelectedNode(nodeId);
+    setFocusBlockId(blockId);
+    setEditorMode('edit');
+  }
+
   function undo() {
     const previous = past[past.length - 1];
     if (!previous) {
@@ -208,8 +243,10 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
           onDeleteNode={deleteNode}
           onDuplicateMaterial={duplicateMaterial}
           onMoveNode={moveNode}
-          showToc={false}
-          onTocItemClick={() => {}}
+          tocItems={readTocItems}
+          showToc={editorMode === 'read' && !!selectedMaterial}
+          onTocItemClick={scrollToStudyReadBlock}
+          collapsed={sidebarCollapsed}
         />
 
         <main className="study-main">
@@ -260,6 +297,8 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
               onChange={updateMaterial}
               onOpenMaterial={updateSelectedNode}
               onOpenTemplateManager={() => setTemplateManagerOpen(true)}
+              focusBlockId={focusBlockId}
+              onFocusBlockConsumed={() => setFocusBlockId(null)}
             />
           ) : selectedFolder ? (
             <FolderOverview
@@ -328,6 +367,20 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
           onClose={() => setTemplateManagerOpen(false)}
         />
       ) : null}
+
+      <StudyCommandPalette
+        open={commandPaletteOpen}
+        nodes={safeData.nodes}
+        materials={safeData.materials}
+        templates={safeData.customBlockTemplates}
+        onClose={() => setCommandPaletteOpen(false)}
+        onOpenNode={updateSelectedNode}
+        onOpenBlock={handleOpenBlock}
+        onCreateFolder={() => openCreateDialog('folder', selectedFolder?.id ?? null)}
+        onCreateMaterial={() => openCreateDialog('material', selectedFolder?.id ?? null)}
+      />
+
+      <StudyAppNoticeViewport />
     </section>
   );
 }
@@ -345,40 +398,62 @@ function FolderOverview({ folder, nodes, materials, onSelect, onCreateFolder, on
   const children = getNodeChildren(nodes, folder?.id ?? null);
 
   return (
-    <div className="study-folder-view glass-panel">
-      <div className="study-section-heading">
-        <div>
-          <h2>{folder?.title ?? 'Root'}</h2>
-          <p>{children.length} item{children.length === 1 ? '' : 's'}</p>
+    <div className="study-folder-container">
+      <section className="study-folder-header glass-panel">
+        <div className="study-folder-title-block">
+          <span className="study-muted">Folder</span>
+          <h2>{folder?.title ?? 'Root Library'}</h2>
         </div>
-        <div className="study-inline-actions">
-          <button className="button ghost icon-text" type="button" onClick={onCreateFolder}>
-            <FolderPlus size={18} aria-hidden />
-            Folder
-          </button>
-          <button className="button ghost icon-text" type="button" onClick={onCreateMaterial}>
-            <Plus size={18} aria-hidden />
-            Material
-          </button>
-        </div>
-      </div>
 
-      {children.length === 0 ? (
-        <EmptyState title="This folder is empty" message="Create a folder or material inside it." />
-      ) : (
-        <div className="study-folder-grid">
-          {children.map((node) => {
-            const material = materials.find((item) => item.nodeId === node.id);
-            return (
-              <button className="study-folder-card glass-card" type="button" key={node.id} onClick={() => onSelect(node.id)}>
-                <strong>{node.title}</strong>
-                <span>{node.type === 'folder' ? 'Folder' : 'Material'}</span>
-                {material ? <small>{material.blocks.length} blocks</small> : null}
-              </button>
-            );
-          })}
+        <div className="study-inline-actions">
+          <button className="button primary icon-text" type="button" onClick={onCreateMaterial}>
+            <Plus size={18} />
+            New Material
+          </button>
+          <button className="button ghost icon-text" type="button" onClick={onCreateFolder}>
+            <FolderPlus size={18} />
+            New Folder
+          </button>
         </div>
-      )}
+      </section>
+
+      <section className="study-folder-content glass-panel">
+        <div className="study-section-heading">
+          <h3>Contents</h3>
+          <span className="study-muted">{children.length} items</span>
+        </div>
+
+        {children.length === 0 ? (
+          <div className="study-folder-empty">
+             <p className="study-muted">This folder is empty.</p>
+          </div>
+        ) : (
+          <div className="study-folder-list">
+            {children.map((node) => {
+              const material = materials.find((item) => item.nodeId === node.id);
+              return (
+                <button
+                    key={node.id}
+                    className="study-folder-item"
+                    onClick={() => onSelect(node.id)}
+                >
+                  <div className="study-folder-item-main">
+                    {node.type === 'folder' ? <Folder size={18} className="icon-folder" /> : <FileText size={18} className="icon-material" />}
+                    <strong>{node.title}</strong>
+                  </div>
+                  <div className="study-folder-item-meta">
+                    {node.type === 'material' ? (
+                        <span>{material?.blocks.length ?? 0} blocks</span>
+                    ) : (
+                        <span>Folder</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

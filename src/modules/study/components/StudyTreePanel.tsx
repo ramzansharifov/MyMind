@@ -33,6 +33,7 @@ interface StudyTreePanelProps {
   onMoveNode: (draggedNodeId: string, targetParentId: string | null) => void;
   tocItems?: StudyTocItem[];
   showToc?: boolean;
+  collapsed?: boolean;
   onTocItemClick?: (blockId: string) => void;
 }
 
@@ -52,6 +53,7 @@ export function StudyTreePanel({
   tocItems = [],
   showToc = false,
   onTocItemClick,
+  collapsed = false,
 }: StudyTreePanelProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(nodes.filter((node) => node.type === 'folder').map((node) => node.id)));
   const [menuNodeId, setMenuNodeId] = useState<string | null>(null);
@@ -125,6 +127,8 @@ export function StudyTreePanel({
       onMoveNode(nodeId, null);
     }
   }
+
+  if (collapsed) return null;
 
   return (
     <aside className="study-tree-panel glass-panel">
@@ -342,18 +346,32 @@ function TreeNode({
             <strong>{node.title}</strong>
             {material && material.blocks.length > 0 && <small>{material.blocks.length} blocks</small>}
           </span>
+          {isDropTarget && <span className="study-drop-inside-label">DROP INSIDE</span>}
         </div>
 
-        <button
-          className={`icon-button subtle${menuNodeId === node.id ? ' active' : ''}`}
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSetMenuNodeId(menuNodeId === node.id ? null : node.id);
-          }}
-        >
-          <MoreHorizontal size={16} aria-hidden />
-        </button>
+        <div className="study-tree-actions" onClick={e => e.stopPropagation()}>
+            {isFolder ? (
+                <>
+                    <button className="icon-button subtle" title="New Folder" onClick={() => onCreateFolder(node.id)}><FolderPlus size={14} /></button>
+                    <button className="icon-button subtle" title="New Material" onClick={() => onCreateMaterial(node.id)}><Plus size={14} /></button>
+                </>
+            ) : (
+                <button className="icon-button subtle" title="Duplicate" onClick={() => onDuplicateMaterial(node.id)}><Copy size={14} /></button>
+            )}
+            <button className="icon-button subtle" title="Rename" onClick={() => onRenameNode(node)}><Pencil size={14} /></button>
+            <button className="icon-button subtle danger" title="Delete" onClick={() => onDeleteNode(node.id)}><Trash2 size={14} /></button>
+
+            <button
+                className={`icon-button subtle menu-trigger${menuNodeId === node.id ? ' active' : ''}`}
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onSetMenuNodeId(menuNodeId === node.id ? null : node.id);
+                }}
+            >
+                <MoreHorizontal size={16} aria-hidden />
+            </button>
+        </div>
 
         {menuNodeId === node.id && (
           <div className="study-tree-menu glass-panel" onMouseDown={(e) => e.stopPropagation()}>

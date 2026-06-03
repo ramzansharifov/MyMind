@@ -87,6 +87,12 @@ export function EditableBlockCard({
       return;
     }
 
+    const clickedHead = target.closest('.study-block-head');
+    if (clickedHead) {
+        onSelect(block.id);
+        return;
+    }
+
     onSelect(block.id);
   }
 
