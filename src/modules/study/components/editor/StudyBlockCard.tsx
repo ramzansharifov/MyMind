@@ -37,6 +37,7 @@ interface EditableBlockCardProps {
   onToggleCollapsed: (blockId: string) => void;
   onOpenNode: (nodeId: string) => void;
   nestedContent?: ReactNode;
+  index: number;
 }
 
 export function EditableBlockCard({
@@ -46,6 +47,7 @@ export function EditableBlockCard({
   templates,
   selectedBlockId,
   collapsedBlockIds,
+  index,
   richTextCommand,
   onRichTextMarksChange,
   onActiveRichTextEditorChange,
@@ -109,45 +111,24 @@ export function EditableBlockCard({
       </div>
 
       <div className="study-block-head">
-        <button className="study-collapse-button" type="button" onClick={() => onToggleCollapsed(block.id)}>
-          {hasChildren ? (isCollapsed ? <ChevronRight size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />) : <span />}
-        </button>
-        <span className="study-block-type-chip">
-          {getStudyBlockLabel(block.type)}
-        </span>
+        <div className="study-block-info">
+            <button className="study-collapse-button" type="button" onClick={() => onToggleCollapsed(block.id)}>
+            {hasChildren ? (isCollapsed ? <ChevronRight size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />) : <span className="spacer">·</span>}
+            </button>
+            <span className="study-block-type-chip">
+                {level > 0 && <span className="study-block-level">LEVEL {level}</span>}
+                {getStudyBlockLabel(block.type)} #{index + 1}
+                {isSelected && <span className="study-block-selected-badge">SELECTED</span>}
+                {hasChildren && <span className="study-block-children-count">CHILDREN: {block.children?.length}</span>}
+            </span>
+        </div>
         <div className="study-block-actions">
-          <Tooltip content="Move up">
-            <button className="icon-button subtle" type="button" onClick={() => onMove(block.id, -1)}>
-              <ArrowUp size={15} aria-hidden />
-            </button>
-          </Tooltip>
-          <Tooltip content="Move down">
-            <button className="icon-button subtle" type="button" onClick={() => onMove(block.id, 1)}>
-              <ArrowDown size={15} aria-hidden />
-            </button>
-          </Tooltip>
-          <Tooltip content="Nest into previous block">
-            <button className="icon-button subtle" type="button" onClick={() => onNest(block.id)}>
-              <ListPlus size={15} aria-hidden />
-            </button>
-          </Tooltip>
-          {level > 0 ? (
-            <Tooltip content="Move out">
-              <button className="icon-button subtle" type="button" onClick={() => onUnnest(block.id)}>
-                <SplitSquareHorizontal size={15} aria-hidden />
-              </button>
-            </Tooltip>
-          ) : null}
-          <Tooltip content="Duplicate">
-            <button className="icon-button subtle" type="button" onClick={() => onDuplicate(block.id)}>
-              <Copy size={15} aria-hidden />
-            </button>
-          </Tooltip>
-          <Tooltip content="Delete">
-            <button className="icon-button danger" type="button" onClick={() => onDelete(block.id)}>
-              <Trash2 size={15} aria-hidden />
-            </button>
-          </Tooltip>
+          <button className="study-tree-action-btn" title="Move up" onClick={() => onMove(block.id, -1)}>Up</button>
+          <button className="study-tree-action-btn" title="Move down" onClick={() => onMove(block.id, 1)}>Down</button>
+          <button className="study-tree-action-btn" title="In" onClick={() => onNest(block.id)}>In</button>
+          {level > 0 && <button className="study-tree-action-btn" title="Out" onClick={() => onUnnest(block.id)}>Out</button>}
+          <button className="study-tree-action-btn" title="Copy" onClick={() => onDuplicate(block.id)}>Copy</button>
+          <button className="study-tree-action-btn danger" title="Delete" onClick={() => onDelete(block.id)}>Delete</button>
         </div>
       </div>
 

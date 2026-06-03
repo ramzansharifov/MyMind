@@ -233,7 +233,6 @@ export function StudySettingsPanel({
         <RangeField label="Font size" min={8} max={72} value={settings.fontSize ?? (block.type === 'heading' ? 24 : 16)} onChange={(v) => updateSetting("fontSize", v)} />
         <ColorRow label="Text color" value={settings.textColor} onChange={(v) => updateSetting("textColor", v)} />
         <ColorRow label="Block BG" value={settings.backgroundColor} onChange={(v) => updateSetting("backgroundColor", v)} />
-        <RangeField label="Padding" min={0} max={64} value={settings.padding ?? 16} onChange={(v) => updateSetting("padding", v)} />
 
         <div className="study-choice-row">
           {(['left', 'center', 'right'] as const).map(align => (

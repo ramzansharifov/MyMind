@@ -22,7 +22,7 @@ import {
   listenTableCommand,
   type TableCellRange,
 } from "../../utils/tableEvents";
-// import { showAppWarning } from "../../utils/appNotice"; // Need to check if there is an alternative or just use alert
+import { showAppWarning } from "../../utils/appNotice";
 import {
   DEFAULT_COLUMN_WIDTH,
   MAX_COLUMN_WIDTH,
@@ -49,9 +49,6 @@ import {
   type SelectedCell,
 } from "../../utils/tableCore";
 
-function showAppWarning(title: string, message: string) {
-    alert(`${title}: ${message}`);
-}
 
 interface StudyTableEditorProps {
   block: StudyTableBlock;
