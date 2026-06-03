@@ -122,6 +122,7 @@ export function StudyMaterialEditor({
     const block = createStudyBlock(type);
     if (selectedBlockId) {
         updateBlock(selectedBlockId, (item) => ({ ...item, children: [...(item.children ?? []), block], collapsed: false }));
+        toggleCollapsed(selectedBlockId, false);
     } else {
         updateBlocks([...material.blocks, block]);
     }
@@ -132,6 +133,7 @@ export function StudyMaterialEditor({
     const block = createCustomStudyBlock(template);
     if (selectedBlockId) {
         updateBlock(selectedBlockId, (item) => ({ ...item, children: [...(item.children ?? []), block], collapsed: false }));
+        toggleCollapsed(selectedBlockId, false);
     } else {
         updateBlocks([...material.blocks, block]);
     }
@@ -148,10 +150,13 @@ export function StudyMaterialEditor({
     setPendingDeleteBlockId(null);
   }
 
-  function toggleCollapsed(blockId: string) {
+  function toggleCollapsed(blockId: string, force?: boolean) {
     setCollapsedBlockIds((current) => {
       const next = new Set(current);
-      if (next.has(blockId)) {
+      const isCurrentlyCollapsed = next.has(blockId);
+      const shouldCollapse = force !== undefined ? force : !isCurrentlyCollapsed;
+
+      if (!shouldCollapse) {
         next.delete(blockId);
       } else {
         next.add(blockId);
@@ -178,6 +183,14 @@ export function StudyMaterialEditor({
     onOpenMaterial(targetNodeId);
   }
 
+  function handleSelectBlock(blockId: string) {
+      if (selectedBlockId === blockId) {
+          setSelectedBlockId(null);
+      } else {
+          setSelectedBlockId(blockId);
+      }
+  }
+
   const renderBlocks = (blocks: StudyBlock[], level = 0): React.ReactNode => {
       return blocks.map((block, index) => (
         <EditableBlockCard
@@ -194,7 +207,7 @@ export function StudyMaterialEditor({
                 if (selectedBlockId === block.id) setRichTextMarks(marks);
             }}
             onActiveRichTextEditorChange={setActiveRichTextEditorId}
-            onSelect={setSelectedBlockId}
+            onSelect={handleSelectBlock}
             onUpdate={updateBlock}
             onDelete={deleteBlock}
             onDuplicate={(id) => updateBlocks(duplicateBlockInTree(material.blocks, id))}

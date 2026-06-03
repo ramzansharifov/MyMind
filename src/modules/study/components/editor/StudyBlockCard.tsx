@@ -144,17 +144,13 @@ export function EditableBlockCard({
 
   return (
     <article
-      className={`study-block glass-panel${isSelected ? ' active' : ''}`}
+      className={`study-block glass-panel${isSelected ? ' active' : ''} level-${level}`}
       data-study-block-id={block.id}
       onMouseDown={handleBlockMouseDown}
       onKeyDown={handleKeyDown}
       style={getVisualStyle(block)}
       tabIndex={0}
     >
-      <div className="study-block-grip">
-        <GripVertical size={16} aria-hidden />
-      </div>
-
       <div className="study-block-head">
         <div className="study-block-info">
             <button className="study-collapse-button" type="button" onClick={() => onToggleCollapsed(block.id)}>

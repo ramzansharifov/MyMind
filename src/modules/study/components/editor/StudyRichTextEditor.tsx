@@ -167,12 +167,12 @@ function findCheckboxListItemFromMouseEvent(
 }
 
 function prepareCheckboxList(list: HTMLUListElement | HTMLOListElement) {
-  list.dataset.listType = "checkbox";
-  list.style.listStyleType = "checkbox-list";
+  list.setAttribute("data-list-type", "checkbox");
+  list.style.listStyleType = "none";
 
   Array.from(list.children).forEach((child) => {
     if (child instanceof HTMLLIElement && !child.hasAttribute("data-checked")) {
-      child.dataset.checked = "false";
+      child.setAttribute("data-checked", "false");
     }
   });
 }
@@ -774,8 +774,8 @@ export function RichTextEditor({
     event.preventDefault();
     event.stopPropagation();
 
-    const checked = listItem.dataset.checked === "true";
-    listItem.dataset.checked = checked ? "false" : "true";
+    const checked = listItem.getAttribute("data-checked") === "true";
+    listItem.setAttribute("data-checked", checked ? "false" : "true");
 
     if (editable) {
       saveFromEditor();
