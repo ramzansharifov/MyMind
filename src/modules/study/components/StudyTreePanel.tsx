@@ -343,9 +343,15 @@ function TreeNode({
                 if (isFolder) onToggleExpanded(node.id);
             }}
           >
-            {isFolder ? (isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <span className="spacer">·</span>}
+            {isFolder ? (
+              isExpanded ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />
+            ) : (
+              <span className="study-tree-expander-spacer" aria-hidden />
+            )}
           </button>
-          <span className="study-tree-node-type">{isFolder ? "[D]" : "[M]"}</span>
+          <span className="study-tree-node-type">
+            {isFolder ? <Folder size={16} aria-hidden /> : <FileText size={16} aria-hidden />}
+          </span>
           <span className="study-tree-node-title">
             <strong>{node.title}</strong>
             {material && material.blocks.length > 0 && <small>{material.blocks.length} blocks</small>}
@@ -355,15 +361,35 @@ function TreeNode({
 
         <div className="study-tree-actions" onClick={e => e.stopPropagation()}>
             {isFolder ? (
-                <>
-                    <button className="study-tree-action-btn" title="D+" onClick={() => onCreateFolder(node.id)}>D+</button>
-                    <button className="study-tree-action-btn" title="M+" onClick={() => onCreateMaterial(node.id)}>M+</button>
-                </>
+              <>
+                <Tooltip content="New folder">
+                  <button className="study-tree-action-btn" type="button" onClick={() => onCreateFolder(node.id)}>
+                    <FolderPlus size={14} aria-hidden />
+                  </button>
+                </Tooltip>
+                <Tooltip content="New material">
+                  <button className="study-tree-action-btn" type="button" onClick={() => onCreateMaterial(node.id)}>
+                    <Plus size={14} aria-hidden />
+                  </button>
+                </Tooltip>
+              </>
             ) : (
-                <button className="study-tree-action-btn" title="C" onClick={() => onDuplicateMaterial(node.id)}>C</button>
+              <Tooltip content="Duplicate">
+                <button className="study-tree-action-btn" type="button" onClick={() => onDuplicateMaterial(node.id)}>
+                  <Copy size={14} aria-hidden />
+                </button>
+              </Tooltip>
             )}
-            <button className="study-tree-action-btn" title="R" onClick={() => onRenameNode(node)}>R</button>
-            <button className="study-tree-action-btn danger" title="X" onClick={() => onDeleteNode(node.id)}>X</button>
+            <Tooltip content="Rename">
+              <button className="study-tree-action-btn" type="button" onClick={() => onRenameNode(node)}>
+                <Pencil size={14} aria-hidden />
+              </button>
+            </Tooltip>
+            <Tooltip content="Delete">
+              <button className="study-tree-action-btn danger" type="button" onClick={() => onDeleteNode(node.id)}>
+                <Trash2 size={14} aria-hidden />
+              </button>
+            </Tooltip>
 
             <button
                 className={`icon-button subtle menu-trigger${menuNodeId === node.id ? ' active' : ''}`}

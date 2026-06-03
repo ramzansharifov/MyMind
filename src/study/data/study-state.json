@@ -1,6 +1,78 @@
 {
-  "selectedNodeId": null,
-  "nodes": [],
-  "materials": [],
+  "selectedNodeId": "material_1780491595391_48b9g47",
+  "nodes": [
+    {
+      "id": "material_1780491595391_48b9g47",
+      "type": "material",
+      "title": "ыва",
+      "parentId": "folder_1780491597983_bcbb4gc",
+      "order": 1,
+      "createdAt": "2026-06-03T12:59:55.391Z",
+      "updatedAt": "2026-06-03T12:59:59.866Z"
+    },
+    {
+      "id": "folder_1780491597983_bcbb4gc",
+      "type": "folder",
+      "title": "фвыафыв",
+      "parentId": null,
+      "order": 2,
+      "createdAt": "2026-06-03T12:59:57.983Z",
+      "updatedAt": "2026-06-03T12:59:57.983Z"
+    }
+  ],
+  "materials": [
+    {
+      "id": "material_1780491595391_48b9g47",
+      "nodeId": "material_1780491595391_48b9g47",
+      "title": "ыва",
+      "blocks": [
+        {
+          "id": "block_1780491601727_oojh8yd",
+          "createdAt": "2026-06-03T13:00:01.727Z",
+          "updatedAt": "2026-06-03T13:00:01.727Z",
+          "children": [
+            {
+              "id": "block_1780491604959_6lpim62",
+              "createdAt": "2026-06-03T13:00:04.959Z",
+              "updatedAt": "2026-06-03T13:00:04.959Z",
+              "children": [],
+              "type": "heading",
+              "content": "Новый заголовок"
+            }
+          ],
+          "type": "table",
+          "rows": [
+            [
+              "Заголовок 1",
+              "Заголовок 2",
+              "Заголовок 3"
+            ],
+            [
+              "",
+              "",
+              ""
+            ],
+            [
+              "",
+              "",
+              ""
+            ]
+          ],
+          "hasHeader": true
+        },
+        {
+          "id": "block_1780491607567_5qaso1c",
+          "createdAt": "2026-06-03T13:00:07.567Z",
+          "updatedAt": "2026-06-03T13:00:07.567Z",
+          "children": [],
+          "type": "text",
+          "content": ""
+        }
+      ],
+      "tags": [],
+      "createdAt": "2026-06-03T12:59:55.391Z",
+      "updatedAt": "2026-06-03T13:00:07.567Z"
+    }
+  ],
   "customBlockTemplates": []
 }

@@ -1,4 +1,28 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, type MouseEvent, type ReactNode } from 'react';
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  Bold,
+  Check,
+  CheckSquare,
+  Columns3,
+  Copy,
+  Download,
+  Italic,
+  List,
+  ListOrdered,
+  RotateCcw,
+  Rows3,
+  Strikethrough,
+  Trash2,
+  Underline,
+  X,
+} from 'lucide-react';
 import type {
   StudyBlock,
   StudyBlockSettings,
@@ -19,6 +43,18 @@ import type {
 } from './StudyRichTextEditor';
 import { CodeLanguageInput } from './CodeLanguageInput';
 import { StudyInternalLinkInput } from './StudyInternalLinkInput';
+import { Tooltip } from '../../../../shared/components/Tooltip';
+
+const SETTING_COLORS = [
+  '#e7eef8',
+  '#f5b7b8',
+  '#ffd99f',
+  '#f5e68f',
+  '#a9e4c8',
+  '#9fd5d1',
+  '#b6c4ff',
+  '#d6a8f1',
+];
 
 interface StudySettingsPanelProps {
   block: StudyBlock | null;
@@ -32,6 +68,39 @@ interface StudySettingsPanelProps {
 
 function getToolButtonClass(active: boolean): string {
   return active ? 'active' : '';
+}
+
+function IconToolButton({
+  label,
+  active = false,
+  danger = false,
+  disabled = false,
+  onClick,
+  onMouseDown,
+  children,
+}: {
+  label: string;
+  active?: boolean;
+  danger?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  onMouseDown?: (event: MouseEvent<HTMLButtonElement>) => void;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip content={label}>
+      <button
+        type="button"
+        className={`study-tool-button${active ? ' active' : ''}${danger ? ' danger' : ''}`}
+        disabled={disabled}
+        aria-label={label}
+        onMouseDown={onMouseDown}
+        onClick={onClick}
+      >
+        {children}
+      </button>
+    </Tooltip>
+  );
 }
 
 export function StudySettingsPanel({
@@ -141,19 +210,39 @@ export function StudySettingsPanel({
           <div className="study-table-settings">
              <h4 className="study-settings-group-title">Table Actions</h4>
              <div className="study-choice-row">
-                <button type="button" onClick={() => runTableCommand("toggleHeader")} className={`button ghost ${getToolButtonClass(block.hasHeader)}`}>Header</button>
-                <button type="button" onClick={() => runTableCommand("exportCsv")} className="button ghost">CSV</button>
+                <IconToolButton label="Toggle header row" active={block.hasHeader} onClick={() => runTableCommand("toggleHeader")}>
+                  <Rows3 size={18} aria-hidden />
+                </IconToolButton>
+                <IconToolButton label="Export CSV" onClick={() => runTableCommand("exportCsv")}>
+                  <Download size={18} aria-hidden />
+                </IconToolButton>
              </div>
 
              <div className="study-grid-actions">
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addRowAbove")} className="button ghost">Row ↑</button>
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addRowBelow")} className="button ghost">Row ↓</button>
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("deleteRow")} className="button ghost danger">Del Row</button>
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addColumnLeft")} className="button ghost">Col ←</button>
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addColumnRight")} className="button ghost">Col →</button>
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("deleteColumn")} className="button ghost danger">Del Col</button>
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("moveRowUp")} className="button ghost">Move ↑</button>
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("moveRowDown")} className="button ghost">Move ↓</button>
+                <IconToolButton label="Add row above" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addRowAbove")}>
+                  <ArrowUp size={17} aria-hidden />
+                </IconToolButton>
+                <IconToolButton label="Add row below" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addRowBelow")}>
+                  <ArrowDown size={17} aria-hidden />
+                </IconToolButton>
+                <IconToolButton label="Delete row" danger disabled={!hasSelectedTableCell} onClick={() => runTableCommand("deleteRow")}>
+                  <Rows3 size={17} aria-hidden />
+                </IconToolButton>
+                <IconToolButton label="Add column left" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addColumnLeft")}>
+                  <ArrowLeft size={17} aria-hidden />
+                </IconToolButton>
+                <IconToolButton label="Add column right" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addColumnRight")}>
+                  <ArrowRight size={17} aria-hidden />
+                </IconToolButton>
+                <IconToolButton label="Delete column" danger disabled={!hasSelectedTableCell} onClick={() => runTableCommand("deleteColumn")}>
+                  <Columns3 size={17} aria-hidden />
+                </IconToolButton>
+                <IconToolButton label="Move row up" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("moveRowUp")}>
+                  <ArrowUp size={17} aria-hidden />
+                </IconToolButton>
+                <IconToolButton label="Move row down" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("moveRowDown")}>
+                  <ArrowDown size={17} aria-hidden />
+                </IconToolButton>
              </div>
 
              {tableSelection && (
@@ -162,21 +251,27 @@ export function StudySettingsPanel({
                    <RangeField label={`Col Width (${tableSelection.columnWidth}px)`} min={80} max={600} value={tableSelection.columnWidth} onChange={(v) => runTableCommand("setColumnWidth", v)} />
 
                    <div className="study-choice-row">
-                      <button type="button" onClick={() => runTableCommand("mergeSelectedCells")} className="button ghost">Merge</button>
-                      <button type="button" onClick={() => runTableCommand("splitSelectedCells")} className="button ghost">Split</button>
+                      <button type="button" onClick={() => runTableCommand("mergeSelectedCells")} className="button ghost compact-button">Merge</button>
+                      <button type="button" onClick={() => runTableCommand("splitSelectedCells")} className="button ghost compact-button">Split</button>
                    </div>
 
                    <ColorRow label="Cell BG" value={tableSelection.cellStyle?.backgroundColor} onChange={(v) => runTableCommand("setCellBackgroundColor", v)} />
                    <ColorRow label="Cell Text" value={tableSelection.cellStyle?.textColor} onChange={(v) => runTableCommand("setCellTextColor", v)} />
 
                    <div className="study-choice-row">
-                      {(['left', 'center', 'right'] as const).map(align => (
-                        <button key={align} type="button" onClick={() => runTableCommand("setCellTextAlign", align)} className={`button ghost ${getToolButtonClass((tableSelection.cellStyle?.textAlign ?? 'left') === align)}`}>{align}</button>
-                      ))}
+                      <IconToolButton label="Align left" active={(tableSelection.cellStyle?.textAlign ?? 'left') === 'left'} onClick={() => runTableCommand("setCellTextAlign", 'left')}>
+                        <AlignLeft size={17} aria-hidden />
+                      </IconToolButton>
+                      <IconToolButton label="Align center" active={(tableSelection.cellStyle?.textAlign ?? 'left') === 'center'} onClick={() => runTableCommand("setCellTextAlign", 'center')}>
+                        <AlignCenter size={17} aria-hidden />
+                      </IconToolButton>
+                      <IconToolButton label="Align right" active={(tableSelection.cellStyle?.textAlign ?? 'left') === 'right'} onClick={() => runTableCommand("setCellTextAlign", 'right')}>
+                        <AlignRight size={17} aria-hidden />
+                      </IconToolButton>
                    </div>
                    <div className="study-choice-row">
                       {(['top', 'middle', 'bottom'] as const).map(vAlign => (
-                        <button key={vAlign} type="button" onClick={() => runTableCommand("setCellVerticalAlign", vAlign)} className={`button ghost ${getToolButtonClass((tableSelection.cellStyle?.verticalAlign ?? 'top') === vAlign)}`}>{vAlign}</button>
+                        <button key={vAlign} type="button" onClick={() => runTableCommand("setCellVerticalAlign", vAlign)} className={`button ghost compact-button ${getToolButtonClass((tableSelection.cellStyle?.verticalAlign ?? 'top') === vAlign)}`}>{vAlign}</button>
                       ))}
                    </div>
                    <button type="button" onClick={() => runTableCommand("clearCellStyle")} className="button ghost full-width">Clear Cell Style</button>
@@ -189,21 +284,37 @@ export function StudySettingsPanel({
           <div className="study-rich-formatting">
             <h4 className="study-settings-group-title">Text Formatting</h4>
             <div className="study-choice-row">
-              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("bold")} className={`button ghost ${getToolButtonClass(marks.bold)}`}>B</button>
-              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("italic")} className={`button ghost ${getToolButtonClass(marks.italic)}`}>I</button>
-              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("underline")} className={`button ghost ${getToolButtonClass(marks.underline)}`}>U</button>
-              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("strikeThrough")} className={`button ghost ${getToolButtonClass(marks.strikeThrough)}`}>S</button>
+              <IconToolButton label="Bold" active={marks.bold} onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("bold")}>
+                <Bold size={17} aria-hidden />
+              </IconToolButton>
+              <IconToolButton label="Italic" active={marks.italic} onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("italic")}>
+                <Italic size={17} aria-hidden />
+              </IconToolButton>
+              <IconToolButton label="Underline" active={marks.underline} onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("underline")}>
+                <Underline size={17} aria-hidden />
+              </IconToolButton>
+              <IconToolButton label="Strikethrough" active={marks.strikeThrough} onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("strikeThrough")}>
+                <Strikethrough size={17} aria-hidden />
+              </IconToolButton>
             </div>
 
             <div className="study-font-size-tool">
                <input type="number" min={8} max={72} value={inlineFontSize} onChange={(e) => setInlineFontSize(Number(e.target.value))} />
-               <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("fontSize", String(inlineFontSize))} className="button ghost">Apply Size</button>
+               <IconToolButton label="Apply text size" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("fontSize", String(inlineFontSize))}>
+                <Check size={17} aria-hidden />
+               </IconToolButton>
             </div>
 
             <div className="study-choice-row">
-              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("unorderedList", "disc")} className={`button ghost ${getToolButtonClass(marks.unorderedList && marks.listStyle === 'disc')}`}>UL</button>
-              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("orderedList", "decimal")} className={`button ghost ${getToolButtonClass(marks.orderedList)}`}>OL</button>
-              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("unorderedList", "checkbox-list")} className={`button ghost ${getToolButtonClass(marks.listStyle === 'checkbox-list')}`}>Check</button>
+              <IconToolButton label="Bullet list" active={marks.unorderedList && marks.listStyle === 'disc'} onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("unorderedList", "disc")}>
+                <List size={17} aria-hidden />
+              </IconToolButton>
+              <IconToolButton label="Numbered list" active={marks.orderedList} onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("orderedList", "decimal")}>
+                <ListOrdered size={17} aria-hidden />
+              </IconToolButton>
+              <IconToolButton label="Checklist" active={marks.listStyle === 'checkbox-list'} onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("unorderedList", "checkbox-list")}>
+                <CheckSquare size={17} aria-hidden />
+              </IconToolButton>
             </div>
 
             <h4 className="study-settings-group-title">Internal Link</h4>
@@ -235,9 +346,15 @@ export function StudySettingsPanel({
         <ColorRow label="Block BG" value={settings.backgroundColor} onChange={(v) => updateSetting("backgroundColor", v)} />
 
         <div className="study-choice-row">
-          {(['left', 'center', 'right'] as const).map(align => (
-            <button key={align} type="button" onClick={() => updateSetting("textAlign", align)} className={`button ghost ${getToolButtonClass(settings.textAlign === align)}`}>{align}</button>
-          ))}
+          <IconToolButton label="Align left" active={settings.textAlign === 'left'} onClick={() => updateSetting("textAlign", 'left')}>
+            <AlignLeft size={17} aria-hidden />
+          </IconToolButton>
+          <IconToolButton label="Align center" active={settings.textAlign === 'center'} onClick={() => updateSetting("textAlign", 'center')}>
+            <AlignCenter size={17} aria-hidden />
+          </IconToolButton>
+          <IconToolButton label="Align right" active={settings.textAlign === 'right'} onClick={() => updateSetting("textAlign", 'right')}>
+            <AlignRight size={17} aria-hidden />
+          </IconToolButton>
         </div>
 
         {block.type === 'board' && (
@@ -253,12 +370,19 @@ export function StudySettingsPanel({
           onClick={() => onChangeSettings({})}
           className="button ghost full-width study-reset-settings"
         >
-          Reset Block Settings
+          <RotateCcw size={16} aria-hidden />
+          Reset settings
         </button>
 
         <div className="study-panel-actions">
-          <button className="button ghost icon-text" type="button" onClick={onDuplicate}>Duplicate</button>
-          <button className="button danger icon-text" type="button" onClick={onDelete}>Delete</button>
+          <button className="button ghost icon-text" type="button" onClick={onDuplicate}>
+            <Copy size={16} aria-hidden />
+            Duplicate
+          </button>
+          <button className="button danger icon-text" type="button" onClick={onDelete}>
+            <Trash2 size={16} aria-hidden />
+            Delete
+          </button>
         </div>
       </div>
     </aside>
@@ -268,7 +392,10 @@ export function StudySettingsPanel({
 function RangeField({ label, min, max, value, onChange }: { label: string; min: number; max: number; value: number; onChange: (v: number) => void }) {
     return (
         <label className="study-range-field">
-            <span>{label}</span>
+            <span className="study-range-field-head">
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </span>
             <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(Number(e.target.value))} />
         </label>
     );
@@ -278,9 +405,22 @@ function ColorRow({ label, value, onChange }: { label: string; value?: string; o
     return (
         <div className="study-color-row">
             <span>{label}</span>
-            <div className="study-color-input-wrap">
-                <input type="color" value={value ?? "#ffffff"} onChange={(e) => onChange(e.target.value)} />
-                <button type="button" className="study-color-reset" onClick={() => onChange(undefined)}>×</button>
+            <div className="study-color-swatch-row">
+                {SETTING_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    className={`study-color-dot${value === color ? ' active' : ''}`}
+                    style={{ backgroundColor: color }}
+                    aria-label={`${label} ${color}`}
+                    onClick={() => onChange(color)}
+                  />
+                ))}
+                <Tooltip content="Reset color">
+                  <button type="button" className="study-color-reset" onClick={() => onChange(undefined)} aria-label="Reset color">
+                    <X size={14} aria-hidden />
+                  </button>
+                </Tooltip>
             </div>
         </div>
     );

@@ -438,7 +438,9 @@ function FolderOverview({ folder, nodes, materials, onSelect, onCreateFolder, on
                     onClick={() => onSelect(node.id)}
                 >
                   <div className="study-folder-item-main">
-                    <span className="study-folder-item-type-icon">{node.type === 'folder' ? '[D]' : '[M]'}</span>
+                    <span className="study-folder-item-type-icon">
+                      {node.type === 'folder' ? <Folder size={16} aria-hidden /> : <FileText size={16} aria-hidden />}
+                    </span>
                     <strong>{node.title}</strong>
                   </div>
                   <div className="study-folder-item-meta">

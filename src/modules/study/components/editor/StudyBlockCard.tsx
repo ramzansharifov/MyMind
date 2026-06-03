@@ -113,22 +113,53 @@ export function EditableBlockCard({
       <div className="study-block-head">
         <div className="study-block-info">
             <button className="study-collapse-button" type="button" onClick={() => onToggleCollapsed(block.id)}>
-            {hasChildren ? (isCollapsed ? <ChevronRight size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />) : <span className="spacer">·</span>}
+            {hasChildren ? (
+              isCollapsed ? <ChevronRight size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />
+            ) : (
+              <span className="study-block-collapse-spacer" aria-hidden />
+            )}
             </button>
             <span className="study-block-type-chip">
-                {level > 0 && <span className="study-block-level">LEVEL {level}</span>}
-                {getStudyBlockLabel(block.type)} #{index + 1}
-                {isSelected && <span className="study-block-selected-badge">SELECTED</span>}
-                {hasChildren && <span className="study-block-children-count">CHILDREN: {block.children?.length}</span>}
+                <span className="study-block-index">#{index + 1}</span>
+                <span>{getStudyBlockLabel(block.type)}</span>
+                {level > 0 && <span className="study-block-level">L{level}</span>}
+                {isSelected && <span className="study-block-selected-badge" aria-label="Selected block" />}
+                {hasChildren && <span className="study-block-children-count">{block.children?.length}</span>}
             </span>
         </div>
         <div className="study-block-actions">
-          <button className="study-tree-action-btn" title="Move up" onClick={() => onMove(block.id, -1)}>Up</button>
-          <button className="study-tree-action-btn" title="Move down" onClick={() => onMove(block.id, 1)}>Down</button>
-          <button className="study-tree-action-btn" title="In" onClick={() => onNest(block.id)}>In</button>
-          {level > 0 && <button className="study-tree-action-btn" title="Out" onClick={() => onUnnest(block.id)}>Out</button>}
-          <button className="study-tree-action-btn" title="Copy" onClick={() => onDuplicate(block.id)}>Copy</button>
-          <button className="study-tree-action-btn danger" title="Delete" onClick={() => onDelete(block.id)}>Delete</button>
+          <Tooltip content="Move up">
+            <button className="study-tree-action-btn" type="button" onClick={() => onMove(block.id, -1)}>
+              <ArrowUp size={14} aria-hidden />
+            </button>
+          </Tooltip>
+          <Tooltip content="Move down">
+            <button className="study-tree-action-btn" type="button" onClick={() => onMove(block.id, 1)}>
+              <ArrowDown size={14} aria-hidden />
+            </button>
+          </Tooltip>
+          <Tooltip content="Nest under previous block">
+            <button className="study-tree-action-btn" type="button" onClick={() => onNest(block.id)}>
+              <ListPlus size={14} aria-hidden />
+            </button>
+          </Tooltip>
+          {level > 0 && (
+            <Tooltip content="Move out">
+              <button className="study-tree-action-btn" type="button" onClick={() => onUnnest(block.id)}>
+                <SplitSquareHorizontal size={14} aria-hidden />
+              </button>
+            </Tooltip>
+          )}
+          <Tooltip content="Duplicate">
+            <button className="study-tree-action-btn" type="button" onClick={() => onDuplicate(block.id)}>
+              <Copy size={14} aria-hidden />
+            </button>
+          </Tooltip>
+          <Tooltip content="Delete">
+            <button className="study-tree-action-btn danger" type="button" onClick={() => onDelete(block.id)}>
+              <Trash2 size={14} aria-hidden />
+            </button>
+          </Tooltip>
         </div>
       </div>
 
