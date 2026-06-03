@@ -1,0 +1,421 @@
+﻿import { useState } from "react";
+import type { FileStudyBlock } from "../../types/study";
+
+interface FileBlockProps {
+  block: FileStudyBlock;
+  editable: boolean;
+  onChange: (block: FileStudyBlock) => void;
+}
+
+const MAX_FILE_SIZE_MB = 8;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+type PreviewKind = "image" | "video" | "audio" | "pdf" | "text" | "unknown";
+
+function formatFileSize(size: number): string {
+  if (!size) {
+    return "0 B";
+  }
+
+  if (size < 1024) {
+    return `${size} B`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      resolve(String(reader.result ?? ""));
+    };
+
+    reader.onerror = () => {
+      reject(new Error("File reading failed"));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function getFileExtension(fileName: string): string {
+  const parts = fileName.toLowerCase().split(".");
+
+  return parts.length > 1 ? parts[parts.length - 1] : "";
+}
+
+function getPreviewKind(block: FileStudyBlock): PreviewKind {
+  const mimeType = block.mimeType.toLowerCase();
+  const extension = getFileExtension(block.fileName);
+
+  if (mimeType.startsWith("image/")) {
+    return "image";
+  }
+
+  if (mimeType.startsWith("video/")) {
+    return "video";
+  }
+
+  if (mimeType.startsWith("audio/")) {
+    return "audio";
+  }
+
+  if (mimeType === "application/pdf" || extension === "pdf") {
+    return "pdf";
+  }
+
+  if (
+    mimeType.startsWith("text/") ||
+    ["txt", "md", "csv", "json", "html", "css", "js", "ts"].includes(extension)
+  ) {
+    return "text";
+  }
+
+  if (["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(extension)) {
+    return "image";
+  }
+
+  if (["mp4", "webm", "ogg", "mov", "mkv"].includes(extension)) {
+    return "video";
+  }
+
+  if (["mp3", "wav", "ogg", "m4a", "aac", "flac"].includes(extension)) {
+    return "audio";
+  }
+
+  return "unknown";
+}
+
+function openFileInNewTab(block: FileStudyBlock) {
+  if (!block.dataUrl) {
+    return;
+  }
+
+  const newWindow = window.open();
+
+  if (!newWindow) {
+    window.alert("Браузер заблокировал открытие файла в новой вкладке.");
+    return;
+  }
+
+  newWindow.document.write(`
+    <html>
+      <head>
+        <title>${block.fileName || "File"}</title>
+        <style>
+          html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            min-height: 100%;
+            background: #ffffff;
+          }
+
+          body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          iframe, video, img {
+            max-width: 100%;
+            max-height: 100vh;
+          }
+
+          audio {
+            width: 90%;
+          }
+        </style>
+      </head>
+      <body>
+        <iframe
+          src="${block.dataUrl}"
+          style="width:100%;height:100vh;border:0;"
+        ></iframe>
+      </body>
+    </html>
+  `);
+}
+
+function downloadFile(block: FileStudyBlock) {
+  if (!block.dataUrl || !block.fileName) {
+    return;
+  }
+
+  const link = document.createElement("a");
+  link.href = block.dataUrl;
+  link.download = block.fileName;
+  link.click();
+}
+
+function MediaPreview({
+  block,
+}: {
+  block: FileStudyBlock;
+}) {
+  const previewKind = getPreviewKind(block);
+
+  if (!block.dataUrl) {
+    return (
+      <div className="border border-dashed border-black bg-white px-3 py-4 text-sm text-neutral-600">
+        Файл не выбран.
+      </div>
+    );
+  }
+
+  if (previewKind === "image") {
+    return (
+      <div className="border border-black bg-white p-2">
+        <img
+          src={block.dataUrl}
+          alt={block.fileName || "Uploaded image"}
+          className="max-h-[520px] w-full object-contain"
+        />
+      </div>
+    );
+  }
+
+  if (previewKind === "video") {
+    return (
+      <div className="border border-black bg-white p-2">
+        <video
+          src={block.dataUrl}
+          controls
+          className="max-h-[520px] w-full bg-black"
+        >
+          Твой браузер не поддерживает просмотр видео.
+        </video>
+      </div>
+    );
+  }
+
+  if (previewKind === "audio") {
+    return (
+      <div className="border border-black bg-white p-3">
+        <audio
+          src={block.dataUrl}
+          controls
+          className="w-full"
+        >
+          Твой браузер не поддерживает аудио.
+        </audio>
+      </div>
+    );
+  }
+
+  if (previewKind === "pdf") {
+    return (
+      <div className="border border-black bg-white">
+        <iframe
+          src={block.dataUrl}
+          title={block.fileName || "PDF preview"}
+          className="h-[520px] w-full border-0"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="border border-black bg-white p-3 text-sm">
+      <p className="font-bold">Предпросмотр недоступен</p>
+      <p className="mt-1 break-all text-neutral-700">
+        {block.fileName || "Файл без названия"}
+      </p>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => openFileInNewTab(block)}
+          className="border border-black bg-white px-3 py-2 text-sm hover:bg-black hover:text-white"
+        >
+          Открыть
+        </button>
+
+        <button
+          type="button"
+          onClick={() => downloadFile(block)}
+          className="border border-black bg-black px-3 py-2 text-sm text-white"
+        >
+          Скачать
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function FileBlock({
+  block,
+  editable,
+  onChange,
+}: FileBlockProps) {
+  const [infoOpen, setInfoOpen] = useState(false);
+  const hasFile = Boolean(block.dataUrl);
+
+  async function handleFileChange(file: File | undefined) {
+    if (!file) {
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      window.alert(`Файл слишком большой. Максимальный размер: ${MAX_FILE_SIZE_MB} MB.`);
+      return;
+    }
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+
+      onChange({
+        ...block,
+        fileName: file.name,
+        mimeType: file.type || "unknown",
+        size: file.size,
+        dataUrl,
+      });
+
+      setInfoOpen(false);
+    } catch (error) {
+      console.error(error);
+      window.alert("Не удалось прочитать файл.");
+    }
+  }
+
+  function removeFile() {
+    onChange({
+      ...block,
+      fileName: "",
+      mimeType: "",
+      size: 0,
+      dataUrl: "",
+    });
+
+    setInfoOpen(false);
+  }
+
+  return (
+    <div className="border border-black bg-white">
+      <div className="flex items-center justify-between border-b border-black bg-neutral-100 px-3 py-2">
+        <span className="font-bold">Файл</span>
+
+        <button
+          type="button"
+          onClick={() => setInfoOpen((previous) => !previous)}
+          disabled={!hasFile}
+          className={
+            hasFile
+              ? "border border-black bg-white px-2 py-1 text-xs hover:bg-black hover:text-white"
+              : "border border-neutral-400 bg-neutral-100 px-2 py-1 text-xs text-neutral-400"
+          }
+          title="Информация о файле"
+        >
+          Info
+        </button>
+      </div>
+
+      <div className="space-y-3 p-3">
+        {editable && (
+          <label className="block">
+            <span className="mb-1 block text-sm font-bold">Выбрать файл</span>
+
+            <input
+              type="file"
+              onChange={(event) => handleFileChange(event.target.files?.[0])}
+              className="w-full border border-black bg-white px-3 py-2 text-sm"
+            />
+
+            <p className="mt-1 text-xs text-neutral-600">
+              Максимальный размер: {MAX_FILE_SIZE_MB} MB. Файл сохраняется прямо в JSON как data URL.
+            </p>
+          </label>
+        )}
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-bold">Комментарий</span>
+
+          {editable ? (
+            <textarea
+              value={block.note}
+              onChange={(event) =>
+                onChange({
+                  ...block,
+                  note: event.target.value,
+                })
+              }
+              rows={3}
+              placeholder="Комментарий к файлу"
+              className="w-full border border-black bg-white px-3 py-2 text-sm outline-none"
+            />
+          ) : (
+            block.note && (
+              <div className="whitespace-pre-wrap border border-black bg-white px-3 py-2 text-sm">
+                {block.note}
+              </div>
+            )
+          )}
+        </label>
+
+        <MediaPreview block={block} />
+
+        {infoOpen && hasFile && (
+          <div className="border border-black bg-neutral-100 p-3 text-sm">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="font-bold">Информация о файле</span>
+
+              <button
+                type="button"
+                onClick={() => setInfoOpen(false)}
+                className="border border-black bg-white px-2 py-1 text-xs hover:bg-black hover:text-white"
+              >
+                Close
+              </button>
+            </div>
+
+            <dl className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-2">
+              <dt className="font-bold">Название</dt>
+              <dd className="break-all">{block.fileName}</dd>
+
+              <dt className="font-bold">Тип</dt>
+              <dd>{block.mimeType || "unknown"}</dd>
+
+              <dt className="font-bold">Размер</dt>
+              <dd>{formatFileSize(block.size)}</dd>
+            </dl>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => downloadFile(block)}
+                className="border border-black bg-black px-3 py-2 text-sm text-white"
+              >
+                Скачать
+              </button>
+
+              <button
+                type="button"
+                onClick={() => openFileInNewTab(block)}
+                className="border border-black bg-white px-3 py-2 text-sm hover:bg-black hover:text-white"
+              >
+                Открыть
+              </button>
+
+              {editable && (
+                <button
+                  type="button"
+                  onClick={removeFile}
+                  className="border border-black bg-white px-3 py-2 text-sm hover:bg-black hover:text-white"
+                >
+                  Удалить файл
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

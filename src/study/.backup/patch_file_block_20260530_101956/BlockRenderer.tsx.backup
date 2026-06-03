@@ -1,0 +1,281 @@
+﻿import type {
+  CustomBlockValue,
+  CustomFieldType,
+  StudyBlock,
+  StudyNode,
+} from "../../types/study";
+import {
+  getBlockTitle,
+  getDefaultCustomValue,
+  isBoardBlock,
+  isContentBlock,
+  isCustomBlock,
+  isFileBlock,
+} from "../../utils/blocks";
+import { formatBytes } from "../../utils/format";
+import { resolveInternalLinks } from "../../utils/internalLinks";
+import { BoardCanvas } from "../board/BoardCanvas";
+import { LatexView } from "../latex/LatexView";
+import { TextWithInternalLinks } from "./TextWithInternalLinks";
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+interface BlockRendererProps {
+  block: StudyBlock;
+  nodes: StudyNode[];
+  editable: boolean;
+  onChange: (block: StudyBlock) => void;
+  onOpenNode: (nodeId: string) => void;
+}
+
+export function BlockRenderer({
+  block,
+  nodes,
+  editable,
+  onChange,
+  onOpenNode,
+}: BlockRendererProps) {
+  if (isContentBlock(block)) {
+    if (!editable) {
+      if (block.type === "heading") {
+        return <h2 className="text-2xl font-bold">{block.content}</h2>;
+      }
+
+      if (block.type === "latex") {
+        return <LatexView code={block.content} displayMode />;
+      }
+
+      return (
+        <div className="whitespace-pre-wrap leading-7">
+          <TextWithInternalLinks
+            text={block.content}
+            nodes={nodes}
+            onOpenNode={onOpenNode}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        {block.type === "heading" ? (
+          <input
+            value={block.content}
+            onChange={(event) =>
+              onChange({
+                ...block,
+                content: event.target.value,
+              })
+            }
+            className="w-full border border-black bg-white px-3 py-2 text-xl font-bold outline-none"
+          />
+        ) : (
+          <textarea
+            value={block.content}
+            onChange={(event) =>
+              onChange({
+                ...block,
+                content: event.target.value,
+              })
+            }
+            rows={block.type === "latex" ? 3 : 6}
+            placeholder="Текст блока. Внутренняя ссылка: [[Название материала]]"
+            className="w-full border border-black bg-white px-3 py-2 outline-none"
+          />
+        )}
+
+        {block.type === "latex" && (
+          <div className="mt-3">
+            <p className="mb-2 text-sm font-bold">Превью формулы:</p>
+            <LatexView code={block.content} displayMode />
+          </div>
+        )}
+
+        {block.content.includes("[[") && (
+          <div className="mt-3 border border-black bg-neutral-100 p-3 text-sm">
+            <p className="font-bold">Внутренние ссылки:</p>
+
+            <div className="mt-2 flex flex-wrap gap-2">
+              {resolveInternalLinks(block.content, nodes).map((link) => (
+                <span
+                  key={`${link.label}_${link.found}`}
+                  className={[
+                    "border border-black px-2 py-1",
+                    link.found ? "bg-black text-white" : "bg-white text-black line-through",
+                  ].join(" ")}
+                >
+                  [[{link.label}]] {link.found ? "найдена" : "не найдена"}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (isBoardBlock(block)) {
+    return (
+      <div>
+        {editable ? (
+          <input
+            value={block.title}
+            onChange={(event) =>
+              onChange({
+                ...block,
+                title: event.target.value,
+              })
+            }
+            className="mb-3 w-full border border-black bg-white px-3 py-2 font-bold outline-none"
+          />
+        ) : (
+          <h3 className="mb-3 font-bold">{block.title}</h3>
+        )}
+
+        <BoardCanvas
+          title={block.title}
+          strokes={block.strokes}
+          editable={editable}
+          onChange={(strokes) =>
+            onChange({
+              ...block,
+              strokes,
+            })
+          }
+        />
+      </div>
+    );
+  }
+
+  if (isFileBlock(block)) {
+    return (
+      <div>
+        {editable && (
+          <input
+            type="file"
+            className="w-full border border-black bg-white px-3 py-2"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+
+              if (!file) {
+                return;
+              }
+
+              if (file.size > MAX_FILE_SIZE) {
+                window.alert(`Файл слишком большой. Максимум: ${formatBytes(MAX_FILE_SIZE)}.`);
+                return;
+              }
+
+              const reader = new FileReader();
+
+              reader.onload = () => {
+                onChange({
+                  ...block,
+                  fileName: file.name,
+                  mimeType: file.type,
+                  size: file.size,
+                  dataUrl: String(reader.result ?? ""),
+                });
+              };
+
+              reader.readAsDataURL(file);
+            }}
+          />
+        )}
+
+        <textarea
+          value={block.note}
+          disabled={!editable}
+          onChange={(event) =>
+            onChange({
+              ...block,
+              note: event.target.value,
+            })
+          }
+          placeholder="Комментарий к файлу"
+          rows={3}
+          className="mt-3 w-full border border-black bg-white px-3 py-2 outline-none disabled:bg-neutral-100"
+        />
+
+        <div className="mt-3 border border-black bg-neutral-100 p-3 text-sm">
+          <p className="font-bold">{block.fileName || "Файл не выбран"}</p>
+          <p>
+            {block.mimeType || "unknown"} · {formatBytes(block.size)}
+          </p>
+
+          {block.dataUrl && (
+            <a
+              href={block.dataUrl}
+              download={block.fileName}
+              className="mt-2 inline-block border border-black bg-white px-2 py-1"
+            >
+              Скачать
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (block.type === "divider") {
+    return <hr className="border-black" />;
+  }
+
+  if (isCustomBlock(block)) {
+    return (
+      <div className="space-y-3">
+        <p className="font-bold">{getBlockTitle(block)}</p>
+
+        {Object.entries(block.values).map(([key, value]) => (
+          <label key={key} className="block">
+            <span className="mb-1 block text-sm font-bold">{key}</span>
+
+            {editable ? (
+              <input
+                value={String(value)}
+                onChange={(event) =>
+                  onChange({
+                    ...block,
+                    values: {
+                      ...block.values,
+                      [key]: castCustomValue(event.target.value, typeof value),
+                    },
+                  })
+                }
+                className="w-full border border-black bg-white px-3 py-2 outline-none"
+              />
+            ) : (
+              <div className="border border-black bg-neutral-100 px-3 py-2">
+                {String(value) || "—"}
+              </div>
+            )}
+          </label>
+        ))}
+
+        {Object.keys(block.values).length === 0 && (
+          <p className="text-sm text-neutral-600">
+            У этого кастомного блока нет полей.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function castCustomValue(value: string, currentType: string): CustomBlockValue {
+  if (currentType === "number") {
+    return Number(value);
+  }
+
+  if (currentType === "boolean") {
+    return value === "true";
+  }
+
+  return value;
+}
+
+export function getDefaultValueForFieldType(type: CustomFieldType): CustomBlockValue {
+  return getDefaultCustomValue(type);
+}

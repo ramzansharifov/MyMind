@@ -19,6 +19,7 @@ import {
   Settings,
   Sparkles,
   TextQuote,
+  GraduationCap,
   UserRound,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -45,6 +46,7 @@ export const appModules: AppModuleDefinition[] = [
   { key: 'journal', label: 'Diary', icon: BookOpen, canHide: true, canGroup: true },
   { key: 'notes', label: 'Notes', icon: Lightbulb, canHide: true, canGroup: true },
   { key: 'templates', label: 'Templates', icon: TextQuote, canHide: true, canGroup: true },
+  { key: 'study', label: 'Study', icon: GraduationCap, canHide: true, canGroup: true },
   { key: 'projects', label: 'Projects', icon: Clapperboard, canHide: true, canGroup: true },
   { key: 'contacts', label: 'Contacts', icon: Contact, canHide: true, canGroup: true },
   { key: 'health', label: 'Health', icon: HeartPulse, canHide: true, canGroup: true },

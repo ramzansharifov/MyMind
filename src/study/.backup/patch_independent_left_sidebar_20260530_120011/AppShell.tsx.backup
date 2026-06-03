@@ -1,0 +1,31 @@
+﻿import type { ReactNode } from "react";
+
+interface AppShellProps {
+  sidebar: ReactNode;
+  topbar: ReactNode;
+  sidebarHidden: boolean;
+  children: ReactNode;
+}
+
+export function AppShell({
+  sidebar,
+  topbar,
+  sidebarHidden,
+  children,
+}: AppShellProps) {
+  return (
+    <div className="min-h-screen bg-white text-black">
+      <div className="flex min-h-screen">
+        {!sidebarHidden && sidebar}
+
+        <div className="min-w-0 flex-1">
+          {topbar}
+
+          <main className="bg-white p-6">
+            {children}
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+}

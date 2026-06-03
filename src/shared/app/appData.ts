@@ -11,6 +11,8 @@ import { migrateNote } from '../../modules/notes/noteUtils';
 import type { Note, NotesData } from '../../modules/notes/types';
 import type { Project } from '../../modules/projects/types';
 import type { TemplatesData, TextTemplate } from '../../modules/templates/types';
+import type { StudyData } from '../../modules/study/types';
+import { emptyStudyData, normalizeStudyData } from '../../modules/study/studyUtils';
 import type { TodoData, TodoItem } from '../../modules/todos/types';
 import { DEFAULT_TODO_GROUPS } from '../../modules/todos/todoUtils';
 import type { MealRecord, NutritionEntry, WorkoutData } from '../../modules/workouts/types';
@@ -29,6 +31,7 @@ export interface AppData {
   journalEntries: JournalData;
   notes: NotesData;
   templates: TemplatesData;
+  study: StudyData;
   projects: Project[];
   contacts: ContactsData;
   health: HealthData;
@@ -56,6 +59,7 @@ export const emptyData: AppData = {
   journalEntries: { items: [], groups: [] },
   notes: { items: [], groups: [] },
   templates: { items: [], groups: [] },
+  study: emptyStudyData,
   projects: [],
   contacts: { items: [], groups: [] },
   health: { entries: [], metrics: [] },
@@ -132,6 +136,7 @@ export const dataCollections: AppCollectionName[] = [
   'journal_entries',
   'notes',
   'templates',
+  'study',
   'projects',
   'contacts',
   'health',
@@ -152,6 +157,7 @@ export const moduleCollections: Record<ModuleKey, AppCollectionName[]> = {
   journal: ['journal_entries'],
   notes: ['notes'],
   templates: ['templates'],
+  study: ['study'],
   projects: ['projects'],
   contacts: ['contacts'],
   health: ['health'],
@@ -189,6 +195,7 @@ export function normalizeData(data: AppData): AppData {
     journalEntries: normalizeGroupedContentData<JournalEntry>(data.journalEntries),
     notes: normalizeGroupedContentData<Note>(data.notes, (note) => migrateNote(note)),
     templates: normalizeGroupedContentData<TextTemplate>(data.templates),
+    study: normalizeStudyData(data.study),
     calendarEvents: (data.calendarEvents ?? []).map((event) => ({
       ...event,
       tags: event.tags ?? (event.category ? [event.category] : []),
@@ -245,6 +252,8 @@ export function getDataCollection(data: AppData, collectionName: AppCollectionNa
       return data.notes;
     case 'templates':
       return data.templates;
+    case 'study':
+      return data.study;
     case 'projects':
       return data.projects;
     case 'contacts':
@@ -278,6 +287,8 @@ export function setDataCollection(data: AppData, collectionName: AppCollectionNa
       return { ...data, notes: normalizeGroupedContentData<Note>(value, (note) => migrateNote(note)) };
     case 'templates':
       return { ...data, templates: normalizeGroupedContentData<TextTemplate>(value) };
+    case 'study':
+      return { ...data, study: normalizeStudyData(value) };
     case 'projects':
       return { ...data, projects: Array.isArray(value) ? value as Project[] : [] };
     case 'contacts':

@@ -8,6 +8,7 @@ export type CollectionName =
   | 'journal_entries'
   | 'notes'
   | 'templates'
+  | 'study'
   | 'projects'
   | 'contacts'
   | 'health'
@@ -25,6 +26,7 @@ export const collectionFiles: Record<CollectionName, string> = {
   journal_entries: 'journal_entries.json',
   notes: 'notes.json',
   templates: 'templates.json',
+  study: 'study.json',
   projects: 'projects.json',
   contacts: 'contacts.json',
   health: 'health.json',
@@ -40,6 +42,7 @@ export const listCollections = new Set<CollectionName>([
   'journal_entries',
   'notes',
   'templates',
+  'study',
   'projects',
   'contacts',
   'goals',
@@ -65,6 +68,9 @@ export function defaultValue(collectionName: CollectionName, dataDirectory: stri
   }
   if (collectionName === 'health') {
     return { entries: [], metrics: [] };
+  }
+  if (collectionName === 'study') {
+    return { selectedNodeId: null, nodes: [], materials: [], customBlockTemplates: [] };
   }
   if (collectionName === 'app_settings') {
     return {

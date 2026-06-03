@@ -1,0 +1,752 @@
+﻿import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type ClipboardEvent as ReactClipboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
+import type { StudyNode } from "../../types/study";
+import { findMaterialNodeByLinkTitle } from "../../utils/internalLinks";
+
+export type RichTextCommandType =
+  | "paragraph"
+  | "bold"
+  | "italic"
+  | "underline"
+  | "strikeThrough"
+  | "unorderedList"
+  | "orderedList"
+  | "listStyle"
+  | "quote"
+  | "clearFormat"
+  | "link"
+  | "unlink";
+
+export interface RichTextCommand {
+  id: number;
+  type: RichTextCommandType;
+  value?: string;
+  targetEditorId?: string | null;
+}
+
+export interface RichTextActiveMarks {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikeThrough: boolean;
+  unorderedList: boolean;
+  orderedList: boolean;
+  quote: boolean;
+  link: boolean;
+  linkHref: string;
+  listStyle: string;
+}
+
+export const emptyRichTextMarks: RichTextActiveMarks = {
+  bold: false,
+  italic: false,
+  underline: false,
+  strikeThrough: false,
+  unorderedList: false,
+  orderedList: false,
+  quote: false,
+  link: false,
+  linkHref: "",
+  listStyle: "disc",
+};
+
+interface RichTextEditorProps {
+  editorId: string;
+  value: string;
+  nodes: StudyNode[];
+  placeholder?: string;
+  editable: boolean;
+  formatCommand?: RichTextCommand | null;
+  onChange: (value: string) => void;
+  onOpenNode: (nodeId: string) => void;
+  onActiveMarksChange?: (marks: RichTextActiveMarks) => void;
+  onActiveEditorChange?: (editorId: string) => void;
+}
+
+function isProbablyHtml(value: string): boolean {
+  return /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function plainTextToHtml(value: string): string {
+  if (!value.trim()) {
+    return "";
+  }
+
+  return value
+    .split(/\n{2,}/)
+    .map((paragraph) => {
+      const lines = paragraph
+        .split("\n")
+        .map((line) => escapeHtml(line))
+        .join("<br>");
+
+      return `<p>${lines}</p>`;
+    })
+    .join("");
+}
+
+function toEditableHtml(value: string): string {
+  if (!value) {
+    return "";
+  }
+
+  return isProbablyHtml(value) ? value : plainTextToHtml(value);
+}
+
+function sanitizeRichHtml(html: string): string {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+
+  const blockedTags = new Set([
+    "SCRIPT",
+    "STYLE",
+    "IFRAME",
+    "OBJECT",
+    "EMBED",
+    "META",
+    "LINK",
+  ]);
+
+  function cleanElement(element: Element) {
+    if (blockedTags.has(element.tagName)) {
+      element.remove();
+      return;
+    }
+
+    Array.from(element.attributes).forEach((attribute) => {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value.toLowerCase();
+
+      if (name.startsWith("on")) {
+        element.removeAttribute(attribute.name);
+      }
+
+      if ((name === "href" || name === "src") && value.startsWith("javascript:")) {
+        element.removeAttribute(attribute.name);
+      }
+
+      if (element.tagName === "A") {
+        const href = element.getAttribute("href") ?? "";
+
+        if (href && !href.toLowerCase().startsWith("javascript:")) {
+          element.setAttribute("target", "_blank");
+          element.setAttribute("rel", "noreferrer");
+        }
+      }
+
+      if (name === "style") {
+        const allowedStyle = attribute.value
+          .split(";")
+          .map((part) => part.trim())
+          .filter((part) => {
+            const lower = part.toLowerCase();
+
+            return (
+              lower.startsWith("font-weight") ||
+              lower.startsWith("font-style") ||
+              lower.startsWith("text-decoration") ||
+              lower.startsWith("list-style-type") ||
+              lower.startsWith("text-align")
+            );
+          })
+          .join("; ");
+
+        if (allowedStyle) {
+          element.setAttribute("style", allowedStyle);
+        } else {
+          element.removeAttribute(attribute.name);
+        }
+      }
+    });
+
+    Array.from(element.children).forEach(cleanElement);
+  }
+
+  Array.from(template.content.children).forEach(cleanElement);
+
+  return template.innerHTML;
+}
+
+function normalizeUrl(value: string): string {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  if (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("mailto:") ||
+    trimmed.startsWith("tel:") ||
+    trimmed.startsWith("#")
+  ) {
+    return trimmed;
+  }
+
+  return `https://${trimmed}`;
+}
+
+function exec(command: string, value?: string) {
+  document.execCommand(command, false, value);
+}
+
+function getSelectionInside(editor: HTMLDivElement | null): Selection | null {
+  if (!editor) {
+    return null;
+  }
+
+  const selection = window.getSelection();
+
+  if (!selection || selection.rangeCount === 0) {
+    return null;
+  }
+
+  const anchorNode = selection.anchorNode;
+
+  if (!anchorNode || !editor.contains(anchorNode)) {
+    return null;
+  }
+
+  return selection;
+}
+
+function findClosestElement(
+  editor: HTMLDivElement | null,
+  tagNames: string[]
+): HTMLElement | null {
+  const selection = getSelectionInside(editor);
+
+  if (!selection) {
+    return null;
+  }
+
+  let node: Node | null = selection.anchorNode;
+
+  if (node?.nodeType === Node.TEXT_NODE) {
+    node = node.parentElement;
+  }
+
+  while (node && node instanceof HTMLElement && node !== editor) {
+    if (tagNames.includes(node.tagName)) {
+      return node;
+    }
+
+    node = node.parentElement;
+  }
+
+  return null;
+}
+
+function findClosestListElement(
+  editor: HTMLDivElement | null
+): HTMLUListElement | HTMLOListElement | null {
+  const element = findClosestElement(editor, ["UL", "OL"]);
+
+  if (!element) {
+    return null;
+  }
+
+  return element as HTMLUListElement | HTMLOListElement;
+}
+
+function getDefaultListStyle(list: HTMLUListElement | HTMLOListElement | null): string {
+  if (!list) {
+    return "disc";
+  }
+
+  if (list.style.listStyleType) {
+    return list.style.listStyleType;
+  }
+
+  return list.tagName === "OL" ? "decimal" : "disc";
+}
+
+function replaceTextNodesWithInternalLinks(
+  root: HTMLElement,
+  nodes: StudyNode[],
+  onOpenNode: (nodeId: string) => void
+) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode as Text);
+  }
+
+  textNodes.forEach((textNode) => {
+    const parent = textNode.parentElement;
+
+    if (parent?.closest("a")) {
+      return;
+    }
+
+    const value = textNode.nodeValue ?? "";
+    const regex = /\[\[([^\]]+)\]\]/g;
+
+    if (!regex.test(value)) {
+      return;
+    }
+
+    regex.lastIndex = 0;
+
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(value)) !== null) {
+      const before = value.slice(lastIndex, match.index);
+
+      if (before) {
+        fragment.appendChild(document.createTextNode(before));
+      }
+
+      const label = match[1].trim();
+      const target = findMaterialNodeByLinkTitle(nodes, label);
+
+      if (target) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = `[[${label}]]`;
+        button.dataset.internalLinkNodeId = target.id;
+        button.className = "mx-1 border border-black bg-black px-1 text-white";
+        button.addEventListener("click", () => onOpenNode(target.id));
+        fragment.appendChild(button);
+      } else {
+        const span = document.createElement("span");
+        span.textContent = `[[${label}]]`;
+        span.className = "mx-1 border border-black bg-white px-1 text-black line-through";
+        fragment.appendChild(span);
+      }
+
+      lastIndex = regex.lastIndex;
+    }
+
+    const after = value.slice(lastIndex);
+
+    if (after) {
+      fragment.appendChild(document.createTextNode(after));
+    }
+
+    textNode.replaceWith(fragment);
+  });
+}
+
+export function RichTextEditor({
+  editorId,
+  value,
+  nodes,
+  placeholder = "Введите текст...",
+  editable,
+  formatCommand,
+  onChange,
+  onOpenNode,
+  onActiveMarksChange,
+  onActiveEditorChange,
+}: RichTextEditorProps) {
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const savedRangeRef = useRef<Range | null>(null);
+  const lastCommandIdRef = useRef<number | null>(null);
+  const initializedRef = useRef(false);
+  const lastAppliedHtmlRef = useRef("");
+
+  function getSafeValueHtml(): string {
+    return sanitizeRichHtml(toEditableHtml(value));
+  }
+
+  function saveFromEditor() {
+    const editor = editorRef.current;
+
+    if (!editor || !initializedRef.current) {
+      return;
+    }
+
+    const nextHtml = sanitizeRichHtml(editor.innerHTML);
+
+    lastAppliedHtmlRef.current = nextHtml;
+    onChange(nextHtml);
+  }
+
+  function saveCurrentSelection() {
+    const editor = editorRef.current;
+    const selection = getSelectionInside(editor);
+
+    if (!selection || selection.rangeCount === 0) {
+      return;
+    }
+
+    savedRangeRef.current = selection.getRangeAt(0).cloneRange();
+    onActiveEditorChange?.(editorId);
+    notifyActiveMarks();
+  }
+
+  function restoreSelection() {
+    const editor = editorRef.current;
+
+    if (!editor) {
+      return;
+    }
+
+    editor.focus();
+
+    const selection = window.getSelection();
+
+    if (!selection) {
+      return;
+    }
+
+    selection.removeAllRanges();
+
+    if (savedRangeRef.current) {
+      selection.addRange(savedRangeRef.current);
+      return;
+    }
+
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    selection.addRange(range);
+    savedRangeRef.current = range.cloneRange();
+  }
+
+  function notifyActiveMarks() {
+    const editor = editorRef.current;
+    const selection = getSelectionInside(editor);
+
+    if (!selection) {
+      return;
+    }
+
+    const list = findClosestListElement(editor);
+    const link = findClosestElement(editor, ["A"]) as HTMLAnchorElement | null;
+
+    onActiveMarksChange?.({
+      bold: document.queryCommandState("bold"),
+      italic: document.queryCommandState("italic"),
+      underline: document.queryCommandState("underline"),
+      strikeThrough: document.queryCommandState("strikeThrough"),
+      unorderedList: Boolean(list && list.tagName === "UL"),
+      orderedList: Boolean(list && list.tagName === "OL"),
+      quote: Boolean(findClosestElement(editor, ["BLOCKQUOTE"])),
+      link: Boolean(link),
+      linkHref: link?.getAttribute("href") ?? "",
+      listStyle: getDefaultListStyle(list),
+    });
+  }
+
+  function applyListStyle(style: string) {
+    const list = findClosestListElement(editorRef.current);
+
+    if (list) {
+      list.style.listStyleType = style;
+    }
+  }
+
+  function applyListCommand(listType: "unordered" | "ordered", style: string) {
+    const currentList = findClosestListElement(editorRef.current);
+    const wantsOrderedList = listType === "ordered";
+    const currentIsOrderedList = currentList?.tagName === "OL";
+    const currentIsUnorderedList = currentList?.tagName === "UL";
+
+    if (currentList) {
+      const alreadySameListType =
+        (wantsOrderedList && currentIsOrderedList) ||
+        (!wantsOrderedList && currentIsUnorderedList);
+
+      if (alreadySameListType) {
+        currentList.style.listStyleType = style;
+        return;
+      }
+
+      exec(wantsOrderedList ? "insertOrderedList" : "insertUnorderedList");
+
+      window.setTimeout(() => {
+        applyListStyle(style);
+      }, 0);
+
+      return;
+    }
+
+    exec(wantsOrderedList ? "insertOrderedList" : "insertUnorderedList");
+
+    window.setTimeout(() => {
+      applyListStyle(style);
+    }, 0);
+  }
+
+  function applyLink(urlValue: string) {
+    const url = normalizeUrl(urlValue);
+
+    if (!url) {
+      return;
+    }
+
+    const editor = editorRef.current;
+
+    if (!editor) {
+      return;
+    }
+
+    const existingLink = findClosestElement(editor, ["A"]) as HTMLAnchorElement | null;
+
+    if (existingLink) {
+      existingLink.setAttribute("href", url);
+      existingLink.setAttribute("target", "_blank");
+      existingLink.setAttribute("rel", "noreferrer");
+
+      saveFromEditor();
+      notifyActiveMarks();
+      return;
+    }
+
+    const selection = window.getSelection();
+
+    if (!selection || selection.rangeCount === 0) {
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+
+    if (range.collapsed) {
+      exec(
+        "insertHTML",
+        `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(url)}</a>`
+      );
+      return;
+    }
+
+    exec("createLink", url);
+
+    Array.from(editor.querySelectorAll("a")).forEach((link) => {
+      const href = link.getAttribute("href");
+
+      if (href === url || link.href === url) {
+        link.setAttribute("target", "_blank");
+        link.setAttribute("rel", "noreferrer");
+      }
+    });
+  }
+
+  function applyFormatCommand(command: RichTextCommand) {
+    if (command.targetEditorId && command.targetEditorId !== editorId) {
+      return;
+    }
+
+    restoreSelection();
+
+    if (command.type === "paragraph") {
+      exec("formatBlock", "p");
+    }
+
+    if (command.type === "bold") {
+      exec("bold");
+    }
+
+    if (command.type === "italic") {
+      exec("italic");
+    }
+
+    if (command.type === "underline") {
+      exec("underline");
+    }
+
+    if (command.type === "strikeThrough") {
+      exec("strikeThrough");
+    }
+
+    if (command.type === "unorderedList") {
+      applyListCommand("unordered", command.value ?? "disc");
+    }
+
+    if (command.type === "orderedList") {
+      applyListCommand("ordered", command.value ?? "decimal");
+    }
+
+    if (command.type === "listStyle") {
+      applyListStyle(command.value ?? "disc");
+    }
+
+    if (command.type === "quote") {
+      const blockquote = findClosestElement(editorRef.current, ["BLOCKQUOTE"]);
+
+      if (blockquote) {
+        exec("formatBlock", "p");
+      } else {
+        exec("formatBlock", "blockquote");
+      }
+    }
+
+    if (command.type === "clearFormat") {
+      exec("removeFormat");
+    }
+
+    if (command.type === "link") {
+      applyLink(command.value ?? "");
+    }
+
+    if (command.type === "unlink") {
+      exec("unlink");
+    }
+
+    window.setTimeout(() => {
+      saveFromEditor();
+      saveCurrentSelection();
+      notifyActiveMarks();
+    }, 0);
+  }
+
+  useLayoutEffect(() => {
+    const editor = editorRef.current;
+
+    if (!editor || !editable) {
+      return;
+    }
+
+    const nextHtml = getSafeValueHtml();
+    const editorIsFocused = document.activeElement === editor;
+
+    if (!initializedRef.current) {
+      editor.innerHTML = nextHtml;
+      lastAppliedHtmlRef.current = nextHtml;
+      initializedRef.current = true;
+      return;
+    }
+
+    if (!editorIsFocused && lastAppliedHtmlRef.current !== nextHtml) {
+      editor.innerHTML = nextHtml;
+      lastAppliedHtmlRef.current = nextHtml;
+    }
+  }, [value, editable]);
+
+  useEffect(() => {
+    if (!editable) {
+      return;
+    }
+
+    document.execCommand("defaultParagraphSeparator", false, "p");
+
+    function handleSelectionChange() {
+      saveCurrentSelection();
+    }
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+    };
+  }, [editable]);
+
+  useEffect(() => {
+    const preview = previewRef.current;
+
+    if (!preview || editable) {
+      return;
+    }
+
+    preview.innerHTML = sanitizeRichHtml(toEditableHtml(value));
+    replaceTextNodesWithInternalLinks(preview, nodes, onOpenNode);
+  }, [value, editable, nodes, onOpenNode]);
+
+  useEffect(() => {
+    if (!editable || !formatCommand) {
+      return;
+    }
+
+    if (lastCommandIdRef.current === formatCommand.id) {
+      return;
+    }
+
+    lastCommandIdRef.current = formatCommand.id;
+    applyFormatCommand(formatCommand);
+  }, [formatCommand, editable]);
+
+  function handlePaste(event: ReactClipboardEvent<HTMLDivElement>) {
+    event.preventDefault();
+
+    const plainText = event.clipboardData.getData("text/plain");
+    document.execCommand("insertText", false, plainText);
+    saveFromEditor();
+    saveCurrentSelection();
+  }
+
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
+      event.preventDefault();
+      applyFormatCommand({
+        id: Date.now(),
+        type: "bold",
+        targetEditorId: editorId,
+      });
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "i") {
+      event.preventDefault();
+      applyFormatCommand({
+        id: Date.now(),
+        type: "italic",
+        targetEditorId: editorId,
+      });
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "u") {
+      event.preventDefault();
+      applyFormatCommand({
+        id: Date.now(),
+        type: "underline",
+        targetEditorId: editorId,
+      });
+    }
+  }
+
+  if (!editable) {
+    return (
+      <div
+        ref={previewRef}
+        className="rich-text-view whitespace-normal leading-7"
+      />
+    );
+  }
+
+  return (
+    <div
+      ref={editorRef}
+      contentEditable
+      suppressContentEditableWarning
+      data-placeholder={placeholder}
+      onFocus={() => {
+        onActiveEditorChange?.(editorId);
+        saveCurrentSelection();
+      }}
+      onInput={() => {
+        saveFromEditor();
+        saveCurrentSelection();
+      }}
+      onBlur={() => {
+        saveFromEditor();
+        saveCurrentSelection();
+      }}
+      onKeyDown={handleKeyDown}
+      onKeyUp={saveCurrentSelection}
+      onMouseUp={saveCurrentSelection}
+      onPaste={handlePaste}
+      className="rich-text-editor min-h-36 w-full border border-black bg-white px-3 py-2 leading-7 outline-none"
+    />
+  );
+}

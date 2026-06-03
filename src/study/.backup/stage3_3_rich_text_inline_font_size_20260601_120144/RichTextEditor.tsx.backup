@@ -1,0 +1,1095 @@
+﻿import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type ClipboardEvent as ReactClipboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
+import type { StudyNode } from "../../types/study";
+import { findMaterialNodeByLinkTitle } from "../../utils/internalLinks";
+import { saveInternalLinkReturnTarget } from "../../utils/internalNavigationHistory";
+
+export type RichTextCommandType =
+  | "paragraph"
+  | "bold"
+  | "italic"
+  | "underline"
+  | "strikeThrough"
+  | "unorderedList"
+  | "orderedList"
+  | "listStyle"
+  | "quote"
+  | "clearFormat"
+  | "link"
+  | "unlink"
+  | "internalLink"
+  | "textColor"
+  | "highlightColor"
+  | "clearColor"
+  | "alignLeft"
+  | "alignCenter"
+  | "alignRight";
+
+export interface RichTextCommand {
+  id: number;
+  type: RichTextCommandType;
+  value?: string;
+  targetEditorId?: string | null;
+}
+
+export interface RichTextActiveMarks {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikeThrough: boolean;
+  unorderedList: boolean;
+  orderedList: boolean;
+  quote: boolean;
+  link: boolean;
+  linkHref: string;
+  listStyle: string;
+  textColor?: string;
+  backgroundColor?: string;
+  textAlign?: string;
+}
+
+export const emptyRichTextMarks: RichTextActiveMarks = {
+  bold: false,
+  italic: false,
+  underline: false,
+  strikeThrough: false,
+  unorderedList: false,
+  orderedList: false,
+  quote: false,
+  link: false,
+  linkHref: "",
+  listStyle: "disc",
+  textColor: "",
+  backgroundColor: "",
+  textAlign: "left",
+};
+
+interface RichTextEditorProps {
+  editorId: string;
+  value: string;
+  nodes: StudyNode[];
+  placeholder?: string;
+  editable: boolean;
+  formatCommand?: RichTextCommand | null;
+  onChange: (value: string) => void;
+  onOpenNode: (nodeId: string) => void;
+  onActiveMarksChange?: (marks: RichTextActiveMarks) => void;
+  onActiveEditorChange?: (editorId: string) => void;
+}
+
+function isProbablyHtml(value: string): boolean {
+  return /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function plainTextToHtml(value: string): string {
+  if (!value.trim()) {
+    return "";
+  }
+
+  return value
+    .split(/\n{2,}/)
+    .map((paragraph) => {
+      const lines = paragraph
+        .split("\n")
+        .map((line) => escapeHtml(line))
+        .join("<br>");
+
+      return `<p>${lines}</p>`;
+    })
+    .join("");
+}
+
+function toEditableHtml(value: string): string {
+  if (!value) {
+    return "";
+  }
+
+  return isProbablyHtml(value) ? value : plainTextToHtml(value);
+}
+
+function normalizeUrl(value: string): string {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  if (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("mailto:") ||
+    trimmed.startsWith("tel:") ||
+    trimmed.startsWith("#")
+  ) {
+    return trimmed;
+  }
+
+  return `https://${trimmed}`;
+}
+
+function sanitizeRichHtml(html: string): string {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+
+  const blockedTags = new Set([
+    "SCRIPT",
+    "STYLE",
+    "IFRAME",
+    "OBJECT",
+    "EMBED",
+    "META",
+    "LINK",
+  ]);
+
+  function cleanElement(element: Element) {
+    if (blockedTags.has(element.tagName)) {
+      element.remove();
+      return;
+    }
+
+    Array.from(element.attributes).forEach((attribute) => {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value.toLowerCase();
+
+      if (name.startsWith("on")) {
+        element.removeAttribute(attribute.name);
+        return;
+      }
+
+      if ((name === "href" || name === "src") && value.startsWith("javascript:")) {
+        element.removeAttribute(attribute.name);
+        return;
+      }
+
+      if (element.tagName === "A") {
+        const href = element.getAttribute("href") ?? "";
+
+        if (href && !href.toLowerCase().startsWith("javascript:")) {
+          element.setAttribute("target", "_blank");
+          element.setAttribute("rel", "noreferrer");
+        }
+      }
+
+      if (name === "class") {
+        element.removeAttribute(attribute.name);
+        return;
+      }
+
+      if (name === "style") {
+        const allowedStyle = attribute.value
+          .split(";")
+          .map((part) => part.trim())
+          .filter((part) => {
+            const lower = part.toLowerCase();
+
+            return (
+              lower.startsWith("font-weight") ||
+              lower.startsWith("font-style") ||
+              lower.startsWith("text-decoration") ||
+              lower.startsWith("list-style-type") ||
+              lower.startsWith("text-align") ||
+              lower.startsWith("color") ||
+              lower.startsWith("background-color")
+            );
+          })
+          .join("; ");
+
+        if (allowedStyle) {
+          element.setAttribute("style", allowedStyle);
+        } else {
+          element.removeAttribute(attribute.name);
+        }
+      }
+    });
+
+    Array.from(element.children).forEach(cleanElement);
+  }
+
+  Array.from(template.content.children).forEach(cleanElement);
+
+  return template.innerHTML;
+}
+
+function exec(command: string, value?: string) {
+  document.execCommand(command, false, value);
+}
+
+function getSelectionInside(editor: HTMLDivElement | null): Selection | null {
+  if (!editor) {
+    return null;
+  }
+
+  const selection = window.getSelection();
+
+  if (!selection || selection.rangeCount === 0) {
+    return null;
+  }
+
+  const anchorNode = selection.anchorNode;
+  const focusNode = selection.focusNode;
+
+  const anchorInside = Boolean(anchorNode && editor.contains(anchorNode));
+  const focusInside = Boolean(focusNode && editor.contains(focusNode));
+
+  if (!anchorInside && !focusInside) {
+    return null;
+  }
+
+  return selection;
+}
+
+function findClosestElement(
+  editor: HTMLDivElement | null,
+  tagNames: string[]
+): HTMLElement | null {
+  const selection = getSelectionInside(editor);
+
+  if (!selection) {
+    return null;
+  }
+
+  let node: Node | null = selection.anchorNode;
+
+  if (node?.nodeType === Node.TEXT_NODE) {
+    node = node.parentElement;
+  }
+
+  while (node && node instanceof HTMLElement && node !== editor) {
+    if (tagNames.includes(node.tagName)) {
+      return node;
+    }
+
+    node = node.parentElement;
+  }
+
+  return null;
+}
+
+function findClosestListElement(
+  editor: HTMLDivElement | null
+): HTMLUListElement | HTMLOListElement | null {
+  const element = findClosestElement(editor, ["UL", "OL"]);
+
+  if (!element) {
+    return null;
+  }
+
+  return element as HTMLUListElement | HTMLOListElement;
+}
+
+function getDefaultListStyle(list: HTMLUListElement | HTMLOListElement | null): string {
+  if (!list) {
+    return "disc";
+  }
+
+  if (list.dataset.listType === "checkbox") {
+    return "checkbox-list";
+  }
+
+  if (list.style.listStyleType) {
+    return list.style.listStyleType;
+  }
+
+  return list.tagName === "OL" ? "decimal" : "disc";
+}
+
+function replaceTextNodesWithInternalLinks(
+  root: HTMLElement,
+  nodes: StudyNode[],
+  onOpenNode: (nodeId: string) => void
+) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode as Text);
+  }
+
+  textNodes.forEach((textNode) => {
+    const parent = textNode.parentElement;
+
+    if (parent?.closest("a, button")) {
+      return;
+    }
+
+    const value = textNode.nodeValue ?? "";
+    const regex = /\[\[([^\]]+)\]\]/g;
+
+    if (!regex.test(value)) {
+      return;
+    }
+
+    regex.lastIndex = 0;
+
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(value)) !== null) {
+      const before = value.slice(lastIndex, match.index);
+
+      if (before) {
+        fragment.appendChild(document.createTextNode(before));
+      }
+
+      const label = match[1].trim();
+      const target = findMaterialNodeByLinkTitle(nodes, label);
+
+      if (target) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = `[[${label}]]`;
+        button.dataset.internalLinkNodeId = target.id;
+        button.className = "mx-1 border border-black bg-black px-1 text-white";
+        button.addEventListener("click", () => {
+          saveInternalLinkReturnTarget(target.id);
+          onOpenNode(target.id);
+        });
+        fragment.appendChild(button);
+      } else {
+        const span = document.createElement("span");
+        span.textContent = `[[${label}]]`;
+        span.className = "mx-1 border border-black bg-white px-1 text-black line-through";
+        fragment.appendChild(span);
+      }
+
+      lastIndex = regex.lastIndex;
+    }
+
+    const after = value.slice(lastIndex);
+
+    if (after) {
+      fragment.appendChild(document.createTextNode(after));
+    }
+
+    textNode.replaceWith(fragment);
+  });
+}
+
+function isCheckboxListElement(list: Element | null): boolean {
+  if (!(list instanceof HTMLElement)) {
+    return false;
+  }
+
+  return (
+    list.dataset.listType === "checkbox" ||
+    list.style.listStyleType.includes("checkbox-list")
+  );
+}
+
+function findCheckboxListItemFromMouseEvent(
+  root: HTMLElement | null,
+  target: EventTarget | null,
+  clientX: number
+): HTMLLIElement | null {
+  if (!root || !(target instanceof HTMLElement)) {
+    return null;
+  }
+
+  if (target.closest("a, button, input, textarea, select")) {
+    return null;
+  }
+
+  const listItem = target.closest("li");
+
+  if (!(listItem instanceof HTMLLIElement) || !root.contains(listItem)) {
+    return null;
+  }
+
+  const list = listItem.closest("ul, ol");
+
+  if (!isCheckboxListElement(list)) {
+    return null;
+  }
+
+  const rect = listItem.getBoundingClientRect();
+  const markerZoneWidth = 32;
+
+  if (clientX > rect.left + markerZoneWidth) {
+    return null;
+  }
+
+  return listItem;
+}
+
+function prepareCheckboxList(list: HTMLUListElement | HTMLOListElement) {
+  list.dataset.listType = "checkbox";
+  list.style.listStyleType = "checkbox-list";
+
+  Array.from(list.children).forEach((child) => {
+    if (child instanceof HTMLLIElement && !child.hasAttribute("data-checked")) {
+      child.dataset.checked = "false";
+    }
+  });
+}
+
+export function RichTextEditor({
+  editorId,
+  value,
+  nodes,
+  placeholder = "Введите текст...",
+  editable,
+  formatCommand,
+  onChange,
+  onOpenNode,
+  onActiveMarksChange,
+  onActiveEditorChange,
+}: RichTextEditorProps) {
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const savedRangeRef = useRef<Range | null>(null);
+  const lastCommandIdRef = useRef<number | null>(null);
+  const initializedRef = useRef(false);
+  const lastAppliedHtmlRef = useRef("");
+
+  function getSafeValueHtml(): string {
+    return sanitizeRichHtml(toEditableHtml(value));
+  }
+
+  function saveFromEditor() {
+    const editor = editorRef.current;
+
+    if (!editor || !initializedRef.current) {
+      return;
+    }
+
+    const nextHtml = sanitizeRichHtml(editor.innerHTML);
+
+    lastAppliedHtmlRef.current = nextHtml;
+    onChange(nextHtml);
+  }
+
+  function notifyActiveMarks() {
+    const editor = editorRef.current;
+    const selection = getSelectionInside(editor);
+
+    if (!selection) {
+      return;
+    }
+
+    const list = findClosestListElement(editor);
+    const link = findClosestElement(editor, ["A"]) as HTMLAnchorElement | null;
+
+    onActiveMarksChange?.({
+      bold: document.queryCommandState("bold"),
+      italic: document.queryCommandState("italic"),
+      underline: document.queryCommandState("underline"),
+      strikeThrough: document.queryCommandState("strikeThrough"),
+      unorderedList: Boolean(list && list.tagName === "UL"),
+      orderedList: Boolean(list && list.tagName === "OL"),
+      quote: Boolean(findClosestElement(editor, ["BLOCKQUOTE"])),
+      link: Boolean(link),
+      linkHref: link?.getAttribute("href") ?? "",
+      listStyle: getDefaultListStyle(list),
+      textColor: document.queryCommandValue("foreColor") || "",
+      backgroundColor:
+        document.queryCommandValue("hiliteColor") ||
+        document.queryCommandValue("backColor") ||
+        "",
+      textAlign: document.queryCommandValue("justifyCenter")
+        ? "center"
+        : document.queryCommandValue("justifyRight")
+          ? "right"
+          : "left",
+    });
+  }
+
+  function saveCurrentSelection() {
+    const editor = editorRef.current;
+    const selection = getSelectionInside(editor);
+
+    if (!selection || selection.rangeCount === 0) {
+      return;
+    }
+
+    savedRangeRef.current = selection.getRangeAt(0).cloneRange();
+    onActiveEditorChange?.(editorId);
+    notifyActiveMarks();
+  }
+
+  function restoreSelection() {
+    const editor = editorRef.current;
+
+    if (!editor) {
+      return;
+    }
+
+    editor.focus();
+
+    const selection = window.getSelection();
+
+    if (!selection) {
+      return;
+    }
+
+    selection.removeAllRanges();
+
+    if (savedRangeRef.current) {
+      selection.addRange(savedRangeRef.current);
+      return;
+    }
+
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    selection.addRange(range);
+    savedRangeRef.current = range.cloneRange();
+  }
+
+  function insertHtmlAtSelection(html: string) {
+    restoreSelection();
+
+    const cleanHtml = sanitizeRichHtml(html);
+
+    if (!cleanHtml) {
+      return;
+    }
+
+    exec("insertHTML", cleanHtml);
+  }
+
+  function insertTextAtSelection(text: string) {
+    restoreSelection();
+    exec("insertText", text);
+  }
+
+  function applyListStyle(style: string) {
+    const list = findClosestListElement(editorRef.current);
+
+    if (!list) {
+      return;
+    }
+
+    if (style === "checkbox-list") {
+      prepareCheckboxList(list);
+      return;
+    }
+
+    list.removeAttribute("data-list-type");
+    list.style.listStyleType = style;
+
+    Array.from(list.children).forEach((child) => {
+      if (child instanceof HTMLLIElement) {
+        child.removeAttribute("data-checked");
+      }
+    });
+  }
+
+  function applyListCommand(listType: "unordered" | "ordered", style: string) {
+    const currentList = findClosestListElement(editorRef.current);
+    const wantsOrderedList = listType === "ordered";
+    const currentIsOrderedList = currentList?.tagName === "OL";
+    const currentIsUnorderedList = currentList?.tagName === "UL";
+
+    if (currentList) {
+      const alreadySameListType =
+        (wantsOrderedList && currentIsOrderedList) ||
+        (!wantsOrderedList && currentIsUnorderedList);
+
+      if (alreadySameListType) {
+        applyListStyle(style);
+        return;
+      }
+    }
+
+    exec(wantsOrderedList ? "insertOrderedList" : "insertUnorderedList");
+
+    window.setTimeout(() => {
+      applyListStyle(style);
+      saveFromEditor();
+      saveCurrentSelection();
+      notifyActiveMarks();
+    }, 0);
+  }
+
+  function toggleQuote() {
+    const blockquote = findClosestElement(editorRef.current, ["BLOCKQUOTE"]);
+
+    if (blockquote) {
+      exec("formatBlock", "p");
+      return;
+    }
+
+    exec("formatBlock", "blockquote");
+  }
+
+  function clearFormatting() {
+    exec("removeFormat");
+
+    const blockquote = findClosestElement(editorRef.current, ["BLOCKQUOTE"]);
+
+    if (blockquote) {
+      exec("formatBlock", "p");
+    }
+  }
+
+  function insertInternalLink(title: string) {
+    const cleanTitle = title.trim();
+
+    if (!cleanTitle) {
+      return;
+    }
+
+    insertTextAtSelection(`[[${cleanTitle}]]`);
+  }
+
+  function applyInlineTextColor(color: string) {
+    const cleanColor = color.trim();
+
+    if (!cleanColor) {
+      return;
+    }
+
+    restoreSelection();
+    exec("foreColor", cleanColor);
+  }
+
+  function applyInlineHighlightColor(color: string) {
+    const cleanColor = color.trim();
+
+    if (!cleanColor) {
+      return;
+    }
+
+    restoreSelection();
+
+    try {
+      exec("hiliteColor", cleanColor);
+    } catch {
+      exec("backColor", cleanColor);
+    }
+  }
+
+  function clearInlineColors() {
+    restoreSelection();
+
+    const editor = editorRef.current;
+    const selection = getSelectionInside(editor);
+
+    if (!editor || !selection || selection.rangeCount === 0) {
+      exec("removeFormat");
+      return;
+    }
+
+    exec("removeFormat");
+
+    Array.from(editor.querySelectorAll("font")).forEach((fontElement) => {
+      const span = document.createElement("span");
+      span.innerHTML = fontElement.innerHTML;
+      fontElement.replaceWith(span);
+    });
+
+    Array.from(editor.querySelectorAll("[style]")).forEach((element) => {
+      if (!(element instanceof HTMLElement)) {
+        return;
+      }
+
+      element.style.color = "";
+      element.style.backgroundColor = "";
+
+      if (!element.getAttribute("style")) {
+        element.removeAttribute("style");
+      }
+    });
+  }
+
+  function applyParagraphAlign(align: "left" | "center" | "right") {
+    restoreSelection();
+
+    if (align === "left") {
+      exec("justifyLeft");
+    }
+
+    if (align === "center") {
+      exec("justifyCenter");
+    }
+
+    if (align === "right") {
+      exec("justifyRight");
+    }
+  }
+
+  function applyLink(urlValue: string) {
+    const url = normalizeUrl(urlValue);
+
+    if (!url) {
+      return;
+    }
+
+    restoreSelection();
+
+    const editor = editorRef.current;
+
+    if (!editor) {
+      return;
+    }
+
+    const existingLink = findClosestElement(editor, ["A"]) as HTMLAnchorElement | null;
+
+    if (existingLink) {
+      existingLink.setAttribute("href", url);
+      existingLink.setAttribute("target", "_blank");
+      existingLink.setAttribute("rel", "noreferrer");
+
+      saveFromEditor();
+      notifyActiveMarks();
+      return;
+    }
+
+    const selection = window.getSelection();
+
+    if (!selection || selection.rangeCount === 0) {
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+
+    if (range.collapsed) {
+      insertHtmlAtSelection(
+        `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(url)}</a>`
+      );
+      return;
+    }
+
+    exec("createLink", url);
+
+    Array.from(editor.querySelectorAll("a")).forEach((link) => {
+      const href = link.getAttribute("href");
+
+      if (href === url || link.href === url) {
+        link.setAttribute("target", "_blank");
+        link.setAttribute("rel", "noreferrer");
+      }
+    });
+  }
+
+  function applyFormatCommand(command: RichTextCommand) {
+    if (command.targetEditorId && command.targetEditorId !== editorId) {
+      return;
+    }
+
+    restoreSelection();
+
+    if (command.type === "paragraph") {
+      exec("formatBlock", "p");
+    }
+
+    if (command.type === "bold") {
+      exec("bold");
+    }
+
+    if (command.type === "italic") {
+      exec("italic");
+    }
+
+    if (command.type === "underline") {
+      exec("underline");
+    }
+
+    if (command.type === "strikeThrough") {
+      exec("strikeThrough");
+    }
+
+    if (command.type === "unorderedList") {
+      applyListCommand("unordered", command.value ?? "disc");
+    }
+
+    if (command.type === "orderedList") {
+      applyListCommand("ordered", command.value ?? "decimal");
+    }
+
+    if (command.type === "listStyle") {
+      applyListStyle(command.value ?? "disc");
+    }
+
+    if (command.type === "quote") {
+      toggleQuote();
+    }
+
+    if (command.type === "clearFormat") {
+      clearFormatting();
+    }
+
+    if (command.type === "link") {
+      applyLink(command.value ?? "");
+    }
+
+    if (command.type === "unlink") {
+      exec("unlink");
+    }
+
+    if (command.type === "internalLink") {
+      insertInternalLink(command.value ?? "");
+    }
+
+    if (command.type === "textColor") {
+      applyInlineTextColor(command.value ?? "#000000");
+    }
+
+    if (command.type === "highlightColor") {
+      applyInlineHighlightColor(command.value ?? "#fff3a3");
+    }
+
+    if (command.type === "clearColor") {
+      clearInlineColors();
+    }
+
+    if (command.type === "alignLeft") {
+      applyParagraphAlign("left");
+    }
+
+    if (command.type === "alignCenter") {
+      applyParagraphAlign("center");
+    }
+
+    if (command.type === "alignRight") {
+      applyParagraphAlign("right");
+    }
+
+    window.setTimeout(() => {
+      saveFromEditor();
+      saveCurrentSelection();
+      notifyActiveMarks();
+    }, 0);
+  }
+
+  function handleCheckboxMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
+    const root = event.currentTarget;
+    const listItem = findCheckboxListItemFromMouseEvent(
+      root,
+      event.target,
+      event.clientX
+    );
+
+    if (!listItem) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const checked = listItem.dataset.checked === "true";
+    listItem.dataset.checked = checked ? "false" : "true";
+
+    if (editable) {
+      saveFromEditor();
+      notifyActiveMarks();
+    }
+  }
+
+  function handlePaste(event: ReactClipboardEvent<HTMLDivElement>) {
+    event.preventDefault();
+
+    const html = event.clipboardData.getData("text/html");
+    const plainText = event.clipboardData.getData("text/plain");
+
+    if (html.trim()) {
+      insertHtmlAtSelection(html);
+    } else {
+      insertHtmlAtSelection(plainTextToHtml(plainText));
+    }
+
+    window.setTimeout(() => {
+      saveFromEditor();
+      saveCurrentSelection();
+      notifyActiveMarks();
+    }, 0);
+  }
+
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const key = event.key.toLowerCase();
+    const isCommand = event.ctrlKey || event.metaKey;
+
+    if (isCommand && key === "b") {
+      event.preventDefault();
+      applyFormatCommand({
+        id: Date.now(),
+        type: "bold",
+        targetEditorId: editorId,
+      });
+      return;
+    }
+
+    if (isCommand && key === "i") {
+      event.preventDefault();
+      applyFormatCommand({
+        id: Date.now(),
+        type: "italic",
+        targetEditorId: editorId,
+      });
+      return;
+    }
+
+    if (isCommand && key === "u") {
+      event.preventDefault();
+      applyFormatCommand({
+        id: Date.now(),
+        type: "underline",
+        targetEditorId: editorId,
+      });
+      return;
+    }
+
+    if (isCommand && event.shiftKey && key === "x") {
+      event.preventDefault();
+      applyFormatCommand({
+        id: Date.now(),
+        type: "strikeThrough",
+        targetEditorId: editorId,
+      });
+      return;
+    }
+
+    if (isCommand && event.shiftKey && key === "7") {
+      event.preventDefault();
+      applyFormatCommand({
+        id: Date.now(),
+        type: "orderedList",
+        value: "decimal",
+        targetEditorId: editorId,
+      });
+      return;
+    }
+
+    if (isCommand && event.shiftKey && key === "8") {
+      event.preventDefault();
+      applyFormatCommand({
+        id: Date.now(),
+        type: "unorderedList",
+        value: "disc",
+        targetEditorId: editorId,
+      });
+      return;
+    }
+
+    if (event.key === "Tab" && findClosestListElement(editorRef.current)) {
+      event.preventDefault();
+      exec(event.shiftKey ? "outdent" : "indent");
+
+      window.setTimeout(() => {
+        saveFromEditor();
+        saveCurrentSelection();
+        notifyActiveMarks();
+      }, 0);
+    }
+  }
+
+  useLayoutEffect(() => {
+    const editor = editorRef.current;
+
+    if (!editor || !editable) {
+      return;
+    }
+
+    const nextHtml = getSafeValueHtml();
+    const editorIsFocused = document.activeElement === editor;
+
+    if (!initializedRef.current) {
+      editor.innerHTML = nextHtml;
+      lastAppliedHtmlRef.current = nextHtml;
+      initializedRef.current = true;
+      return;
+    }
+
+    if (!editorIsFocused && lastAppliedHtmlRef.current !== nextHtml) {
+      editor.innerHTML = nextHtml;
+      lastAppliedHtmlRef.current = nextHtml;
+    }
+  }, [value, editable]);
+
+  useEffect(() => {
+    if (!editable) {
+      return;
+    }
+
+    document.execCommand("defaultParagraphSeparator", false, "p");
+
+    function handleSelectionChange() {
+      saveCurrentSelection();
+    }
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+    };
+  }, [editable]);
+
+  useEffect(() => {
+    const preview = previewRef.current;
+
+    if (!preview || editable) {
+      return;
+    }
+
+    preview.innerHTML = sanitizeRichHtml(toEditableHtml(value));
+    replaceTextNodesWithInternalLinks(preview, nodes, onOpenNode);
+  }, [value, editable, nodes, onOpenNode]);
+
+  useEffect(() => {
+    if (!editable || !formatCommand) {
+      return;
+    }
+
+    if (lastCommandIdRef.current === formatCommand.id) {
+      return;
+    }
+
+    lastCommandIdRef.current = formatCommand.id;
+    applyFormatCommand(formatCommand);
+  }, [formatCommand, editable]);
+
+  if (!editable) {
+    return (
+      <div
+        ref={previewRef}
+        onMouseDown={handleCheckboxMouseDown}
+        className="rich-text-view whitespace-normal leading-7"
+      />
+    );
+  }
+
+  return (
+    <div
+      ref={editorRef}
+      contentEditable
+      suppressContentEditableWarning
+      data-placeholder={placeholder}
+      onFocus={() => {
+        onActiveEditorChange?.(editorId);
+        saveCurrentSelection();
+      }}
+      onMouseDown={() => {
+        onActiveEditorChange?.(editorId);
+      }}
+      onInput={() => {
+        saveFromEditor();
+        saveCurrentSelection();
+      }}
+      onBlur={() => {
+        saveFromEditor();
+        saveCurrentSelection();
+      }}
+      onKeyDown={handleKeyDown}
+      onKeyUp={saveCurrentSelection}
+      onMouseUp={saveCurrentSelection}
+      onPaste={handlePaste}
+      className="rich-text-editor min-h-36 w-full border border-black bg-white px-3 py-2 leading-7 outline-none"
+    />
+  );
+}

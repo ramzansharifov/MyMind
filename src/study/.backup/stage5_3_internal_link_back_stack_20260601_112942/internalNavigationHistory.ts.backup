@@ -1,0 +1,96 @@
+﻿export interface InternalNavigationNode {
+  nodeId: string;
+  title: string;
+}
+
+const CURRENT_NODE_KEY = "mymind-current-node";
+const RETURN_TARGET_KEY = "mymind-internal-link-return-target";
+
+export const INTERNAL_NAVIGATION_RETURN_EVENT =
+  "mymind-internal-link-return-changed";
+
+function emitReturnChanged() {
+  window.dispatchEvent(new CustomEvent(INTERNAL_NAVIGATION_RETURN_EVENT));
+}
+
+function safeParseNode(value: string | null): InternalNavigationNode | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as Partial<InternalNavigationNode>;
+
+    if (!parsed.nodeId) {
+      return null;
+    }
+
+    return {
+      nodeId: parsed.nodeId,
+      title: parsed.title || "Предыдущий материал",
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function setCurrentInternalNavigationNode(
+  nodeId: string,
+  title: string
+): void {
+  if (!nodeId) {
+    return;
+  }
+
+  sessionStorage.setItem(
+    CURRENT_NODE_KEY,
+    JSON.stringify({
+      nodeId,
+      title: title || "Текущий материал",
+    })
+  );
+}
+
+export function getCurrentInternalNavigationNode(): InternalNavigationNode | null {
+  return safeParseNode(sessionStorage.getItem(CURRENT_NODE_KEY));
+}
+
+export function saveInternalLinkReturnTarget(targetNodeId: string): void {
+  const currentNode = getCurrentInternalNavigationNode();
+
+  if (!currentNode || currentNode.nodeId === targetNodeId) {
+    return;
+  }
+
+  sessionStorage.setItem(RETURN_TARGET_KEY, JSON.stringify(currentNode));
+  emitReturnChanged();
+}
+
+export function saveExplicitInternalLinkReturnTarget(
+  currentNodeId: string,
+  currentTitle: string,
+  targetNodeId: string
+): void {
+  if (!currentNodeId || !targetNodeId || currentNodeId === targetNodeId) {
+    return;
+  }
+
+  sessionStorage.setItem(
+    RETURN_TARGET_KEY,
+    JSON.stringify({
+      nodeId: currentNodeId,
+      title: currentTitle || "Предыдущий материал",
+    })
+  );
+
+  emitReturnChanged();
+}
+
+export function getInternalLinkReturnTarget(): InternalNavigationNode | null {
+  return safeParseNode(sessionStorage.getItem(RETURN_TARGET_KEY));
+}
+
+export function clearInternalLinkReturnTarget(): void {
+  sessionStorage.removeItem(RETURN_TARGET_KEY);
+  emitReturnChanged();
+}

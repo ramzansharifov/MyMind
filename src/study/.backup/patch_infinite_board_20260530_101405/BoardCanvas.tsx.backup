@@ -1,0 +1,274 @@
+﻿import { useEffect, useRef, useState, type PointerEvent } from "react";
+import type { BoardPoint, BoardStroke } from "../../types/study";
+
+interface BoardCanvasProps {
+  title: string;
+  strokes: BoardStroke[];
+  editable: boolean;
+  onChange: (strokes: BoardStroke[]) => void;
+}
+
+function createStrokeId(): string {
+  return `stroke_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getDistance(a: BoardPoint, b: BoardPoint): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function strokeHitsPoint(stroke: BoardStroke, point: BoardPoint, radius: number): boolean {
+  return stroke.points.some((strokePoint) => getDistance(strokePoint, point) <= radius);
+}
+
+export function BoardCanvas({
+  title,
+  strokes,
+  editable,
+  onChange,
+}: BoardCanvasProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const activeStrokeIdRef = useRef<string | null>(null);
+  const strokesRef = useRef<BoardStroke[]>(strokes);
+
+  const [tool, setTool] = useState<"pen" | "eraser">("pen");
+  const [width, setWidth] = useState(3);
+
+  useEffect(() => {
+    strokesRef.current = strokes;
+  }, [strokes]);
+
+  useEffect(() => {
+    drawCanvas();
+  }, [strokes, title]);
+
+  function drawCanvas() {
+    const canvas = canvasRef.current;
+
+    if (!canvas) {
+      return;
+    }
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      return;
+    }
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    context.strokeStyle = "#000000";
+    context.lineCap = "round";
+    context.lineJoin = "round";
+
+    strokes.forEach((stroke) => {
+      if (stroke.points.length < 2) {
+        return;
+      }
+
+      context.beginPath();
+      context.lineWidth = stroke.width;
+      context.moveTo(stroke.points[0].x, stroke.points[0].y);
+
+      stroke.points.slice(1).forEach((point) => {
+        context.lineTo(point.x, point.y);
+      });
+
+      context.stroke();
+    });
+
+    if (strokes.length === 0) {
+      context.fillStyle = "#000000";
+      context.font = "20px Arial";
+      context.fillText(title || "Доска", 24, 40);
+      context.font = "14px Arial";
+      context.fillText("Здесь можно рисовать схемы, формулы и решения.", 24, 68);
+    }
+  }
+
+  function getPoint(event: PointerEvent<HTMLCanvasElement>): BoardPoint {
+    const canvas = event.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+    };
+  }
+
+  function pushStrokes(nextStrokes: BoardStroke[]) {
+    strokesRef.current = nextStrokes;
+    onChange(nextStrokes);
+  }
+
+  function handlePointerDown(event: PointerEvent<HTMLCanvasElement>) {
+    if (!editable) {
+      return;
+    }
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    const point = getPoint(event);
+
+    if (tool === "eraser") {
+      const nextStrokes = strokesRef.current.filter(
+        (stroke) => !strokeHitsPoint(stroke, point, 20)
+      );
+
+      pushStrokes(nextStrokes);
+      return;
+    }
+
+    const stroke: BoardStroke = {
+      id: createStrokeId(),
+      width,
+      points: [point],
+    };
+
+    activeStrokeIdRef.current = stroke.id;
+
+    pushStrokes([...strokesRef.current, stroke]);
+  }
+
+  function handlePointerMove(event: PointerEvent<HTMLCanvasElement>) {
+    if (!editable || event.buttons !== 1) {
+      return;
+    }
+
+    const point = getPoint(event);
+
+    if (tool === "eraser") {
+      const nextStrokes = strokesRef.current.filter(
+        (stroke) => !strokeHitsPoint(stroke, point, 20)
+      );
+
+      pushStrokes(nextStrokes);
+      return;
+    }
+
+    const activeStrokeId = activeStrokeIdRef.current;
+
+    if (!activeStrokeId) {
+      return;
+    }
+
+    const nextStrokes = strokesRef.current.map((stroke) => {
+      if (stroke.id !== activeStrokeId) {
+        return stroke;
+      }
+
+      return {
+        ...stroke,
+        points: [...stroke.points, point],
+      };
+    });
+
+    pushStrokes(nextStrokes);
+  }
+
+  function stopDrawing() {
+    activeStrokeIdRef.current = null;
+  }
+
+  function undo() {
+    if (!editable) {
+      return;
+    }
+
+    pushStrokes(strokesRef.current.slice(0, -1));
+  }
+
+  function clear() {
+    if (!editable) {
+      return;
+    }
+
+    if (!window.confirm("Очистить доску?")) {
+      return;
+    }
+
+    pushStrokes([]);
+  }
+
+  return (
+    <div className="border border-black bg-white p-3">
+      {editable && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-black pb-3">
+          <button
+            type="button"
+            onClick={() => setTool("pen")}
+            className={
+              tool === "pen"
+                ? "border border-black bg-black px-3 py-1 text-sm text-white"
+                : "border border-black bg-white px-3 py-1 text-sm text-black"
+            }
+          >
+            Ручка
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTool("eraser")}
+            className={
+              tool === "eraser"
+                ? "border border-black bg-black px-3 py-1 text-sm text-white"
+                : "border border-black bg-white px-3 py-1 text-sm text-black"
+            }
+          >
+            Ластик
+          </button>
+
+          <label className="flex items-center gap-2 border border-black px-3 py-1 text-sm">
+            Толщина
+            <input
+              type="range"
+              min={1}
+              max={14}
+              value={width}
+              onChange={(event) => setWidth(Number(event.target.value))}
+            />
+            <span className="w-6 text-right">{width}</span>
+          </label>
+
+          <button
+            type="button"
+            onClick={undo}
+            className="border border-black bg-white px-3 py-1 text-sm text-black hover:bg-black hover:text-white"
+          >
+            Undo
+          </button>
+
+          <button
+            type="button"
+            onClick={clear}
+            className="border border-black bg-white px-3 py-1 text-sm text-black hover:bg-black hover:text-white"
+          >
+            Очистить
+          </button>
+
+          <span className="ml-auto text-sm text-neutral-600">
+            Линий: {strokes.length}
+          </span>
+        </div>
+      )}
+
+      <canvas
+        ref={canvasRef}
+        width={1200}
+        height={600}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={stopDrawing}
+        onPointerCancel={stopDrawing}
+        onPointerLeave={stopDrawing}
+        className={
+          editable
+            ? "h-96 w-full touch-none border border-black bg-white cursor-crosshair"
+            : "h-96 w-full border border-black bg-white"
+        }
+      />
+    </div>
+  );
+}

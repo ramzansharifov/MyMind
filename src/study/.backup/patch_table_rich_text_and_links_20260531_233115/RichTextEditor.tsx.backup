@@ -1,0 +1,583 @@
+﻿import {
+  useEffect,
+  useRef,
+  type ClipboardEvent as ReactClipboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
+import type { StudyNode } from "../../types/study";
+import { findMaterialNodeByLinkTitle } from "../../utils/internalLinks";
+
+export type RichTextCommandType =
+  | "paragraph"
+  | "bold"
+  | "italic"
+  | "underline"
+  | "strikeThrough"
+  | "unorderedList"
+  | "orderedList"
+  | "listStyle"
+  | "quote"
+  | "clearFormat";
+
+export interface RichTextCommand {
+  id: number;
+  type: RichTextCommandType;
+  value?: string;
+}
+
+export interface RichTextActiveMarks {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikeThrough: boolean;
+  unorderedList: boolean;
+  orderedList: boolean;
+  quote: boolean;
+  listStyle: string;
+}
+
+export const emptyRichTextMarks: RichTextActiveMarks = {
+  bold: false,
+  italic: false,
+  underline: false,
+  strikeThrough: false,
+  unorderedList: false,
+  orderedList: false,
+  quote: false,
+  listStyle: "disc",
+};
+
+interface RichTextEditorProps {
+  value: string;
+  nodes: StudyNode[];
+  placeholder?: string;
+  editable: boolean;
+  formatCommand?: RichTextCommand | null;
+  onChange: (value: string) => void;
+  onOpenNode: (nodeId: string) => void;
+  onActiveMarksChange?: (marks: RichTextActiveMarks) => void;
+}
+
+function isProbablyHtml(value: string): boolean {
+  return /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function plainTextToHtml(value: string): string {
+  if (!value.trim()) {
+    return "";
+  }
+
+  return value
+    .split(/\n{2,}/)
+    .map((paragraph) => {
+      const lines = paragraph
+        .split("\n")
+        .map((line) => escapeHtml(line))
+        .join("<br>");
+
+      return `<p>${lines}</p>`;
+    })
+    .join("");
+}
+
+function toEditableHtml(value: string): string {
+  if (!value) {
+    return "";
+  }
+
+  return isProbablyHtml(value) ? value : plainTextToHtml(value);
+}
+
+function sanitizeRichHtml(html: string): string {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+
+  const blockedTags = new Set([
+    "SCRIPT",
+    "STYLE",
+    "IFRAME",
+    "OBJECT",
+    "EMBED",
+    "META",
+    "LINK",
+  ]);
+
+  function cleanElement(element: Element) {
+    if (blockedTags.has(element.tagName)) {
+      element.remove();
+      return;
+    }
+
+    Array.from(element.attributes).forEach((attribute) => {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value.toLowerCase();
+
+      if (name.startsWith("on")) {
+        element.removeAttribute(attribute.name);
+      }
+
+      if ((name === "href" || name === "src") && value.startsWith("javascript:")) {
+        element.removeAttribute(attribute.name);
+      }
+
+      if (name === "style") {
+        const allowedStyle = attribute.value
+          .split(";")
+          .map((part) => part.trim())
+          .filter((part) => {
+            const lower = part.toLowerCase();
+
+            return (
+              lower.startsWith("font-weight") ||
+              lower.startsWith("font-style") ||
+              lower.startsWith("text-decoration") ||
+              lower.startsWith("list-style-type") ||
+              lower.startsWith("text-align")
+            );
+          })
+          .join("; ");
+
+        if (allowedStyle) {
+          element.setAttribute("style", allowedStyle);
+        } else {
+          element.removeAttribute(attribute.name);
+        }
+      }
+    });
+
+    Array.from(element.children).forEach(cleanElement);
+  }
+
+  Array.from(template.content.children).forEach(cleanElement);
+
+  return template.innerHTML;
+}
+
+function replaceTextNodesWithInternalLinks(
+  root: HTMLElement,
+  nodes: StudyNode[],
+  onOpenNode: (nodeId: string) => void
+) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode as Text);
+  }
+
+  textNodes.forEach((textNode) => {
+    const value = textNode.nodeValue ?? "";
+    const regex = /\[\[([^\]]+)\]\]/g;
+
+    if (!regex.test(value)) {
+      return;
+    }
+
+    regex.lastIndex = 0;
+
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(value)) !== null) {
+      const before = value.slice(lastIndex, match.index);
+
+      if (before) {
+        fragment.appendChild(document.createTextNode(before));
+      }
+
+      const label = match[1].trim();
+      const target = findMaterialNodeByLinkTitle(nodes, label);
+
+      if (target) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = `[[${label}]]`;
+        button.dataset.internalLinkNodeId = target.id;
+        button.className = "mx-1 border border-black bg-black px-1 text-white";
+        button.addEventListener("click", () => onOpenNode(target.id));
+        fragment.appendChild(button);
+      } else {
+        const span = document.createElement("span");
+        span.textContent = `[[${label}]]`;
+        span.className = "mx-1 border border-black bg-white px-1 text-black line-through";
+        fragment.appendChild(span);
+      }
+
+      lastIndex = regex.lastIndex;
+    }
+
+    const after = value.slice(lastIndex);
+
+    if (after) {
+      fragment.appendChild(document.createTextNode(after));
+    }
+
+    textNode.replaceWith(fragment);
+  });
+}
+
+function exec(command: string, value?: string) {
+  document.execCommand(command, false, value);
+}
+
+function getSelectionInside(editor: HTMLDivElement | null): Selection | null {
+  if (!editor) {
+    return null;
+  }
+
+  const selection = window.getSelection();
+
+  if (!selection || selection.rangeCount === 0) {
+    return null;
+  }
+
+  const anchorNode = selection.anchorNode;
+
+  if (!anchorNode || !editor.contains(anchorNode)) {
+    return null;
+  }
+
+  return selection;
+}
+
+function findClosestElement(
+  editor: HTMLDivElement | null,
+  tagNames: string[]
+): HTMLElement | null {
+  const selection = getSelectionInside(editor);
+
+  if (!selection) {
+    return null;
+  }
+
+  let node: Node | null = selection.anchorNode;
+
+  if (node?.nodeType === Node.TEXT_NODE) {
+    node = node.parentElement;
+  }
+
+  while (node && node instanceof HTMLElement && node !== editor) {
+    if (tagNames.includes(node.tagName)) {
+      return node;
+    }
+
+    node = node.parentElement;
+  }
+
+  return null;
+}
+
+function findClosestListElement(
+  editor: HTMLDivElement | null
+): HTMLUListElement | HTMLOListElement | null {
+  const element = findClosestElement(editor, ["UL", "OL"]);
+
+  if (!element) {
+    return null;
+  }
+
+  return element as HTMLUListElement | HTMLOListElement;
+}
+
+function getDefaultListStyle(list: HTMLUListElement | HTMLOListElement | null): string {
+  if (!list) {
+    return "disc";
+  }
+
+  if (list.style.listStyleType) {
+    return list.style.listStyleType;
+  }
+
+  return list.tagName === "OL" ? "decimal" : "disc";
+}
+
+export function RichTextEditor({
+  value,
+  nodes,
+  placeholder = "Введите текст...",
+  editable,
+  formatCommand,
+  onChange,
+  onOpenNode,
+  onActiveMarksChange,
+}: RichTextEditorProps) {
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const savedRangeRef = useRef<Range | null>(null);
+  const lastCommandIdRef = useRef<number | null>(null);
+
+  function saveFromEditor() {
+    const editor = editorRef.current;
+
+    if (!editor) {
+      return;
+    }
+
+    onChange(sanitizeRichHtml(editor.innerHTML));
+  }
+
+  function saveCurrentSelection() {
+    const editor = editorRef.current;
+    const selection = getSelectionInside(editor);
+
+    if (!selection || selection.rangeCount === 0) {
+      return;
+    }
+
+    savedRangeRef.current = selection.getRangeAt(0).cloneRange();
+    notifyActiveMarks();
+  }
+
+  function restoreSelection() {
+    const editor = editorRef.current;
+
+    if (!editor) {
+      return;
+    }
+
+    editor.focus();
+
+    const selection = window.getSelection();
+
+    if (!selection) {
+      return;
+    }
+
+    selection.removeAllRanges();
+
+    if (savedRangeRef.current) {
+      selection.addRange(savedRangeRef.current);
+      return;
+    }
+
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    selection.addRange(range);
+    savedRangeRef.current = range.cloneRange();
+  }
+
+  function notifyActiveMarks() {
+    const editor = editorRef.current;
+    const selection = getSelectionInside(editor);
+
+    if (!selection) {
+      onActiveMarksChange?.(emptyRichTextMarks);
+      return;
+    }
+
+    const list = findClosestListElement(editor);
+
+    onActiveMarksChange?.({
+      bold: document.queryCommandState("bold"),
+      italic: document.queryCommandState("italic"),
+      underline: document.queryCommandState("underline"),
+      strikeThrough: document.queryCommandState("strikeThrough"),
+      unorderedList: Boolean(list && list.tagName === "UL"),
+      orderedList: Boolean(list && list.tagName === "OL"),
+      quote: Boolean(findClosestElement(editor, ["BLOCKQUOTE"])),
+      listStyle: getDefaultListStyle(list),
+    });
+  }
+
+  function applyListStyle(style: string) {
+    const list = findClosestListElement(editorRef.current);
+
+    if (list) {
+      list.style.listStyleType = style;
+    }
+  }
+
+  function applyFormatCommand(command: RichTextCommand) {
+    restoreSelection();
+
+    if (command.type === "paragraph") {
+      exec("formatBlock", "p");
+    }
+
+    if (command.type === "bold") {
+      exec("bold");
+    }
+
+    if (command.type === "italic") {
+      exec("italic");
+    }
+
+    if (command.type === "underline") {
+      exec("underline");
+    }
+
+    if (command.type === "strikeThrough") {
+      exec("strikeThrough");
+    }
+
+    if (command.type === "unorderedList") {
+      exec("insertUnorderedList");
+      window.setTimeout(() => applyListStyle(command.value ?? "disc"), 0);
+    }
+
+    if (command.type === "orderedList") {
+      exec("insertOrderedList");
+      window.setTimeout(() => applyListStyle(command.value ?? "decimal"), 0);
+    }
+
+    if (command.type === "listStyle") {
+      applyListStyle(command.value ?? "disc");
+    }
+
+    if (command.type === "quote") {
+      const blockquote = findClosestElement(editorRef.current, ["BLOCKQUOTE"]);
+
+      if (blockquote) {
+        exec("formatBlock", "p");
+      } else {
+        exec("formatBlock", "blockquote");
+      }
+    }
+
+    if (command.type === "clearFormat") {
+      exec("removeFormat");
+    }
+
+    window.setTimeout(() => {
+      saveFromEditor();
+      saveCurrentSelection();
+      notifyActiveMarks();
+    }, 0);
+  }
+
+  useEffect(() => {
+    if (!editable) {
+      return;
+    }
+
+    document.execCommand("defaultParagraphSeparator", false, "p");
+
+    function handleSelectionChange() {
+      saveCurrentSelection();
+    }
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+    };
+  }, [editable]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+
+    if (!editor || !editable) {
+      return;
+    }
+
+    const nextHtml = sanitizeRichHtml(toEditableHtml(value));
+
+    if (editor.innerHTML !== nextHtml && document.activeElement !== editor) {
+      editor.innerHTML = nextHtml;
+    }
+  }, [value, editable]);
+
+  useEffect(() => {
+    const preview = previewRef.current;
+
+    if (!preview || editable) {
+      return;
+    }
+
+    preview.innerHTML = sanitizeRichHtml(toEditableHtml(value));
+    replaceTextNodesWithInternalLinks(preview, nodes, onOpenNode);
+  }, [value, editable, nodes, onOpenNode]);
+
+  useEffect(() => {
+    if (!editable || !formatCommand) {
+      return;
+    }
+
+    if (lastCommandIdRef.current === formatCommand.id) {
+      return;
+    }
+
+    lastCommandIdRef.current = formatCommand.id;
+    applyFormatCommand(formatCommand);
+  }, [formatCommand, editable]);
+
+  function handlePaste(event: ReactClipboardEvent<HTMLDivElement>) {
+    event.preventDefault();
+
+    const plainText = event.clipboardData.getData("text/plain");
+    document.execCommand("insertText", false, plainText);
+    saveFromEditor();
+    saveCurrentSelection();
+  }
+
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
+      event.preventDefault();
+      applyFormatCommand({
+        id: Date.now(),
+        type: "bold",
+      });
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "i") {
+      event.preventDefault();
+      applyFormatCommand({
+        id: Date.now(),
+        type: "italic",
+      });
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "u") {
+      event.preventDefault();
+      applyFormatCommand({
+        id: Date.now(),
+        type: "underline",
+      });
+      return;
+    }
+  }
+
+  if (!editable) {
+    return (
+      <div
+        ref={previewRef}
+        className="rich-text-view whitespace-normal leading-7"
+      />
+    );
+  }
+
+  return (
+    <div
+      ref={editorRef}
+      contentEditable
+      suppressContentEditableWarning
+      data-placeholder={placeholder}
+      onInput={() => {
+        saveFromEditor();
+        saveCurrentSelection();
+      }}
+      onBlur={() => {
+        saveFromEditor();
+        saveCurrentSelection();
+      }}
+      onKeyDown={handleKeyDown}
+      onKeyUp={saveCurrentSelection}
+      onMouseUp={saveCurrentSelection}
+      onPaste={handlePaste}
+      className="rich-text-editor min-h-36 w-full border border-black bg-white px-3 py-2 leading-7 outline-none"
+    />
+  );
+}

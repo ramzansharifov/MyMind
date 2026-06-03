@@ -11,6 +11,7 @@ import type { HealthData } from '../../modules/health/types';
 import type { InventoryItem } from '../../modules/inventory/types';
 import type { Project } from '../../modules/projects/types';
 import type { TemplatesData } from '../../modules/templates/types';
+import type { StudyData } from '../../modules/study/types';
 import type { TodoData } from '../../modules/todos/types';
 import type { WorkoutData } from '../../modules/workouts/types';
 import type { AppSettings } from '../types/common';
@@ -25,6 +26,7 @@ export type CollectionName =
   | 'journal_entries'
   | 'notes'
   | 'templates'
+  | 'study'
   | 'projects'
   | 'contacts'
   | 'health'
@@ -42,6 +44,7 @@ export interface CollectionMap {
   journal_entries: JournalData;
   notes: NotesData;
   templates: TemplatesData;
+  study: StudyData;
   projects: Project[];
   contacts: ContactsData;
   health: HealthData;

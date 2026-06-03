@@ -1,0 +1,424 @@
+﻿import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
+import type { StudyNode } from "../../types/study";
+import { findMaterialNodeByLinkTitle } from "../../utils/internalLinks";
+
+interface RichTextEditorProps {
+  value: string;
+  nodes: StudyNode[];
+  placeholder?: string;
+  editable: boolean;
+  onChange: (value: string) => void;
+  onOpenNode: (nodeId: string) => void;
+}
+
+function isProbablyHtml(value: string): boolean {
+  return /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function plainTextToHtml(value: string): string {
+  if (!value.trim()) {
+    return "";
+  }
+
+  return value
+    .split(/\n{2,}/)
+    .map((paragraph) => {
+      const lines = paragraph
+        .split("\n")
+        .map((line) => escapeHtml(line))
+        .join("<br>");
+
+      return `<p>${lines}</p>`;
+    })
+    .join("");
+}
+
+function toEditableHtml(value: string): string {
+  if (!value) {
+    return "";
+  }
+
+  return isProbablyHtml(value) ? value : plainTextToHtml(value);
+}
+
+function sanitizeRichHtml(html: string): string {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+
+  const blockedTags = new Set([
+    "SCRIPT",
+    "STYLE",
+    "IFRAME",
+    "OBJECT",
+    "EMBED",
+    "META",
+    "LINK",
+  ]);
+
+  function cleanElement(element: Element) {
+    if (blockedTags.has(element.tagName)) {
+      element.remove();
+      return;
+    }
+
+    Array.from(element.attributes).forEach((attribute) => {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value.toLowerCase();
+
+      if (name.startsWith("on")) {
+        element.removeAttribute(attribute.name);
+      }
+
+      if ((name === "href" || name === "src") && value.startsWith("javascript:")) {
+        element.removeAttribute(attribute.name);
+      }
+
+      if (name === "style") {
+        const allowedStyle = attribute.value
+          .split(";")
+          .map((part) => part.trim())
+          .filter((part) => {
+            const lower = part.toLowerCase();
+
+            return (
+              lower.startsWith("font-weight") ||
+              lower.startsWith("font-style") ||
+              lower.startsWith("text-decoration") ||
+              lower.startsWith("list-style-type") ||
+              lower.startsWith("text-align")
+            );
+          })
+          .join("; ");
+
+        if (allowedStyle) {
+          element.setAttribute("style", allowedStyle);
+        } else {
+          element.removeAttribute("style");
+        }
+      }
+    });
+
+    Array.from(element.children).forEach(cleanElement);
+  }
+
+  Array.from(template.content.children).forEach(cleanElement);
+
+  return template.innerHTML;
+}
+
+function findClosestListElement(): HTMLUListElement | HTMLOListElement | null {
+  const selection = window.getSelection();
+
+  if (!selection || selection.rangeCount === 0) {
+    return null;
+  }
+
+  let node: Node | null = selection.anchorNode;
+
+  if (node?.nodeType === Node.TEXT_NODE) {
+    node = node.parentElement;
+  }
+
+  while (node && node instanceof HTMLElement) {
+    if (node.tagName === "UL" || node.tagName === "OL") {
+      return node as HTMLUListElement | HTMLOListElement;
+    }
+
+    node = node.parentElement;
+  }
+
+  return null;
+}
+
+function focusEditor(editor: HTMLDivElement | null) {
+  if (!editor) {
+    return;
+  }
+
+  editor.focus();
+}
+
+function exec(command: string, value?: string) {
+  document.execCommand(command, false, value);
+}
+
+function replaceTextNodesWithInternalLinks(
+  root: HTMLElement,
+  nodes: StudyNode[],
+  onOpenNode: (nodeId: string) => void
+) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode as Text);
+  }
+
+  textNodes.forEach((textNode) => {
+    const value = textNode.nodeValue ?? "";
+    const regex = /\[\[([^\]]+)\]\]/g;
+
+    if (!regex.test(value)) {
+      return;
+    }
+
+    regex.lastIndex = 0;
+
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(value)) !== null) {
+      const before = value.slice(lastIndex, match.index);
+
+      if (before) {
+        fragment.appendChild(document.createTextNode(before));
+      }
+
+      const label = match[1].trim();
+      const target = findMaterialNodeByLinkTitle(nodes, label);
+
+      if (target) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = `[[${label}]]`;
+        button.dataset.internalLinkNodeId = target.id;
+        button.className = "mx-1 border border-black bg-black px-1 text-white";
+        button.addEventListener("click", () => onOpenNode(target.id));
+        fragment.appendChild(button);
+      } else {
+        const span = document.createElement("span");
+        span.textContent = `[[${label}]]`;
+        span.className = "mx-1 border border-black bg-white px-1 text-black line-through";
+        fragment.appendChild(span);
+      }
+
+      lastIndex = regex.lastIndex;
+    }
+
+    const after = value.slice(lastIndex);
+
+    if (after) {
+      fragment.appendChild(document.createTextNode(after));
+    }
+
+    textNode.replaceWith(fragment);
+  });
+}
+
+export function RichTextEditor({
+  value,
+  nodes,
+  placeholder = "Введите текст...",
+  editable,
+  onChange,
+  onOpenNode,
+}: RichTextEditorProps) {
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const [listStyle, setListStyle] = useState("disc");
+
+  useEffect(() => {
+    if (!editable) {
+      return;
+    }
+
+    document.execCommand("defaultParagraphSeparator", false, "p");
+  }, [editable]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+
+    if (!editor || !editable) {
+      return;
+    }
+
+    const nextHtml = sanitizeRichHtml(toEditableHtml(value));
+
+    if (editor.innerHTML !== nextHtml && document.activeElement !== editor) {
+      editor.innerHTML = nextHtml;
+    }
+  }, [value, editable]);
+
+  useEffect(() => {
+    const preview = previewRef.current;
+
+    if (!preview || editable) {
+      return;
+    }
+
+    preview.innerHTML = sanitizeRichHtml(toEditableHtml(value));
+    replaceTextNodesWithInternalLinks(preview, nodes, onOpenNode);
+  }, [value, editable, nodes, onOpenNode]);
+
+  function saveFromEditor() {
+    const editor = editorRef.current;
+
+    if (!editor) {
+      return;
+    }
+
+    onChange(sanitizeRichHtml(editor.innerHTML));
+  }
+
+  function handleToolbarMouseDown(event: MouseEvent) {
+    event.preventDefault();
+  }
+
+  function runCommand(command: string, commandValue?: string) {
+    focusEditor(editorRef.current);
+    exec(command, commandValue);
+    saveFromEditor();
+  }
+
+  function applyListStyle(nextStyle: string) {
+    setListStyle(nextStyle);
+    focusEditor(editorRef.current);
+
+    const list = findClosestListElement();
+
+    if (list) {
+      list.style.listStyleType = nextStyle;
+      saveFromEditor();
+    }
+  }
+
+  function handlePaste(event: React.ClipboardEvent<HTMLDivElement>) {
+    event.preventDefault();
+
+    const plainText = event.clipboardData.getData("text/plain");
+    document.execCommand("insertText", false, plainText);
+    saveFromEditor();
+  }
+
+  if (!editable) {
+    return (
+      <div
+        ref={previewRef}
+        className="rich-text-view whitespace-normal leading-8"
+      />
+    );
+  }
+
+  return (
+    <div className="border border-black bg-white">
+      <div
+        className="flex flex-wrap gap-1 border-b border-black bg-neutral-100 p-2"
+        onMouseDown={handleToolbarMouseDown}
+      >
+        <button
+          type="button"
+          className="border border-black bg-white px-2 py-1 text-sm font-bold hover:bg-black hover:text-white"
+          onClick={() => runCommand("bold")}
+          title="Жирный"
+        >
+          B
+        </button>
+
+        <button
+          type="button"
+          className="border border-black bg-white px-2 py-1 text-sm italic hover:bg-black hover:text-white"
+          onClick={() => runCommand("italic")}
+          title="Курсив"
+        >
+          I
+        </button>
+
+        <button
+          type="button"
+          className="border border-black bg-white px-2 py-1 text-sm underline hover:bg-black hover:text-white"
+          onClick={() => runCommand("underline")}
+          title="Подчёркнутый"
+        >
+          U
+        </button>
+
+        <button
+          type="button"
+          className="border border-black bg-white px-2 py-1 text-sm line-through hover:bg-black hover:text-white"
+          onClick={() => runCommand("strikeThrough")}
+          title="Зачёркнутый"
+        >
+          S
+        </button>
+
+        <button
+          type="button"
+          className="border border-black bg-white px-2 py-1 text-sm hover:bg-black hover:text-white"
+          onClick={() => runCommand("insertUnorderedList")}
+          title="Маркированный список"
+        >
+          • List
+        </button>
+
+        <button
+          type="button"
+          className="border border-black bg-white px-2 py-1 text-sm hover:bg-black hover:text-white"
+          onClick={() => runCommand("insertOrderedList")}
+          title="Нумерованный список"
+        >
+          1. List
+        </button>
+
+        <select
+          value={listStyle}
+          onChange={(event) => applyListStyle(event.target.value)}
+          className="border border-black bg-white px-2 py-1 text-sm outline-none"
+          title="Стиль списка"
+        >
+          <option value="disc">disc</option>
+          <option value="circle">circle</option>
+          <option value="square">square</option>
+          <option value="decimal">decimal</option>
+          <option value="lower-alpha">lower-alpha</option>
+          <option value="upper-alpha">upper-alpha</option>
+          <option value="lower-roman">lower-roman</option>
+          <option value="upper-roman">upper-roman</option>
+        </select>
+
+        <button
+          type="button"
+          className="border border-black bg-white px-2 py-1 text-sm hover:bg-black hover:text-white"
+          onClick={() => runCommand("formatBlock", "blockquote")}
+          title="Цитата"
+        >
+          Quote
+        </button>
+
+        <button
+          type="button"
+          className="border border-black bg-white px-2 py-1 text-sm hover:bg-black hover:text-white"
+          onClick={() => runCommand("removeFormat")}
+          title="Очистить форматирование выделения"
+        >
+          Clear format
+        </button>
+      </div>
+
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        data-placeholder={placeholder}
+        onInput={saveFromEditor}
+        onBlur={saveFromEditor}
+        onPaste={handlePaste}
+        className="rich-text-editor min-h-36 w-full px-3 py-2 leading-8 outline-none"
+      />
+    </div>
+  );
+}

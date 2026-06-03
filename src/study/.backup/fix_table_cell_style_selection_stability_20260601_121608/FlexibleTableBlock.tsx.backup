@@ -1,0 +1,817 @@
+﻿import {
+  useEffect,
+  useMemo,
+  useState,
+  type ClipboardEvent as ReactClipboardEvent,
+  type CSSProperties,
+} from "react";
+import type {
+  StudyNode,
+  TableCellStyle,
+  TableStudyBlock,
+} from "../../types/study";
+import {
+  RichTextEditor,
+  type RichTextActiveMarks,
+  type RichTextCommand,
+} from "./RichTextEditor";
+import {
+  emitTableSelectionChanged,
+  listenTableCommand,
+} from "../../utils/tableEvents";
+
+interface FlexibleTableBlockProps {
+  block: TableStudyBlock;
+  nodes: StudyNode[];
+  editable: boolean;
+  formatCommand?: RichTextCommand | null;
+  onChange: (block: TableStudyBlock) => void;
+  onOpenNode: (nodeId: string) => void;
+  onRichTextMarksChange?: (marks: RichTextActiveMarks) => void;
+  onActiveRichTextEditorChange?: (editorId: string) => void;
+}
+
+interface SelectedCell {
+  rowIndex: number;
+  columnIndex: number;
+}
+
+type CellStyleMap = Record<string, TableCellStyle>;
+
+const DEFAULT_COLUMN_WIDTH = 180;
+const MIN_COLUMN_WIDTH = 80;
+const MAX_COLUMN_WIDTH = 600;
+
+function getCellKey(rowIndex: number, columnIndex: number): string {
+  return `${rowIndex}:${columnIndex}`;
+}
+
+function parseCellKey(key: string): SelectedCell | null {
+  const [row, column] = key.split(":").map(Number);
+
+  if (!Number.isInteger(row) || !Number.isInteger(column)) {
+    return null;
+  }
+
+  return {
+    rowIndex: row,
+    columnIndex: column,
+  };
+}
+
+function isEmptyCellStyle(style: TableCellStyle): boolean {
+  return Object.values(style).every((value) => !value);
+}
+
+function normalizeRows(rows: string[][]): string[][] {
+  const safeRows = rows.length > 0 ? rows : [["", ""], ["", ""]];
+  const maxColumns = Math.max(1, ...safeRows.map((row) => row.length));
+
+  return safeRows.map((row) => [
+    ...row,
+    ...Array.from({ length: maxColumns - row.length }, () => ""),
+  ]);
+}
+
+function normalizeColumnWidths(
+  columnWidths: number[] | undefined,
+  columnCount: number
+): number[] {
+  return Array.from({ length: columnCount }, (_, index) => {
+    const width = columnWidths?.[index] ?? DEFAULT_COLUMN_WIDTH;
+
+    return Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, width));
+  });
+}
+
+function stripHtml(value: string): string {
+  if (!value) {
+    return "";
+  }
+
+  const element = document.createElement("div");
+  element.innerHTML = value;
+
+  return element.textContent || element.innerText || "";
+}
+
+function escapeCsvCell(value: string): string {
+  const cleanValue = stripHtml(value);
+
+  if (
+    cleanValue.includes(",") ||
+    cleanValue.includes('"') ||
+    cleanValue.includes("\n")
+  ) {
+    return `"${cleanValue.replaceAll('"', '""')}"`;
+  }
+
+  return cleanValue;
+}
+
+function downloadTextFile(fileName: string, content: string, mimeType: string) {
+  const blob = new Blob([content], {
+    type: mimeType,
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = fileName;
+  link.click();
+
+  URL.revokeObjectURL(url);
+}
+
+function isProbablyTableText(value: string): boolean {
+  const cleanValue = value.replace(/\r/g, "");
+
+  if (!cleanValue.trim()) {
+    return false;
+  }
+
+  if (cleanValue.includes("\t")) {
+    return true;
+  }
+
+  const lines = cleanValue
+    .split("\n")
+    .filter((line) => line.trim().length > 0);
+
+  return lines.length > 1;
+}
+
+function parseClipboardTableText(value: string): string[][] {
+  const cleanValue = value.replace(/\r/g, "");
+  const lines = cleanValue.split("\n");
+
+  while (lines.length > 0 && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+
+  return lines.map((line) => line.split("\t"));
+}
+
+function createEmptyRow(columnCount: number): string[] {
+  return Array.from({ length: columnCount }, () => "");
+}
+
+function transformCellStyles(
+  styles: CellStyleMap,
+  mapper: (
+    rowIndex: number,
+    columnIndex: number,
+    style: TableCellStyle
+  ) => { rowIndex: number; columnIndex: number; style: TableCellStyle } | null
+): CellStyleMap {
+  const nextStyles: CellStyleMap = {};
+
+  Object.entries(styles).forEach(([key, style]) => {
+    const parsed = parseCellKey(key);
+
+    if (!parsed) {
+      return;
+    }
+
+    const next = mapper(parsed.rowIndex, parsed.columnIndex, style);
+
+    if (!next || isEmptyCellStyle(next.style)) {
+      return;
+    }
+
+    nextStyles[getCellKey(next.rowIndex, next.columnIndex)] = next.style;
+  });
+
+  return nextStyles;
+}
+
+export function FlexibleTableBlock({
+  block,
+  nodes,
+  editable,
+  formatCommand,
+  onChange,
+  onOpenNode,
+  onRichTextMarksChange,
+  onActiveRichTextEditorChange,
+}: FlexibleTableBlockProps) {
+  const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
+
+  const rows = useMemo(() => normalizeRows(block.rows), [block.rows]);
+  const columnCount = Math.max(1, rows[0]?.length ?? 1);
+  const columnWidths = useMemo(
+    () => normalizeColumnWidths(block.columnWidths, columnCount),
+    [block.columnWidths, columnCount]
+  );
+  const cellStyles = block.cellStyles ?? {};
+
+  function getCellEditorId(rowIndex: number, columnIndex: number): string {
+    return `${block.id}:cell:${rowIndex}:${columnIndex}`;
+  }
+
+  function getCellStyle(rowIndex: number, columnIndex: number): TableCellStyle {
+    return cellStyles[getCellKey(rowIndex, columnIndex)] ?? {};
+  }
+
+  function emitCurrentSelection(cell: SelectedCell | null = selectedCell) {
+    if (!cell) {
+      emitTableSelectionChanged(null);
+      return;
+    }
+
+    emitTableSelectionChanged({
+      blockId: block.id,
+      rowIndex: cell.rowIndex,
+      columnIndex: cell.columnIndex,
+      rowCount: rows.length,
+      columnCount,
+      columnWidth: columnWidths[cell.columnIndex] ?? DEFAULT_COLUMN_WIDTH,
+      cellStyle: getCellStyle(cell.rowIndex, cell.columnIndex),
+    });
+  }
+
+  function updateBlock(
+    nextRows: string[][],
+    nextColumnWidths = columnWidths,
+    nextCellStyles = cellStyles
+  ) {
+    onChange({
+      ...block,
+      rows: nextRows,
+      columnWidths: nextColumnWidths,
+      cellStyles: nextCellStyles,
+    });
+  }
+
+  function updateCell(rowIndex: number, columnIndex: number, value: string) {
+    const nextRows = rows.map((row, currentRowIndex) =>
+      currentRowIndex === rowIndex
+        ? row.map((cell, currentColumnIndex) =>
+            currentColumnIndex === columnIndex ? value : cell
+          )
+        : row
+    );
+
+    updateBlock(nextRows);
+  }
+
+  function selectCell(rowIndex: number, columnIndex: number) {
+    const nextCell = {
+      rowIndex,
+      columnIndex,
+    };
+
+    setSelectedCell(nextCell);
+    emitCurrentSelection(nextCell);
+  }
+
+  function updateSelectedCellStyle(patch: TableCellStyle) {
+    const cell = requireSelectedCell();
+
+    if (!cell) {
+      return;
+    }
+
+    const key = getCellKey(cell.rowIndex, cell.columnIndex);
+    const currentStyle = cellStyles[key] ?? {};
+    const nextStyle: TableCellStyle = {
+      ...currentStyle,
+      ...patch,
+    };
+
+    Object.entries(nextStyle).forEach(([styleKey, value]) => {
+      if (!value) {
+        delete nextStyle[styleKey as keyof TableCellStyle];
+      }
+    });
+
+    const nextCellStyles: CellStyleMap = {
+      ...cellStyles,
+    };
+
+    if (isEmptyCellStyle(nextStyle)) {
+      delete nextCellStyles[key];
+    } else {
+      nextCellStyles[key] = nextStyle;
+    }
+
+    updateBlock(rows, columnWidths, nextCellStyles);
+
+    window.setTimeout(() => {
+      emitTableSelectionChanged({
+        blockId: block.id,
+        rowIndex: cell.rowIndex,
+        columnIndex: cell.columnIndex,
+        rowCount: rows.length,
+        columnCount,
+        columnWidth: columnWidths[cell.columnIndex] ?? DEFAULT_COLUMN_WIDTH,
+        cellStyle: nextCellStyles[key] ?? {},
+      });
+    }, 0);
+  }
+
+  function clearSelectedCellStyle() {
+    const cell = requireSelectedCell();
+
+    if (!cell) {
+      return;
+    }
+
+    const key = getCellKey(cell.rowIndex, cell.columnIndex);
+    const nextCellStyles = {
+      ...cellStyles,
+    };
+
+    delete nextCellStyles[key];
+
+    updateBlock(rows, columnWidths, nextCellStyles);
+
+    window.setTimeout(() => {
+      emitTableSelectionChanged({
+        blockId: block.id,
+        rowIndex: cell.rowIndex,
+        columnIndex: cell.columnIndex,
+        rowCount: rows.length,
+        columnCount,
+        columnWidth: columnWidths[cell.columnIndex] ?? DEFAULT_COLUMN_WIDTH,
+        cellStyle: {},
+      });
+    }, 0);
+  }
+
+  function pasteTableTextAt(
+    startRowIndex: number,
+    startColumnIndex: number,
+    clipboardText: string
+  ) {
+    const matrix = parseClipboardTableText(clipboardText);
+
+    if (matrix.length === 0) {
+      return;
+    }
+
+    const matrixColumnCount = Math.max(1, ...matrix.map((row) => row.length));
+    const nextRowCount = Math.max(rows.length, startRowIndex + matrix.length);
+    const nextColumnCount = Math.max(columnCount, startColumnIndex + matrixColumnCount);
+
+    const nextRows = Array.from({ length: nextRowCount }, (_, rowIndex) => {
+      const sourceRow = rows[rowIndex] ?? createEmptyRow(columnCount);
+
+      return [
+        ...sourceRow,
+        ...Array.from({ length: nextColumnCount - sourceRow.length }, () => ""),
+      ];
+    });
+
+    matrix.forEach((matrixRow, matrixRowIndex) => {
+      matrixRow.forEach((cellValue, matrixColumnIndex) => {
+        const targetRowIndex = startRowIndex + matrixRowIndex;
+        const targetColumnIndex = startColumnIndex + matrixColumnIndex;
+
+        nextRows[targetRowIndex][targetColumnIndex] = cellValue;
+      });
+    });
+
+    const nextColumnWidths = normalizeColumnWidths(columnWidths, nextColumnCount);
+
+    updateBlock(nextRows, nextColumnWidths);
+
+    const nextSelectedCell = {
+      rowIndex: Math.min(nextRowCount - 1, startRowIndex + matrix.length - 1),
+      columnIndex: Math.min(nextColumnCount - 1, startColumnIndex + matrixColumnCount - 1),
+    };
+
+    setSelectedCell(nextSelectedCell);
+
+    window.setTimeout(() => {
+      emitTableSelectionChanged({
+        blockId: block.id,
+        rowIndex: nextSelectedCell.rowIndex,
+        columnIndex: nextSelectedCell.columnIndex,
+        rowCount: nextRowCount,
+        columnCount: nextColumnCount,
+        columnWidth: nextColumnWidths[nextSelectedCell.columnIndex] ?? DEFAULT_COLUMN_WIDTH,
+        cellStyle: getCellStyle(nextSelectedCell.rowIndex, nextSelectedCell.columnIndex),
+      });
+    }, 0);
+  }
+
+  function handleCellPaste(
+    event: ReactClipboardEvent<HTMLElement>,
+    rowIndex: number,
+    columnIndex: number
+  ) {
+    if (!editable) {
+      return;
+    }
+
+    const clipboardText = event.clipboardData.getData("text/plain");
+
+    if (!isProbablyTableText(clipboardText)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    pasteTableTextAt(rowIndex, columnIndex, clipboardText);
+  }
+
+  function addRowAt(index: number) {
+    const safeIndex = Math.max(0, Math.min(rows.length, index));
+    const emptyRow = createEmptyRow(columnCount);
+
+    const nextCellStyles = transformCellStyles(cellStyles, (rowIndex, columnIndex, style) => ({
+      rowIndex: rowIndex >= safeIndex ? rowIndex + 1 : rowIndex,
+      columnIndex,
+      style,
+    }));
+
+    updateBlock([
+      ...rows.slice(0, safeIndex),
+      emptyRow,
+      ...rows.slice(safeIndex),
+    ], columnWidths, nextCellStyles);
+
+    const nextCell = {
+      rowIndex: safeIndex,
+      columnIndex: selectedCell?.columnIndex ?? 0,
+    };
+
+    setSelectedCell(nextCell);
+    window.setTimeout(() => emitCurrentSelection(nextCell), 0);
+  }
+
+  function addColumnAt(index: number) {
+    const safeIndex = Math.max(0, Math.min(columnCount, index));
+
+    const nextRows = rows.map((row) => [
+      ...row.slice(0, safeIndex),
+      "",
+      ...row.slice(safeIndex),
+    ]);
+
+    const nextColumnWidths = [
+      ...columnWidths.slice(0, safeIndex),
+      DEFAULT_COLUMN_WIDTH,
+      ...columnWidths.slice(safeIndex),
+    ];
+
+    const nextCellStyles = transformCellStyles(cellStyles, (rowIndex, columnIndex, style) => ({
+      rowIndex,
+      columnIndex: columnIndex >= safeIndex ? columnIndex + 1 : columnIndex,
+      style,
+    }));
+
+    updateBlock(nextRows, nextColumnWidths, nextCellStyles);
+
+    const nextCell = {
+      rowIndex: selectedCell?.rowIndex ?? 0,
+      columnIndex: safeIndex,
+    };
+
+    setSelectedCell(nextCell);
+    window.setTimeout(() => emitCurrentSelection(nextCell), 0);
+  }
+
+  function removeRow(rowIndex: number) {
+    if (rows.length <= 1) {
+      return;
+    }
+
+    const nextRows = rows.filter((_, index) => index !== rowIndex);
+
+    const nextCellStyles = transformCellStyles(cellStyles, (styleRowIndex, columnIndex, style) => {
+      if (styleRowIndex === rowIndex) {
+        return null;
+      }
+
+      return {
+        rowIndex: styleRowIndex > rowIndex ? styleRowIndex - 1 : styleRowIndex,
+        columnIndex,
+        style,
+      };
+    });
+
+    updateBlock(nextRows, columnWidths, nextCellStyles);
+
+    const nextCell = {
+      rowIndex: Math.max(0, Math.min(rowIndex, nextRows.length - 1)),
+      columnIndex: selectedCell?.columnIndex ?? 0,
+    };
+
+    setSelectedCell(nextCell);
+    window.setTimeout(() => emitCurrentSelection(nextCell), 0);
+  }
+
+  function removeColumn(columnIndex: number) {
+    if (columnCount <= 1) {
+      return;
+    }
+
+    const nextRows = rows.map((row) => row.filter((_, index) => index !== columnIndex));
+    const nextColumnWidths = columnWidths.filter((_, index) => index !== columnIndex);
+
+    const nextCellStyles = transformCellStyles(cellStyles, (rowIndex, styleColumnIndex, style) => {
+      if (styleColumnIndex === columnIndex) {
+        return null;
+      }
+
+      return {
+        rowIndex,
+        columnIndex: styleColumnIndex > columnIndex ? styleColumnIndex - 1 : styleColumnIndex,
+        style,
+      };
+    });
+
+    updateBlock(nextRows, nextColumnWidths, nextCellStyles);
+
+    const nextCell = {
+      rowIndex: selectedCell?.rowIndex ?? 0,
+      columnIndex: Math.max(0, Math.min(columnIndex, nextColumnWidths.length - 1)),
+    };
+
+    setSelectedCell(nextCell);
+    window.setTimeout(() => emitCurrentSelection(nextCell), 0);
+  }
+
+  function moveRow(rowIndex: number, direction: -1 | 1) {
+    const targetIndex = rowIndex + direction;
+
+    if (targetIndex < 0 || targetIndex >= rows.length) {
+      return;
+    }
+
+    const nextRows = [...rows];
+    const current = nextRows[rowIndex];
+
+    nextRows[rowIndex] = nextRows[targetIndex];
+    nextRows[targetIndex] = current;
+
+    const nextCellStyles = transformCellStyles(cellStyles, (styleRowIndex, columnIndex, style) => {
+      if (styleRowIndex === rowIndex) {
+        return {
+          rowIndex: targetIndex,
+          columnIndex,
+          style,
+        };
+      }
+
+      if (styleRowIndex === targetIndex) {
+        return {
+          rowIndex,
+          columnIndex,
+          style,
+        };
+      }
+
+      return {
+        rowIndex: styleRowIndex,
+        columnIndex,
+        style,
+      };
+    });
+
+    updateBlock(nextRows, columnWidths, nextCellStyles);
+
+    const nextCell = {
+      rowIndex: targetIndex,
+      columnIndex: selectedCell?.columnIndex ?? 0,
+    };
+
+    setSelectedCell(nextCell);
+    window.setTimeout(() => emitCurrentSelection(nextCell), 0);
+  }
+
+  function setColumnWidth(columnIndex: number, width: number) {
+    const safeWidth = Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, width));
+
+    const nextColumnWidths = columnWidths.map((currentWidth, index) =>
+      index === columnIndex ? safeWidth : currentWidth
+    );
+
+    updateBlock(rows, nextColumnWidths);
+
+    if (selectedCell) {
+      window.setTimeout(() => emitCurrentSelection(selectedCell), 0);
+    }
+  }
+
+  function exportCsv() {
+    const csv = rows
+      .map((row) => row.map(escapeCsvCell).join(","))
+      .join("\n");
+
+    downloadTextFile("table.csv", csv, "text/csv;charset=utf-8");
+  }
+
+  function requireSelectedCell(): SelectedCell | null {
+    if (!selectedCell) {
+      window.alert("Сначала выбери ячейку таблицы.");
+      return null;
+    }
+
+    return selectedCell;
+  }
+
+  useEffect(() => {
+    if (!editable || !selectedCell) {
+      return;
+    }
+
+    emitCurrentSelection(selectedCell);
+  }, [editable, selectedCell, rows.length, columnCount, columnWidths, cellStyles]);
+
+  useEffect(() => {
+    return () => {
+      emitTableSelectionChanged(null);
+    };
+  }, []);
+
+  useEffect(() => {
+    return listenTableCommand(block.id, (command) => {
+      if (command.type === "exportCsv") {
+        exportCsv();
+        return;
+      }
+
+      if (command.type === "toggleHeader") {
+        onChange({
+          ...block,
+          rows,
+          columnWidths,
+          cellStyles,
+          hasHeader: !block.hasHeader,
+        });
+        return;
+      }
+
+      if (command.type === "setColumnWidth" && typeof command.value === "number") {
+        const cell = requireSelectedCell();
+
+        if (cell) {
+          setColumnWidth(cell.columnIndex, command.value);
+        }
+
+        return;
+      }
+
+      if (command.type === "setCellBackgroundColor" && typeof command.value === "string") {
+        updateSelectedCellStyle({
+          backgroundColor: command.value,
+        });
+        return;
+      }
+
+      if (command.type === "setCellTextColor" && typeof command.value === "string") {
+        updateSelectedCellStyle({
+          textColor: command.value,
+        });
+        return;
+      }
+
+      if (command.type === "setCellTextAlign" && typeof command.value === "string") {
+        updateSelectedCellStyle({
+          textAlign: command.value as TableCellStyle["textAlign"],
+        });
+        return;
+      }
+
+      if (command.type === "setCellVerticalAlign" && typeof command.value === "string") {
+        updateSelectedCellStyle({
+          verticalAlign: command.value as TableCellStyle["verticalAlign"],
+        });
+        return;
+      }
+
+      if (command.type === "clearCellStyle") {
+        clearSelectedCellStyle();
+        return;
+      }
+
+      const cell = requireSelectedCell();
+
+      if (!cell) {
+        return;
+      }
+
+      if (command.type === "addRowAbove") {
+        addRowAt(cell.rowIndex);
+      }
+
+      if (command.type === "addRowBelow") {
+        addRowAt(cell.rowIndex + 1);
+      }
+
+      if (command.type === "deleteRow") {
+        removeRow(cell.rowIndex);
+      }
+
+      if (command.type === "addColumnLeft") {
+        addColumnAt(cell.columnIndex);
+      }
+
+      if (command.type === "addColumnRight") {
+        addColumnAt(cell.columnIndex + 1);
+      }
+
+      if (command.type === "deleteColumn") {
+        removeColumn(cell.columnIndex);
+      }
+
+      if (command.type === "moveRowUp") {
+        moveRow(cell.rowIndex, -1);
+      }
+
+      if (command.type === "moveRowDown") {
+        moveRow(cell.rowIndex, 1);
+      }
+    });
+  }, [block, rows, columnWidths, cellStyles, selectedCell]);
+
+  return (
+    <div className="border border-black bg-white">
+      {editable && (
+        <div className="border-b border-black bg-neutral-100 px-3 py-2 text-xs text-neutral-600">
+          Можно вставлять диапазон из Excel / Google Sheets: кликни по ячейке и нажми Ctrl+V.
+        </div>
+      )}
+
+      <div className="overflow-auto">
+        <table className="border-collapse text-sm">
+          <colgroup>
+            {Array.from({ length: columnCount }, (_, columnIndex) => (
+              <col
+                key={columnIndex}
+                style={{
+                  width: columnWidths[columnIndex],
+                  minWidth: columnWidths[columnIndex],
+                }}
+              />
+            ))}
+          </colgroup>
+
+          <tbody>
+            {rows.map((row, rowIndex) => {
+              const isHeader = block.hasHeader && rowIndex === 0;
+
+              return (
+                <tr key={rowIndex} className={isHeader ? "font-bold" : ""}>
+                  {row.map((cell, columnIndex) => {
+                    const CellTag = isHeader ? "th" : "td";
+                    const isSelected =
+                      selectedCell?.rowIndex === rowIndex &&
+                      selectedCell?.columnIndex === columnIndex;
+                    const cellStyle = getCellStyle(rowIndex, columnIndex);
+
+                    const inlineCellStyle: CSSProperties = {
+                      width: columnWidths[columnIndex],
+                      minWidth: columnWidths[columnIndex],
+                      backgroundColor:
+                        cellStyle.backgroundColor ?? (isHeader ? "#f5f5f5" : undefined),
+                      color: cellStyle.textColor,
+                      textAlign: cellStyle.textAlign,
+                      verticalAlign: cellStyle.verticalAlign,
+                    };
+
+                    return (
+                      <CellTag
+                        key={columnIndex}
+                        onMouseDown={() => selectCell(rowIndex, columnIndex)}
+                        onPasteCapture={(event) =>
+                          handleCellPaste(event, rowIndex, columnIndex)
+                        }
+                        className={[
+                          "border border-black p-0 text-left align-top",
+                          isSelected ? "outline outline-2 outline-black" : "",
+                        ].join(" ")}
+                        style={inlineCellStyle}
+                      >
+                        <div className="table-rich-cell">
+                          <RichTextEditor
+                            editorId={getCellEditorId(rowIndex, columnIndex)}
+                            value={cell}
+                            nodes={nodes}
+                            editable={editable}
+                            formatCommand={formatCommand}
+                            onChange={(nextValue) =>
+                              updateCell(rowIndex, columnIndex, nextValue)
+                            }
+                            onOpenNode={onOpenNode}
+                            onActiveMarksChange={onRichTextMarksChange}
+                            onActiveEditorChange={onActiveRichTextEditorChange}
+                          />
+                        </div>
+                      </CellTag>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,1132 @@
+﻿import {
+  useEffect,
+  useMemo,
+  useState,
+  type ClipboardEvent as ReactClipboardEvent,
+  type CSSProperties,
+} from "react";
+import type {
+  StudyNode,
+  TableCellSpan,
+  TableCellStyle,
+  TableStudyBlock,
+} from "../../types/study";
+import {
+  RichTextEditor,
+  type RichTextActiveMarks,
+  type RichTextCommand,
+} from "./RichTextEditor";
+import {
+  emitTableSelectionChanged,
+  listenTableCommand,
+} from "../../utils/tableEvents";
+import { showAppWarning } from "../../utils/appNotice";
+
+interface FlexibleTableBlockProps {
+  block: TableStudyBlock;
+  nodes: StudyNode[];
+  editable: boolean;
+  formatCommand?: RichTextCommand | null;
+  onChange: (block: TableStudyBlock) => void;
+  onOpenNode: (nodeId: string) => void;
+  onRichTextMarksChange?: (marks: RichTextActiveMarks) => void;
+  onActiveRichTextEditorChange?: (editorId: string) => void;
+}
+
+interface SelectedCell {
+  rowIndex: number;
+  columnIndex: number;
+}
+
+interface TableCellRange {
+  startRowIndex: number;
+  startColumnIndex: number;
+  endRowIndex: number;
+  endColumnIndex: number;
+}
+
+function normalizeRange(range: TableCellRange): TableCellRange {
+  return {
+    startRowIndex: Math.min(range.startRowIndex, range.endRowIndex),
+    endRowIndex: Math.max(range.startRowIndex, range.endRowIndex),
+    startColumnIndex: Math.min(range.startColumnIndex, range.endColumnIndex),
+    endColumnIndex: Math.max(range.startColumnIndex, range.endColumnIndex),
+  };
+}
+
+
+type CellStyleMap = Record<string, TableCellStyle>;
+type CellSpanMap = Record<string, TableCellSpan>;
+
+const DEFAULT_COLUMN_WIDTH = 180;
+const MIN_COLUMN_WIDTH = 80;
+const MAX_COLUMN_WIDTH = 600;
+
+function getCellKey(rowIndex: number, columnIndex: number): string {
+  return `${rowIndex}:${columnIndex}`;
+}
+
+function parseCellKey(key: string): SelectedCell | null {
+  const [row, column] = key.split(":").map(Number);
+
+  if (!Number.isInteger(row) || !Number.isInteger(column)) {
+    return null;
+  }
+
+  return {
+    rowIndex: row,
+    columnIndex: column,
+  };
+}
+
+function normalizeRows(rows: string[][]): string[][] {
+  const safeRows = rows.length > 0 ? rows : [["", ""], ["", ""]];
+  const maxColumns = Math.max(1, ...safeRows.map((row) => row.length));
+
+  return safeRows.map((row) => [
+    ...row,
+    ...Array.from({ length: maxColumns - row.length }, () => ""),
+  ]);
+}
+
+function normalizeColumnWidths(
+  columnWidths: number[] | undefined,
+  columnCount: number
+): number[] {
+  return Array.from({ length: columnCount }, (_, index) => {
+    const width = columnWidths?.[index] ?? DEFAULT_COLUMN_WIDTH;
+
+    return Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, width));
+  });
+}
+
+function isEmptyCellStyle(style: TableCellStyle): boolean {
+  return Object.values(style).every((value) => !value);
+}
+
+function cleanCellSpans(spans: CellSpanMap): CellSpanMap | undefined {
+  const nextSpans: CellSpanMap = {};
+
+  Object.entries(spans).forEach(([key, span]) => {
+    const rowSpan = Math.max(1, Math.round(span.rowSpan ?? 1));
+    const colSpan = Math.max(1, Math.round(span.colSpan ?? 1));
+    const hidden = Boolean(span.hidden);
+
+    if (!hidden && rowSpan <= 1 && colSpan <= 1) {
+      return;
+    }
+
+    nextSpans[key] = {
+      ...(rowSpan > 1 ? { rowSpan } : {}),
+      ...(colSpan > 1 ? { colSpan } : {}),
+      ...(hidden ? { hidden } : {}),
+    };
+  });
+
+  return Object.keys(nextSpans).length > 0 ? nextSpans : undefined;
+}
+
+function transformCellStyles(
+  styles: CellStyleMap,
+  mapper: (
+    rowIndex: number,
+    columnIndex: number,
+    style: TableCellStyle
+  ) => { rowIndex: number; columnIndex: number; style: TableCellStyle } | null
+): CellStyleMap {
+  const nextStyles: CellStyleMap = {};
+
+  Object.entries(styles).forEach(([key, style]) => {
+    const parsed = parseCellKey(key);
+
+    if (!parsed) {
+      return;
+    }
+
+    const next = mapper(parsed.rowIndex, parsed.columnIndex, style);
+
+    if (!next || isEmptyCellStyle(next.style)) {
+      return;
+    }
+
+    nextStyles[getCellKey(next.rowIndex, next.columnIndex)] = next.style;
+  });
+
+  return nextStyles;
+}
+
+function stripHtml(value: string): string {
+  if (!value) {
+    return "";
+  }
+
+  const element = document.createElement("div");
+  element.innerHTML = value;
+
+  return element.textContent || element.innerText || "";
+}
+
+function escapeCsvCell(value: string): string {
+  const cleanValue = stripHtml(value);
+
+  if (
+    cleanValue.includes(",") ||
+    cleanValue.includes('"') ||
+    cleanValue.includes("\n")
+  ) {
+    return `"${cleanValue.replaceAll('"', '""')}"`;
+  }
+
+  return cleanValue;
+}
+
+function downloadTextFile(fileName: string, content: string, mimeType: string) {
+  const blob = new Blob([content], {
+    type: mimeType,
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = fileName;
+  link.click();
+
+  URL.revokeObjectURL(url);
+}
+
+function isProbablyTableText(value: string): boolean {
+  const cleanValue = value.replace(/\r/g, "");
+
+  if (!cleanValue.trim()) {
+    return false;
+  }
+
+  if (cleanValue.includes("\t")) {
+    return true;
+  }
+
+  const lines = cleanValue
+    .split("\n")
+    .filter((line) => line.trim().length > 0);
+
+  return lines.length > 1;
+}
+
+function parseClipboardTableText(value: string): string[][] {
+  const cleanValue = value.replace(/\r/g, "");
+  const lines = cleanValue.split("\n");
+
+  while (lines.length > 0 && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+
+  return lines.map((line) => line.split("\t"));
+}
+
+function createEmptyRow(columnCount: number): string[] {
+  return Array.from({ length: columnCount }, () => "");
+}
+
+function removePreviouslyAppendedMergedContent(
+  masterContent: string,
+  coveredContents: string[]
+): string {
+  let nextContent = masterContent;
+
+  [...coveredContents]
+    .reverse()
+    .filter((content) => content.trim())
+    .forEach((content) => {
+      const patterns = [
+        `<br>${content}`,
+        `<br/>${content}`,
+        `<br />${content}`,
+      ];
+
+      const matchedPattern = patterns.find((pattern) => nextContent.endsWith(pattern));
+
+      if (matchedPattern) {
+        nextContent = nextContent.slice(0, -matchedPattern.length);
+      }
+    });
+
+  return nextContent;
+}
+
+export function FlexibleTableBlock({
+  block,
+  nodes,
+  editable,
+  formatCommand,
+  onChange,
+  onOpenNode,
+  onRichTextMarksChange,
+  onActiveRichTextEditorChange,
+}: FlexibleTableBlockProps) {
+  const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
+  const [selectedRange, setSelectedRange] = useState<TableCellRange | null>(null);
+  const [selectionAnchor, setSelectionAnchor] = useState<SelectedCell | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+
+  const rows = useMemo(() => normalizeRows(block.rows), [block.rows]);
+  const columnCount = Math.max(1, rows[0]?.length ?? 1);
+  const columnWidths = useMemo(
+    () => normalizeColumnWidths(block.columnWidths, columnCount),
+    [block.columnWidths, columnCount]
+  );
+
+  const cellStyles = block.cellStyles ?? {};
+  const cellSpans = block.cellSpans ?? {};
+
+  function getCellEditorId(rowIndex: number, columnIndex: number): string {
+    return `${block.id}:cell:${rowIndex}:${columnIndex}`;
+  }
+
+  function getCellStyle(rowIndex: number, columnIndex: number): TableCellStyle {
+    return cellStyles[getCellKey(rowIndex, columnIndex)] ?? {};
+  }
+
+  function getCellSpan(rowIndex: number, columnIndex: number): Required<TableCellSpan> {
+    const rawSpan = cellSpans[getCellKey(rowIndex, columnIndex)] ?? {};
+
+    return {
+      rowSpan: Math.max(1, rawSpan.rowSpan ?? 1),
+      colSpan: Math.max(1, rawSpan.colSpan ?? 1),
+      hidden: Boolean(rawSpan.hidden),
+    };
+  }
+
+  function updateBlock(
+    nextRows: string[][],
+    nextColumnWidths = columnWidths,
+    nextCellStyles = cellStyles,
+    nextCellSpans = cellSpans
+  ) {
+    onChange({
+      ...block,
+      rows: nextRows,
+      columnWidths: nextColumnWidths,
+      cellStyles: Object.keys(nextCellStyles).length > 0 ? nextCellStyles : undefined,
+      cellSpans: cleanCellSpans(nextCellSpans),
+    });
+  }
+
+  function emitCurrentSelection(cell: SelectedCell | null = selectedCell) {
+    if (!cell) {
+      emitTableSelectionChanged(null);
+      return;
+    }
+
+    emitTableSelectionChanged({
+      blockId: block.id,
+      rowIndex: cell.rowIndex,
+      columnIndex: cell.columnIndex,
+      rowCount: rows.length,
+      columnCount,
+      columnWidth: columnWidths[cell.columnIndex] ?? DEFAULT_COLUMN_WIDTH,
+      cellStyle: getCellStyle(cell.rowIndex, cell.columnIndex),
+      cellSpan: getCellSpan(cell.rowIndex, cell.columnIndex),
+    });
+  }
+
+  function selectCell(rowIndex: number, columnIndex: number) {
+    const span = getCellSpan(rowIndex, columnIndex);
+
+    if (span.hidden) {
+      return;
+    }
+
+    const nextCell = {
+      rowIndex,
+      columnIndex,
+    };
+
+    setSelectedCell(nextCell);
+    emitCurrentSelection(nextCell);
+  }
+
+  function requireSelectedCell(): SelectedCell | null {
+    if (!selectedCell) {
+      showAppWarning("Ячейка не выбрана", "Сначала выбери ячейку таблицы.");
+      return null;
+    }
+
+    return selectedCell;
+  }
+
+
+  function setRangeFromCells(anchor: SelectedCell, target: SelectedCell) {
+    const nextRange = normalizeRange({
+      startRowIndex: anchor.rowIndex,
+      startColumnIndex: anchor.columnIndex,
+      endRowIndex: target.rowIndex,
+      endColumnIndex: target.columnIndex,
+    });
+
+    setSelectedRange(nextRange);
+    setSelectedCell({
+      rowIndex: nextRange.startRowIndex,
+      columnIndex: nextRange.startColumnIndex,
+    });
+    emitCurrentSelection({
+      rowIndex: nextRange.startRowIndex,
+      columnIndex: nextRange.startColumnIndex,
+    });
+  }
+
+
+  function beginCellSelection(rowIndex: number, columnIndex: number, shiftKey: boolean) {
+    const span = getCellSpan(rowIndex, columnIndex);
+
+    if (span.hidden) {
+      return;
+    }
+
+    const cell = {
+      rowIndex,
+      columnIndex,
+    };
+
+    if (shiftKey && selectionAnchor) {
+      setRangeFromCells(selectionAnchor, cell);
+      return;
+    }
+
+    setSelectionAnchor(cell);
+    setSelectedCell(cell);
+    setIsSelecting(true);
+    setRangeFromCells(cell, cell);
+  }
+
+  function updateCellSelection(rowIndex: number, columnIndex: number) {
+    if (!isSelecting || !selectionAnchor) {
+      return;
+    }
+
+    const span = getCellSpan(rowIndex, columnIndex);
+
+    if (span.hidden) {
+      return;
+    }
+
+    setRangeFromCells(selectionAnchor, {
+      rowIndex,
+      columnIndex,
+    });
+  }
+
+  function updateCell(rowIndex: number, columnIndex: number, value: string) {
+    const nextRows = rows.map((row, currentRowIndex) =>
+      currentRowIndex === rowIndex
+        ? row.map((cell, currentColumnIndex) =>
+            currentColumnIndex === columnIndex ? value : cell
+          )
+        : row
+    );
+
+    updateBlock(nextRows);
+  }
+
+  function updateSelectedCellStyle(patch: TableCellStyle) {
+    const cell = requireSelectedCell();
+
+    if (!cell) {
+      return;
+    }
+
+    const key = getCellKey(cell.rowIndex, cell.columnIndex);
+    const currentStyle = cellStyles[key] ?? {};
+    const nextStyle: TableCellStyle = {
+      ...currentStyle,
+      ...patch,
+    };
+
+    Object.entries(nextStyle).forEach(([styleKey, value]) => {
+      if (!value) {
+        delete nextStyle[styleKey as keyof TableCellStyle];
+      }
+    });
+
+    const nextCellStyles: CellStyleMap = {
+      ...cellStyles,
+    };
+
+    if (isEmptyCellStyle(nextStyle)) {
+      delete nextCellStyles[key];
+    } else {
+      nextCellStyles[key] = nextStyle;
+    }
+
+    updateBlock(rows, columnWidths, nextCellStyles, cellSpans);
+    window.setTimeout(() => emitCurrentSelection(cell), 0);
+  }
+
+  function clearSelectedCellStyle() {
+    const cell = requireSelectedCell();
+
+    if (!cell) {
+      return;
+    }
+
+    const key = getCellKey(cell.rowIndex, cell.columnIndex);
+    const nextCellStyles = {
+      ...cellStyles,
+    };
+
+    delete nextCellStyles[key];
+
+    updateBlock(rows, columnWidths, nextCellStyles, cellSpans);
+    window.setTimeout(() => emitCurrentSelection(cell), 0);
+  }
+
+  function splitSelectedCell() {
+    const cell = requireSelectedCell();
+
+    if (!cell) {
+      return;
+    }
+
+    const span = getCellSpan(cell.rowIndex, cell.columnIndex);
+
+    if (span.hidden) {
+      showAppWarning("Нельзя разделить", "Эта ячейка скрыта внутри объединения.");
+      return;
+    }
+
+    const nextRows = rows.map((row) => [...row]);
+    const coveredContents: string[] = [];
+    const nextCellSpans: CellSpanMap = {
+      ...cellSpans,
+    };
+
+    for (let rowOffset = 0; rowOffset < span.rowSpan; rowOffset += 1) {
+      for (let columnOffset = 0; columnOffset < span.colSpan; columnOffset += 1) {
+        const targetRow = cell.rowIndex + rowOffset;
+        const targetColumn = cell.columnIndex + columnOffset;
+        const targetKey = getCellKey(targetRow, targetColumn);
+
+        if (rowOffset !== 0 || columnOffset !== 0) {
+          coveredContents.push(nextRows[targetRow]?.[targetColumn] ?? "");
+        }
+
+        delete nextCellSpans[targetKey];
+      }
+    }
+
+    nextRows[cell.rowIndex][cell.columnIndex] = removePreviouslyAppendedMergedContent(
+      nextRows[cell.rowIndex][cell.columnIndex],
+      coveredContents
+    );
+
+    updateBlock(nextRows, columnWidths, cellStyles, nextCellSpans);
+    window.setTimeout(() => emitCurrentSelection(cell), 0);
+  }
+
+  function mergeSelectedCellRight() {
+    const cell = requireSelectedCell();
+
+    if (!cell) {
+      return;
+    }
+
+    const span = getCellSpan(cell.rowIndex, cell.columnIndex);
+
+    if (span.hidden) {
+      showAppWarning("Нельзя объединить", "Выбранная ячейка скрыта внутри объединения.");
+      return;
+    }
+
+    if (span.rowSpan > 1) {
+      showAppWarning("Нельзя объединить вправо", "Сначала раздели вертикально объединённую ячейку.");
+      return;
+    }
+
+    const targetColumnIndex = cell.columnIndex + span.colSpan;
+
+    if (targetColumnIndex >= columnCount) {
+      showAppWarning("Нет ячейки справа", "Эту ячейку уже нельзя расширить вправо.");
+      return;
+    }
+
+    const targetSpan = getCellSpan(cell.rowIndex, targetColumnIndex);
+
+    if (targetSpan.hidden || targetSpan.rowSpan > 1 || targetSpan.colSpan > 1) {
+      showAppWarning("Нельзя объединить", "Соседняя ячейка уже входит в другое объединение.");
+      return;
+    }
+
+    const nextCellSpans: CellSpanMap = {
+      ...cellSpans,
+      [getCellKey(cell.rowIndex, cell.columnIndex)]: {
+        rowSpan: 1,
+        colSpan: span.colSpan + 1,
+      },
+      [getCellKey(cell.rowIndex, targetColumnIndex)]: {
+        hidden: true,
+      },
+    };
+
+    updateBlock(rows, columnWidths, cellStyles, nextCellSpans);
+    window.setTimeout(() => emitCurrentSelection(cell), 0);
+  }
+
+  function mergeSelectedCellDown() {
+    const cell = requireSelectedCell();
+
+    if (!cell) {
+      return;
+    }
+
+    const span = getCellSpan(cell.rowIndex, cell.columnIndex);
+
+    if (span.hidden) {
+      showAppWarning("Нельзя объединить", "Выбранная ячейка скрыта внутри объединения.");
+      return;
+    }
+
+    if (span.colSpan > 1) {
+      showAppWarning("Нельзя объединить вниз", "Сначала раздели горизонтально объединённую ячейку.");
+      return;
+    }
+
+    const targetRowIndex = cell.rowIndex + span.rowSpan;
+
+    if (targetRowIndex >= rows.length) {
+      showAppWarning("Нет ячейки снизу", "Эту ячейку уже нельзя расширить вниз.");
+      return;
+    }
+
+    const targetSpan = getCellSpan(targetRowIndex, cell.columnIndex);
+
+    if (targetSpan.hidden || targetSpan.rowSpan > 1 || targetSpan.colSpan > 1) {
+      showAppWarning("Нельзя объединить", "Нижняя ячейка уже входит в другое объединение.");
+      return;
+    }
+
+    const nextCellSpans: CellSpanMap = {
+      ...cellSpans,
+      [getCellKey(cell.rowIndex, cell.columnIndex)]: {
+        rowSpan: span.rowSpan + 1,
+        colSpan: 1,
+      },
+      [getCellKey(targetRowIndex, cell.columnIndex)]: {
+        hidden: true,
+      },
+    };
+
+    updateBlock(rows, columnWidths, cellStyles, nextCellSpans);
+    window.setTimeout(() => emitCurrentSelection(cell), 0);
+  }
+
+  function pasteTableTextAt(
+    startRowIndex: number,
+    startColumnIndex: number,
+    clipboardText: string
+  ) {
+    const matrix = parseClipboardTableText(clipboardText);
+
+    if (matrix.length === 0) {
+      return;
+    }
+
+    const matrixColumnCount = Math.max(1, ...matrix.map((row) => row.length));
+    const nextRowCount = Math.max(rows.length, startRowIndex + matrix.length);
+    const nextColumnCount = Math.max(columnCount, startColumnIndex + matrixColumnCount);
+
+    const nextRows = Array.from({ length: nextRowCount }, (_, rowIndex) => {
+      const sourceRow = rows[rowIndex] ?? createEmptyRow(columnCount);
+
+      return [
+        ...sourceRow,
+        ...Array.from({ length: nextColumnCount - sourceRow.length }, () => ""),
+      ];
+    });
+
+    matrix.forEach((matrixRow, matrixRowIndex) => {
+      matrixRow.forEach((cellValue, matrixColumnIndex) => {
+        const targetRowIndex = startRowIndex + matrixRowIndex;
+        const targetColumnIndex = startColumnIndex + matrixColumnIndex;
+
+        nextRows[targetRowIndex][targetColumnIndex] = cellValue;
+      });
+    });
+
+    const nextColumnWidths = normalizeColumnWidths(columnWidths, nextColumnCount);
+
+    updateBlock(nextRows, nextColumnWidths, cellStyles, {});
+
+    const nextSelectedCell = {
+      rowIndex: Math.min(nextRowCount - 1, startRowIndex + matrix.length - 1),
+      columnIndex: Math.min(nextColumnCount - 1, startColumnIndex + matrixColumnCount - 1),
+    };
+
+    setSelectedCell(nextSelectedCell);
+    window.setTimeout(() => emitCurrentSelection(nextSelectedCell), 0);
+  }
+
+  function handleCellPaste(
+    event: ReactClipboardEvent<HTMLElement>,
+    rowIndex: number,
+    columnIndex: number
+  ) {
+    if (!editable) {
+      return;
+    }
+
+    const clipboardText = event.clipboardData.getData("text/plain");
+
+    if (!isProbablyTableText(clipboardText)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    pasteTableTextAt(rowIndex, columnIndex, clipboardText);
+  }
+
+  function addRowAt(index: number) {
+    const safeIndex = Math.max(0, Math.min(rows.length, index));
+    const emptyRow = createEmptyRow(columnCount);
+
+    const nextCellStyles = transformCellStyles(cellStyles, (rowIndex, columnIndex, style) => ({
+      rowIndex: rowIndex >= safeIndex ? rowIndex + 1 : rowIndex,
+      columnIndex,
+      style,
+    }));
+
+    updateBlock([
+      ...rows.slice(0, safeIndex),
+      emptyRow,
+      ...rows.slice(safeIndex),
+    ], columnWidths, nextCellStyles, {});
+
+    const nextCell = {
+      rowIndex: safeIndex,
+      columnIndex: selectedCell?.columnIndex ?? 0,
+    };
+
+    setSelectedCell(nextCell);
+    window.setTimeout(() => emitCurrentSelection(nextCell), 0);
+  }
+
+  function addColumnAt(index: number) {
+    const safeIndex = Math.max(0, Math.min(columnCount, index));
+
+    const nextRows = rows.map((row) => [
+      ...row.slice(0, safeIndex),
+      "",
+      ...row.slice(safeIndex),
+    ]);
+
+    const nextColumnWidths = [
+      ...columnWidths.slice(0, safeIndex),
+      DEFAULT_COLUMN_WIDTH,
+      ...columnWidths.slice(safeIndex),
+    ];
+
+    const nextCellStyles = transformCellStyles(cellStyles, (rowIndex, columnIndex, style) => ({
+      rowIndex,
+      columnIndex: columnIndex >= safeIndex ? columnIndex + 1 : columnIndex,
+      style,
+    }));
+
+    updateBlock(nextRows, nextColumnWidths, nextCellStyles, {});
+
+    const nextCell = {
+      rowIndex: selectedCell?.rowIndex ?? 0,
+      columnIndex: safeIndex,
+    };
+
+    setSelectedCell(nextCell);
+    window.setTimeout(() => emitCurrentSelection(nextCell), 0);
+  }
+
+  function removeRow(rowIndex: number) {
+    if (rows.length <= 1) {
+      return;
+    }
+
+    const nextRows = rows.filter((_, index) => index !== rowIndex);
+
+    const nextCellStyles = transformCellStyles(cellStyles, (styleRowIndex, columnIndex, style) => {
+      if (styleRowIndex === rowIndex) {
+        return null;
+      }
+
+      return {
+        rowIndex: styleRowIndex > rowIndex ? styleRowIndex - 1 : styleRowIndex,
+        columnIndex,
+        style,
+      };
+    });
+
+    updateBlock(nextRows, columnWidths, nextCellStyles, {});
+
+    const nextCell = {
+      rowIndex: Math.max(0, Math.min(rowIndex, nextRows.length - 1)),
+      columnIndex: selectedCell?.columnIndex ?? 0,
+    };
+
+    setSelectedCell(nextCell);
+    window.setTimeout(() => emitCurrentSelection(nextCell), 0);
+  }
+
+  function removeColumn(columnIndex: number) {
+    if (columnCount <= 1) {
+      return;
+    }
+
+    const nextRows = rows.map((row) => row.filter((_, index) => index !== columnIndex));
+    const nextColumnWidths = columnWidths.filter((_, index) => index !== columnIndex);
+
+    const nextCellStyles = transformCellStyles(cellStyles, (rowIndex, styleColumnIndex, style) => {
+      if (styleColumnIndex === columnIndex) {
+        return null;
+      }
+
+      return {
+        rowIndex,
+        columnIndex: styleColumnIndex > columnIndex ? styleColumnIndex - 1 : styleColumnIndex,
+        style,
+      };
+    });
+
+    updateBlock(nextRows, nextColumnWidths, nextCellStyles, {});
+
+    const nextCell = {
+      rowIndex: selectedCell?.rowIndex ?? 0,
+      columnIndex: Math.max(0, Math.min(columnIndex, nextColumnWidths.length - 1)),
+    };
+
+    setSelectedCell(nextCell);
+    window.setTimeout(() => emitCurrentSelection(nextCell), 0);
+  }
+
+  function moveRow(rowIndex: number, direction: -1 | 1) {
+    const targetIndex = rowIndex + direction;
+
+    if (targetIndex < 0 || targetIndex >= rows.length) {
+      return;
+    }
+
+    const nextRows = [...rows];
+    const current = nextRows[rowIndex];
+
+    nextRows[rowIndex] = nextRows[targetIndex];
+    nextRows[targetIndex] = current;
+
+    const nextCellStyles = transformCellStyles(cellStyles, (styleRowIndex, columnIndex, style) => {
+      if (styleRowIndex === rowIndex) {
+        return {
+          rowIndex: targetIndex,
+          columnIndex,
+          style,
+        };
+      }
+
+      if (styleRowIndex === targetIndex) {
+        return {
+          rowIndex,
+          columnIndex,
+          style,
+        };
+      }
+
+      return {
+        rowIndex: styleRowIndex,
+        columnIndex,
+        style,
+      };
+    });
+
+    updateBlock(nextRows, columnWidths, nextCellStyles, {});
+
+    const nextCell = {
+      rowIndex: targetIndex,
+      columnIndex: selectedCell?.columnIndex ?? 0,
+    };
+
+    setSelectedCell(nextCell);
+    window.setTimeout(() => emitCurrentSelection(nextCell), 0);
+  }
+
+  function setColumnWidth(columnIndex: number, width: number) {
+    const safeWidth = Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, width));
+
+    const nextColumnWidths = columnWidths.map((currentWidth, index) =>
+      index === columnIndex ? safeWidth : currentWidth
+    );
+
+    updateBlock(rows, nextColumnWidths, cellStyles, cellSpans);
+
+    if (selectedCell) {
+      window.setTimeout(() => emitCurrentSelection(selectedCell), 0);
+    }
+  }
+
+  function exportCsv() {
+    const csv = rows
+      .map((row) => row.map(escapeCsvCell).join(","))
+      .join("\n");
+
+    downloadTextFile("table.csv", csv, "text/csv;charset=utf-8");
+  }
+
+
+  useEffect(() => {
+    function stopSelection() {
+      setIsSelecting(false);
+    }
+
+    window.addEventListener("mouseup", stopSelection);
+
+  return () => {
+      window.removeEventListener("mouseup", stopSelection);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!editable || !selectedCell) {
+      return;
+    }
+
+    emitCurrentSelection(selectedCell);
+  }, [editable, selectedCell, rows.length, columnCount, columnWidths, cellStyles, cellSpans]);
+
+  useEffect(() => {
+    return listenTableCommand(block.id, (command) => {
+      if (command.type === "exportCsv") {
+        exportCsv();
+        return;
+      }
+
+      if (command.type === "toggleHeader") {
+        onChange({
+          ...block,
+          rows,
+          columnWidths,
+          cellStyles,
+          cellSpans,
+          hasHeader: !block.hasHeader,
+        });
+        return;
+      }
+
+      if (command.type === "mergeCellRight") {
+        mergeSelectedCellRight();
+        return;
+      }
+
+      if (command.type === "mergeCellDown") {
+        mergeSelectedCellDown();
+        return;
+      }
+
+      if (command.type === "splitCell") {
+        splitSelectedCell();
+        return;
+      }
+
+      if (command.type === "setColumnWidth" && typeof command.value === "number") {
+        const cell = requireSelectedCell();
+
+        if (cell) {
+          setColumnWidth(cell.columnIndex, command.value);
+        }
+
+        return;
+      }
+
+      if (command.type === "setCellBackgroundColor" && typeof command.value === "string") {
+        updateSelectedCellStyle({
+          backgroundColor: command.value,
+        });
+        return;
+      }
+
+      if (command.type === "setCellTextColor" && typeof command.value === "string") {
+        updateSelectedCellStyle({
+          textColor: command.value,
+        });
+        return;
+      }
+
+      if (command.type === "setCellTextAlign" && typeof command.value === "string") {
+        updateSelectedCellStyle({
+          textAlign: command.value as TableCellStyle["textAlign"],
+        });
+        return;
+      }
+
+      if (command.type === "setCellVerticalAlign" && typeof command.value === "string") {
+        updateSelectedCellStyle({
+          verticalAlign: command.value as TableCellStyle["verticalAlign"],
+        });
+        return;
+      }
+
+      if (command.type === "clearCellStyle") {
+        clearSelectedCellStyle();
+        return;
+      }
+
+      const cell = requireSelectedCell();
+
+      if (!cell) {
+        return;
+      }
+
+      if (command.type === "addRowAbove") {
+        addRowAt(cell.rowIndex);
+      }
+
+      if (command.type === "addRowBelow") {
+        addRowAt(cell.rowIndex + 1);
+      }
+
+      if (command.type === "deleteRow") {
+        removeRow(cell.rowIndex);
+      }
+
+      if (command.type === "addColumnLeft") {
+        addColumnAt(cell.columnIndex);
+      }
+
+      if (command.type === "addColumnRight") {
+        addColumnAt(cell.columnIndex + 1);
+      }
+
+      if (command.type === "deleteColumn") {
+        removeColumn(cell.columnIndex);
+      }
+
+      if (command.type === "moveRowUp") {
+        moveRow(cell.rowIndex, -1);
+      }
+
+      if (command.type === "moveRowDown") {
+        moveRow(cell.rowIndex, 1);
+      }
+    });
+  }, [block, rows, columnWidths, cellStyles, cellSpans, selectedCell]);
+
+  return (
+    <div className="border border-black bg-white">
+      {editable && (
+        <div className="border-b border-black bg-neutral-100 px-3 py-2 text-xs text-neutral-600">
+          Можно вставлять диапазон из Excel / Google Sheets: кликни по ячейке и нажми Ctrl+V.
+        </div>
+      )}
+
+      <div className="overflow-auto">
+        <table className="border-collapse text-sm">
+          <colgroup>
+            {Array.from({ length: columnCount }, (_, columnIndex) => (
+              <col
+                key={columnIndex}
+                style={{
+                  width: columnWidths[columnIndex],
+                  minWidth: columnWidths[columnIndex],
+                }}
+              />
+            ))}
+          </colgroup>
+
+          <tbody>
+            {rows.map((row, rowIndex) => {
+              const isHeader = block.hasHeader && rowIndex === 0;
+
+              return (
+                <tr key={rowIndex} className={isHeader ? "font-bold" : ""}>
+                  {row.map((cell, columnIndex) => {
+                    const span = getCellSpan(rowIndex, columnIndex);
+
+                    if (span.hidden) {
+                      return null;
+                    }
+
+                    const CellTag = isHeader ? "th" : "td";
+                    const isSelected =
+                      selectedCell?.rowIndex === rowIndex &&
+                      selectedCell?.columnIndex === columnIndex;
+                    const cellStyle = getCellStyle(rowIndex, columnIndex);
+
+                    const inlineCellStyle: CSSProperties = {
+                      width: columnWidths[columnIndex],
+                      minWidth: columnWidths[columnIndex],
+                      backgroundColor:
+                        cellStyle.backgroundColor ?? (isHeader ? "#f5f5f5" : undefined),
+                      color: cellStyle.textColor,
+                      textAlign: cellStyle.textAlign,
+                      verticalAlign: cellStyle.verticalAlign,
+                    };
+
+                    return (
+                      <CellTag
+                        key={columnIndex}
+                        rowSpan={span.rowSpan > 1 ? span.rowSpan : undefined}
+                        colSpan={span.colSpan > 1 ? span.colSpan : undefined}
+                        onMouseDown={() => selectCell(rowIndex, columnIndex)}
+                        onMouseEnter={() => updateCellSelection(rowIndex, columnIndex)}
+                        onPasteCapture={(event) =>
+                          handleCellPaste(event, rowIndex, columnIndex)
+                        }
+                        className={[
+                          "relative border border-black p-0 text-left align-top",
+                          isSelected ? "outline outline-2 outline-black" : "",
+                        ].join(" ")}
+                        style={inlineCellStyle}
+                      >
+                        {editable && (
+                          <button
+                            type="button"
+                            aria-label="Выделить диапазон ячеек"
+                            title="Потяни, чтобы выделить диапазон"
+                            className="table-cell-selector"
+                            onMouseDown={(event) => {
+                              if (event.button !== 0) {
+                                return;
+                              }
+
+                              event.preventDefault();
+                              event.stopPropagation();
+                              beginCellSelection(rowIndex, columnIndex, event.shiftKey);
+                            }}
+                          />
+                        )}
+
+                        <div
+                          className="table-rich-cell"
+                          style={{
+                            color: "inherit",
+                            backgroundColor: "transparent",
+                          }}
+                        >
+                          <RichTextEditor
+                            editorId={getCellEditorId(rowIndex, columnIndex)}
+                            value={cell}
+                            nodes={nodes}
+                            editable={editable}
+                            formatCommand={formatCommand}
+                            onChange={(nextValue) =>
+                              updateCell(rowIndex, columnIndex, nextValue)
+                            }
+                            onOpenNode={onOpenNode}
+                            onActiveMarksChange={onRichTextMarksChange}
+                            onActiveEditorChange={onActiveRichTextEditorChange}
+                          />
+                        </div>
+                      </CellTag>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

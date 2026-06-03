@@ -1,0 +1,672 @@
+﻿import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type WheelEvent,
+} from "react";
+import type { BoardPoint, BoardStroke } from "../../types/study";
+
+interface BoardCanvasProps {
+  title: string;
+  strokes: BoardStroke[];
+  editable: boolean;
+  onChange: (strokes: BoardStroke[]) => void;
+}
+
+interface Viewport {
+  x: number;
+  y: number;
+  scale: number;
+}
+
+type BoardTool = "pen" | "eraser" | "pan";
+
+interface BoardSurfaceProps {
+  title: string;
+  strokes: BoardStroke[];
+  editable: boolean;
+  tool: BoardTool;
+  width: number;
+  viewport: Viewport;
+  fullscreen?: boolean;
+  onToolChange: (tool: BoardTool) => void;
+  onWidthChange: (width: number) => void;
+  onViewportChange: (viewport: Viewport) => void;
+  onChange: (strokes: BoardStroke[]) => void;
+  onOpenFullscreen?: () => void;
+  onCloseFullscreen?: () => void;
+}
+
+function createStrokeId(): string {
+  return `stroke_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getDistance(a: BoardPoint, b: BoardPoint): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function strokeHitsPoint(stroke: BoardStroke, point: BoardPoint, radius: number): boolean {
+  return stroke.points.some((strokePoint) => getDistance(strokePoint, point) <= radius);
+}
+
+function clampScale(scale: number): number {
+  return Math.min(4, Math.max(0.2, scale));
+}
+
+function screenToWorld(point: BoardPoint, viewport: Viewport): BoardPoint {
+  return {
+    x: viewport.x + point.x / viewport.scale,
+    y: viewport.y + point.y / viewport.scale,
+  };
+}
+
+function worldToScreen(point: BoardPoint, viewport: Viewport): BoardPoint {
+  return {
+    x: (point.x - viewport.x) * viewport.scale,
+    y: (point.y - viewport.y) * viewport.scale,
+  };
+}
+
+function BoardSurface({
+  title,
+  strokes,
+  editable,
+  tool,
+  width,
+  viewport,
+  fullscreen = false,
+  onToolChange,
+  onWidthChange,
+  onViewportChange,
+  onChange,
+  onOpenFullscreen,
+  onCloseFullscreen,
+}: BoardSurfaceProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  const activeStrokeIdRef = useRef<string | null>(null);
+  const strokesRef = useRef<BoardStroke[]>(strokes);
+  const viewportRef = useRef<Viewport>(viewport);
+
+  const isPanningRef = useRef(false);
+  const lastPanPointRef = useRef<BoardPoint | null>(null);
+
+  const [size, setSize] = useState({
+    width: 1200,
+    height: fullscreen ? 700 : 420,
+  });
+
+  useEffect(() => {
+    strokesRef.current = strokes;
+  }, [strokes]);
+
+  useEffect(() => {
+    viewportRef.current = viewport;
+  }, [viewport]);
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+
+    if (!wrapper) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+
+      if (!rect) return;
+
+      setSize({
+        width: Math.max(400, Math.floor(rect.width)),
+        height: Math.max(280, Math.floor(rect.height)),
+      });
+    });
+
+    observer.observe(wrapper);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    drawCanvas();
+  }, [strokes, viewport, size, title]);
+
+  function getCanvasPointFromClient(clientX: number, clientY: number): BoardPoint {
+    const canvas = canvasRef.current;
+
+    if (!canvas) {
+      return {
+        x: 0,
+        y: 0,
+      };
+    }
+
+    const rect = canvas.getBoundingClientRect();
+
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
+  }
+
+  function getCanvasPoint(event: PointerEvent<HTMLCanvasElement>): BoardPoint {
+    return getCanvasPointFromClient(event.clientX, event.clientY);
+  }
+
+  function pushStrokes(nextStrokes: BoardStroke[]) {
+    strokesRef.current = nextStrokes;
+    onChange(nextStrokes);
+  }
+
+  function pushViewport(nextViewport: Viewport) {
+    viewportRef.current = nextViewport;
+    onViewportChange(nextViewport);
+  }
+
+  function drawGrid(
+    context: CanvasRenderingContext2D,
+    canvasWidth: number,
+    canvasHeight: number
+  ) {
+    const gridSize = 80;
+    const scaledGrid = gridSize * viewport.scale;
+
+    if (scaledGrid < 12) return;
+
+    const startX = -((viewport.x * viewport.scale) % scaledGrid);
+    const startY = -((viewport.y * viewport.scale) % scaledGrid);
+
+    context.save();
+
+    context.strokeStyle = "#dddddd";
+    context.lineWidth = 1;
+
+    for (let x = startX; x < canvasWidth; x += scaledGrid) {
+      context.beginPath();
+      context.moveTo(x, 0);
+      context.lineTo(x, canvasHeight);
+      context.stroke();
+    }
+
+    for (let y = startY; y < canvasHeight; y += scaledGrid) {
+      context.beginPath();
+      context.moveTo(0, y);
+      context.lineTo(canvasWidth, y);
+      context.stroke();
+    }
+
+    const origin = worldToScreen({ x: 0, y: 0 }, viewport);
+
+    context.strokeStyle = "#999999";
+    context.lineWidth = 1.5;
+
+    context.beginPath();
+    context.moveTo(origin.x, 0);
+    context.lineTo(origin.x, canvasHeight);
+    context.stroke();
+
+    context.beginPath();
+    context.moveTo(0, origin.y);
+    context.lineTo(canvasWidth, origin.y);
+    context.stroke();
+
+    context.restore();
+  }
+
+  function drawCanvas() {
+    const canvas = canvasRef.current;
+
+    if (!canvas) return;
+
+    const context = canvas.getContext("2d");
+
+    if (!context) return;
+
+    const ratio = window.devicePixelRatio || 1;
+
+    canvas.width = Math.floor(size.width * ratio);
+    canvas.height = Math.floor(size.height * ratio);
+
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+    context.clearRect(0, 0, size.width, size.height);
+
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, size.width, size.height);
+
+    drawGrid(context, size.width, size.height);
+
+    context.strokeStyle = "#000000";
+    context.lineCap = "round";
+    context.lineJoin = "round";
+
+    strokes.forEach((stroke) => {
+      if (stroke.points.length < 2) return;
+
+      const firstPoint = worldToScreen(stroke.points[0], viewport);
+
+      context.beginPath();
+      context.lineWidth = Math.max(1, stroke.width * viewport.scale);
+      context.moveTo(firstPoint.x, firstPoint.y);
+
+      stroke.points.slice(1).forEach((point) => {
+        const screenPoint = worldToScreen(point, viewport);
+        context.lineTo(screenPoint.x, screenPoint.y);
+      });
+
+      context.stroke();
+    });
+
+    if (strokes.length === 0) {
+      context.fillStyle = "#000000";
+      context.font = "20px Arial";
+      context.fillText(title || "Доска", 24, 40);
+      context.font = "14px Arial";
+      context.fillText(
+        editable
+          ? "Рисуй, перемещайся инструментом «Рука», увеличивай Ctrl + колесо."
+          : "Режим чтения: можно перемещаться, приближать и открыть на весь экран.",
+        24,
+        68
+      );
+    }
+  }
+
+  function startPanning(screenPoint: BoardPoint) {
+    isPanningRef.current = true;
+    lastPanPointRef.current = screenPoint;
+  }
+
+  function handlePointerDown(event: PointerEvent<HTMLCanvasElement>) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    const screenPoint = getCanvasPoint(event);
+    const currentViewport = viewportRef.current;
+    const worldPoint = screenToWorld(screenPoint, currentViewport);
+
+    const shouldPan = !editable || tool === "pan" || event.button === 1 || event.button === 2;
+
+    if (shouldPan) {
+      startPanning(screenPoint);
+      return;
+    }
+
+    if (tool === "eraser") {
+      const nextStrokes = strokesRef.current.filter(
+        (stroke) => !strokeHitsPoint(stroke, worldPoint, 24 / currentViewport.scale)
+      );
+
+      pushStrokes(nextStrokes);
+      return;
+    }
+
+    const stroke: BoardStroke = {
+      id: createStrokeId(),
+      width,
+      points: [worldPoint],
+    };
+
+    activeStrokeIdRef.current = stroke.id;
+    pushStrokes([...strokesRef.current, stroke]);
+  }
+
+  function handlePointerMove(event: PointerEvent<HTMLCanvasElement>) {
+    if (event.buttons === 0) return;
+
+    const screenPoint = getCanvasPoint(event);
+
+    if (isPanningRef.current) {
+      const lastPoint = lastPanPointRef.current;
+
+      if (!lastPoint) {
+        lastPanPointRef.current = screenPoint;
+        return;
+      }
+
+      const dx = screenPoint.x - lastPoint.x;
+      const dy = screenPoint.y - lastPoint.y;
+      const currentViewport = viewportRef.current;
+
+      pushViewport({
+        ...currentViewport,
+        x: currentViewport.x - dx / currentViewport.scale,
+        y: currentViewport.y - dy / currentViewport.scale,
+      });
+
+      lastPanPointRef.current = screenPoint;
+      return;
+    }
+
+    if (!editable) return;
+
+    const currentViewport = viewportRef.current;
+    const worldPoint = screenToWorld(screenPoint, currentViewport);
+
+    if (tool === "eraser") {
+      const nextStrokes = strokesRef.current.filter(
+        (stroke) => !strokeHitsPoint(stroke, worldPoint, 24 / currentViewport.scale)
+      );
+
+      pushStrokes(nextStrokes);
+      return;
+    }
+
+    const activeStrokeId = activeStrokeIdRef.current;
+
+    if (!activeStrokeId) return;
+
+    const nextStrokes = strokesRef.current.map((stroke) => {
+      if (stroke.id !== activeStrokeId) return stroke;
+
+      return {
+        ...stroke,
+        points: [...stroke.points, worldPoint],
+      };
+    });
+
+    pushStrokes(nextStrokes);
+  }
+
+  function stopInteraction() {
+    activeStrokeIdRef.current = null;
+    isPanningRef.current = false;
+    lastPanPointRef.current = null;
+  }
+
+  function handleWheel(event: WheelEvent<HTMLCanvasElement>) {
+    event.preventDefault();
+
+    const screenPoint = getCanvasPointFromClient(event.clientX, event.clientY);
+    const currentViewport = viewportRef.current;
+
+    if (event.ctrlKey) {
+      const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
+      const nextScale = clampScale(currentViewport.scale * zoomFactor);
+      const worldBeforeZoom = screenToWorld(screenPoint, currentViewport);
+
+      pushViewport({
+        scale: nextScale,
+        x: worldBeforeZoom.x - screenPoint.x / nextScale,
+        y: worldBeforeZoom.y - screenPoint.y / nextScale,
+      });
+
+      return;
+    }
+
+    pushViewport({
+      ...currentViewport,
+      x: currentViewport.x + event.deltaX / currentViewport.scale,
+      y: currentViewport.y + event.deltaY / currentViewport.scale,
+    });
+  }
+
+  function undo() {
+    if (!editable) return;
+
+    pushStrokes(strokesRef.current.slice(0, -1));
+  }
+
+  function clear() {
+    if (!editable) return;
+
+    if (!window.confirm("Очистить доску?")) return;
+
+    pushStrokes([]);
+  }
+
+  function resetView() {
+    pushViewport({
+      x: 0,
+      y: 0,
+      scale: 1,
+    });
+  }
+
+  function zoom(multiplier: number) {
+    const currentViewport = viewportRef.current;
+
+    pushViewport({
+      ...currentViewport,
+      scale: clampScale(currentViewport.scale * multiplier),
+    });
+  }
+
+  const showToolbar = true;
+
+  return (
+    <div className={fullscreen ? "flex h-full flex-col border border-black bg-white p-3" : "border border-black bg-white p-3"}>
+      {showToolbar && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-black pb-3">
+          {editable && (
+            <>
+              <button
+                type="button"
+                onClick={() => onToolChange("pen")}
+                className={
+                  tool === "pen"
+                    ? "border border-black bg-black px-3 py-1 text-sm text-white"
+                    : "border border-black bg-white px-3 py-1 text-sm text-black"
+                }
+              >
+                Ручка
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onToolChange("eraser")}
+                className={
+                  tool === "eraser"
+                    ? "border border-black bg-black px-3 py-1 text-sm text-white"
+                    : "border border-black bg-white px-3 py-1 text-sm text-black"
+                }
+              >
+                Ластик
+              </button>
+            </>
+          )}
+
+          <button
+            type="button"
+            onClick={() => onToolChange("pan")}
+            className={
+              !editable || tool === "pan"
+                ? "border border-black bg-black px-3 py-1 text-sm text-white"
+                : "border border-black bg-white px-3 py-1 text-sm text-black"
+            }
+          >
+            Рука
+          </button>
+
+          {editable && (
+            <label className="flex items-center gap-2 border border-black px-3 py-1 text-sm">
+              Толщина
+              <input
+                type="range"
+                min={1}
+                max={18}
+                value={width}
+                onChange={(event) => onWidthChange(Number(event.target.value))}
+              />
+              <span className="w-6 text-right">{width}</span>
+            </label>
+          )}
+
+          <button
+            type="button"
+            onClick={() => zoom(1.15)}
+            className="border border-black bg-white px-3 py-1 text-sm text-black hover:bg-black hover:text-white"
+          >
+            +
+          </button>
+
+          <button
+            type="button"
+            onClick={() => zoom(0.85)}
+            className="border border-black bg-white px-3 py-1 text-sm text-black hover:bg-black hover:text-white"
+          >
+            -
+          </button>
+
+          <button
+            type="button"
+            onClick={resetView}
+            className="border border-black bg-white px-3 py-1 text-sm text-black hover:bg-black hover:text-white"
+          >
+            Центр
+          </button>
+
+          {editable && (
+            <>
+              <button
+                type="button"
+                onClick={undo}
+                className="border border-black bg-white px-3 py-1 text-sm text-black hover:bg-black hover:text-white"
+              >
+                Undo
+              </button>
+
+              <button
+                type="button"
+                onClick={clear}
+                className="border border-black bg-white px-3 py-1 text-sm text-black hover:bg-black hover:text-white"
+              >
+                Очистить
+              </button>
+            </>
+          )}
+
+          {onOpenFullscreen && (
+            <button
+              type="button"
+              onClick={onOpenFullscreen}
+              className="border border-black bg-white px-3 py-1 text-sm text-black hover:bg-black hover:text-white"
+            >
+              На весь экран
+            </button>
+          )}
+
+          {onCloseFullscreen && (
+            <button
+              type="button"
+              onClick={onCloseFullscreen}
+              className="border border-black bg-black px-3 py-1 text-sm text-white"
+            >
+              Закрыть
+            </button>
+          )}
+
+          <span className="ml-auto text-sm text-neutral-600">
+            x:{Math.round(viewport.x)} y:{Math.round(viewport.y)} zoom:{Math.round(viewport.scale * 100)}% · линий: {strokes.length}
+          </span>
+        </div>
+      )}
+
+      <div
+        ref={wrapperRef}
+        className={fullscreen ? "min-h-0 flex-1" : "h-96"}
+      >
+        <canvas
+          ref={canvasRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={stopInteraction}
+          onPointerCancel={stopInteraction}
+          onPointerLeave={stopInteraction}
+          onWheel={handleWheel}
+          onContextMenu={(event) => event.preventDefault()}
+          className={
+            editable
+              ? tool === "pan"
+                ? "h-full w-full touch-none border border-black bg-white cursor-grab"
+                : "h-full w-full touch-none border border-black bg-white cursor-crosshair"
+              : "h-full w-full touch-none border border-black bg-white cursor-grab"
+          }
+        />
+      </div>
+
+      <div className="mt-2 text-xs text-neutral-600">
+        {editable
+          ? "Рисование: «Ручка». Перемещение: «Рука» или колесо/тачпад. Zoom: кнопки +/− или Ctrl + колесо."
+          : "Режим чтения: тяни доску мышкой, перемещайся колесом/тачпадом, приближай Ctrl + колесо или кнопками +/−."}
+      </div>
+    </div>
+  );
+}
+
+export function BoardCanvas({
+  title,
+  strokes,
+  editable,
+  onChange,
+}: BoardCanvasProps) {
+  const [tool, setTool] = useState<BoardTool>("pen");
+  const [width, setWidth] = useState(3);
+  const [viewport, setViewport] = useState<Viewport>({
+    x: 0,
+    y: 0,
+    scale: 1,
+  });
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+
+  const activeTool = editable ? tool : "pan";
+
+  return (
+    <>
+      <BoardSurface
+        title={title}
+        strokes={strokes}
+        editable={editable}
+        tool={activeTool}
+        width={width}
+        viewport={viewport}
+        onToolChange={setTool}
+        onWidthChange={setWidth}
+        onViewportChange={setViewport}
+        onChange={onChange}
+        onOpenFullscreen={() => setFullscreenOpen(true)}
+      />
+
+      {fullscreenOpen && (
+        <div className="fixed inset-0 z-50 bg-white p-4">
+          <div className="flex h-full flex-col">
+            <div className="mb-3 flex items-center justify-between border border-black bg-white px-4 py-3">
+              <div>
+                <h2 className="font-bold">{title || "Доска"}</h2>
+                <p className="text-sm text-neutral-600">
+                  {editable
+                    ? "Полноэкранная бесконечная доска для рисования."
+                    : "Полноэкранный просмотр доски: перемещение и масштабирование доступны без редактирования."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setFullscreenOpen(false)}
+                className="border border-black bg-black px-4 py-2 text-sm text-white"
+              >
+                Закрыть
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1">
+              <BoardSurface
+                title={title}
+                strokes={strokes}
+                editable={editable}
+                tool={activeTool}
+                width={width}
+                viewport={viewport}
+                fullscreen
+                onToolChange={setTool}
+                onWidthChange={setWidth}
+                onViewportChange={setViewport}
+                onChange={onChange}
+                onCloseFullscreen={() => setFullscreenOpen(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

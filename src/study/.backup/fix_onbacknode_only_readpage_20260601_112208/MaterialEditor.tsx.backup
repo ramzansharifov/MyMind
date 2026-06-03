@@ -1,0 +1,816 @@
+import { useEffect, useMemo, useState } from "react";
+import type {
+  BlockSettings,
+  CustomBlockTemplate,
+  StudyBlock,
+  StudyMaterial,
+  StudyNode,
+} from "../../types/study";
+import { formatDate } from "../../utils/format";
+import {
+  saveExplicitInternalLinkReturnTarget,
+  setCurrentInternalNavigationNode,
+} from "../../utils/internalNavigationHistory";
+import { InternalLinkBackButton } from "./InternalLinkBackButton";
+import {
+  getMaterialBacklinks,
+  getMaterialBrokenLinks,
+  getMaterialOutgoingLinks,
+} from "../../utils/internalLinks";
+import { cloneBlock } from "../../utils/blocks";
+import { emptyRichTextMarks } from "./RichTextEditor";
+import type { RichTextActiveMarks, RichTextCommand, RichTextCommandType } from "./RichTextEditor";
+import { BlockCard } from "./BlockCard";
+import { AddBlockBar } from "./AddBlockBar";
+import { BlockSettingsPanel } from "./BlockSettingsPanel";
+import { ReadPage } from "./ReadPage";
+import { TemplateManager } from "../templates/TemplateManager";
+import { DangerConfirmModal } from "../modals/DangerConfirmModal";
+
+interface MaterialEditorProps {
+  material: StudyMaterial;
+  currentNode: StudyNode;
+  nodes: StudyNode[];
+  materials: StudyMaterial[];
+  templates: CustomBlockTemplate[];
+  onTemplatesChange: (templates: CustomBlockTemplate[]) => void;
+  onRenameTitle: (title: string) => void;
+  onUpdateMaterial: (material: StudyMaterial) => void;
+  onAddBlock: (block: StudyBlock) => void;
+  onUpdateBlock: (blockId: string, block: StudyBlock) => void;
+  onDeleteBlock: (blockId: string) => void;
+  onDuplicateBlock: (blockId: string) => void;
+  onMoveBlock: (blockId: string, direction: -1 | 1) => void;
+  onOpenNode: (nodeId: string) => void;
+  focusBlockId?: string | null;
+  onFocusBlockConsumed?: () => void;
+}
+
+interface PendingDeleteBlock {
+  blockId: string;
+  index: number;
+}
+
+function findBlockById(blocks: StudyBlock[], blockId: string): StudyBlock | null {
+  for (const block of blocks) {
+    if (block.id === blockId) {
+      return block;
+    }
+
+    const found = findBlockById(block.children ?? [], blockId);
+
+    if (found) {
+      return found;
+    }
+  }
+
+  return null;
+}
+
+function updateBlockTree(
+  blocks: StudyBlock[],
+  blockId: string,
+  updater: (block: StudyBlock) => StudyBlock
+): StudyBlock[] {
+  return blocks.map((block) => {
+    if (block.id === blockId) {
+      return updater(block);
+    }
+
+    return {
+      ...block,
+      children: updateBlockTree(block.children ?? [], blockId, updater),
+    };
+  });
+}
+
+function deleteBlockFromTree(blocks: StudyBlock[], blockId: string): StudyBlock[] {
+  return blocks
+    .filter((block) => block.id !== blockId)
+    .map((block) => ({
+      ...block,
+      children: deleteBlockFromTree(block.children ?? [], blockId),
+    }));
+}
+
+function duplicateBlockInTree(blocks: StudyBlock[], blockId: string): StudyBlock[] {
+  const index = blocks.findIndex((block) => block.id === blockId);
+
+  if (index >= 0) {
+    return [
+      ...blocks.slice(0, index + 1),
+      cloneBlock(blocks[index]),
+      ...blocks.slice(index + 1),
+    ];
+  }
+
+  return blocks.map((block) => ({
+    ...block,
+    children: duplicateBlockInTree(block.children ?? [], blockId),
+  }));
+}
+
+function moveBlockInTree(
+  blocks: StudyBlock[],
+  blockId: string,
+  direction: -1 | 1
+): StudyBlock[] {
+  const index = blocks.findIndex((block) => block.id === blockId);
+  const targetIndex = index + direction;
+
+  if (index >= 0) {
+    if (targetIndex < 0 || targetIndex >= blocks.length) {
+      return blocks;
+    }
+
+    const next = [...blocks];
+    const current = next[index];
+
+    next[index] = next[targetIndex];
+    next[targetIndex] = current;
+
+    return next;
+  }
+
+  return blocks.map((block) => ({
+    ...block,
+    children: moveBlockInTree(block.children ?? [], blockId, direction),
+  }));
+}
+
+interface BlockTreeResult {
+  blocks: StudyBlock[];
+  changed: boolean;
+}
+
+function nestBlockIntoPreviousSibling(
+  blocks: StudyBlock[],
+  blockId: string
+): BlockTreeResult {
+  const index = blocks.findIndex((block) => block.id === blockId);
+
+  if (index >= 0) {
+    if (index === 0) {
+      return {
+        blocks,
+        changed: false,
+      };
+    }
+
+    const next = [...blocks];
+    const currentBlock = next[index];
+    const previousBlock = next[index - 1];
+
+    next[index - 1] = {
+      ...previousBlock,
+      children: [...(previousBlock.children ?? []), currentBlock],
+    };
+
+    next.splice(index, 1);
+
+    return {
+      blocks: next,
+      changed: true,
+    };
+  }
+
+  let changed = false;
+
+  const nextBlocks = blocks.map((block) => {
+    const result = nestBlockIntoPreviousSibling(block.children ?? [], blockId);
+
+    if (result.changed) {
+      changed = true;
+
+      return {
+        ...block,
+        children: result.blocks,
+      };
+    }
+
+    return block;
+  });
+
+  return {
+    blocks: changed ? nextBlocks : blocks,
+    changed,
+  };
+}
+
+function findPreviousSiblingId(
+  blocks: StudyBlock[],
+  blockId: string
+): string | null {
+  const index = blocks.findIndex((block) => block.id === blockId);
+
+  if (index > 0) {
+    return blocks[index - 1].id;
+  }
+
+  for (const block of blocks) {
+    const found = findPreviousSiblingId(block.children ?? [], blockId);
+
+    if (found) {
+      return found;
+    }
+  }
+
+  return null;
+}
+
+function unnestBlockFromParent(
+  blocks: StudyBlock[],
+  blockId: string
+): BlockTreeResult {
+  for (let parentIndex = 0; parentIndex < blocks.length; parentIndex += 1) {
+    const parentBlock = blocks[parentIndex];
+    const children = parentBlock.children ?? [];
+    const childIndex = children.findIndex((child) => child.id === blockId);
+
+    if (childIndex >= 0) {
+      const childBlock = children[childIndex];
+      const nextChildren = children.filter((child) => child.id !== blockId);
+      const updatedParent: StudyBlock = {
+        ...parentBlock,
+        children: nextChildren,
+      };
+
+      return {
+        blocks: [
+          ...blocks.slice(0, parentIndex),
+          updatedParent,
+          childBlock,
+          ...blocks.slice(parentIndex + 1),
+        ],
+        changed: true,
+      };
+    }
+  }
+
+  let changed = false;
+
+  const nextBlocks = blocks.map((block) => {
+    const result = unnestBlockFromParent(block.children ?? [], blockId);
+
+    if (result.changed) {
+      changed = true;
+
+      return {
+        ...block,
+        children: result.blocks,
+      };
+    }
+
+    return block;
+  });
+
+  return {
+    blocks: changed ? nextBlocks : blocks,
+    changed,
+  };
+}
+
+export function MaterialEditor({
+  material,
+  currentNode,
+  nodes,
+  materials,
+  templates,
+  onTemplatesChange,
+  onRenameTitle,
+  onUpdateMaterial,
+  onAddBlock,
+  onOpenNode,
+  focusBlockId,
+  onFocusBlockConsumed,
+}: MaterialEditorProps) {
+  useEffect(() => {
+    setCurrentInternalNavigationNode(material.nodeId, material.title);
+  }, [material.nodeId, material.title]);
+  
+
+  function openNodeFromInternalLink(targetNodeId: string) {
+    saveExplicitInternalLinkReturnTarget(
+      material.nodeId,
+      material.title,
+      targetNodeId
+    );
+
+    onOpenNode(targetNodeId);
+  }
+
+const [mode, setMode] = useState<"edit" | "read" | "links">("edit");
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
+  const [pendingDeleteBlock, setPendingDeleteBlock] = useState<PendingDeleteBlock | null>(null);
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [readPageWidth, setReadPageWidth] = useState(900);
+  const [collapsedBlockIds, setCollapsedBlockIds] = useState<Set<string>>(() => new Set());
+
+  const [richTextCommand, setRichTextCommand] = useState<RichTextCommand | null>(null);
+  const [richTextMarks, setRichTextMarks] = useState<RichTextActiveMarks>(emptyRichTextMarks);
+  const [activeRichTextEditorId, setActiveRichTextEditorId] = useState<string | null>(null);
+
+  const selectedBlock = selectedBlockId ? findBlockById(material.blocks, selectedBlockId) : null;
+
+  useEffect(() => {
+    if (!focusBlockId) {
+      return;
+    }
+
+    const blockExists = Boolean(findBlockById(material.blocks, focusBlockId));
+
+    if (!blockExists) {
+      onFocusBlockConsumed?.();
+      return;
+    }
+
+    setMode("edit");
+    setSelectedBlockId(focusBlockId);
+
+    window.setTimeout(() => {
+      const target = document.querySelector(`[data-study-block-id="${focusBlockId}"]`);
+
+      target?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      onFocusBlockConsumed?.();
+    }, 80);
+  }, [focusBlockId, material.blocks, onFocusBlockConsumed]);
+
+  const outgoingLinks = useMemo(() => {
+    return getMaterialOutgoingLinks(material, nodes, templates);
+  }, [material, nodes, templates]);
+
+  const brokenLinks = useMemo(() => {
+    return getMaterialBrokenLinks(material, nodes, templates);
+  }, [material, nodes, templates]);
+
+  const backlinks = useMemo(() => {
+    return getMaterialBacklinks(currentNode, materials, nodes, templates);
+  }, [currentNode, materials, nodes, templates]);
+
+  function updateTags(value: string) {
+    onUpdateMaterial({
+      ...material,
+      tags: value
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    });
+  }
+
+  function updateBlocks(nextBlocks: StudyBlock[]) {
+    onUpdateMaterial({
+      ...material,
+      blocks: nextBlocks,
+    });
+  }
+
+  function addRootBlockAndSelect(block: StudyBlock) {
+    if (selectedBlock) {
+      addChildBlock(selectedBlock.id, block);
+      return;
+    }
+
+    onAddBlock(block);
+    setSelectedBlockId(block.id);
+
+    if (block.type !== "text") {
+      setRichTextMarks(emptyRichTextMarks);
+      setActiveRichTextEditorId(null);
+    }
+  }
+
+  function addChildBlock(parentId: string, childBlock: StudyBlock) {
+    updateBlocks(
+      updateBlockTree(material.blocks, parentId, (block) => ({
+        ...block,
+        children: [...(block.children ?? []), childBlock],
+      }))
+    );
+
+    expandBlock(parentId);
+    setSelectedBlockId(childBlock.id);
+
+    if (childBlock.type !== "text") {
+      setRichTextMarks(emptyRichTextMarks);
+      setActiveRichTextEditorId(null);
+    }
+  }
+
+  function updateMaterialBlock(blockId: string, updatedBlock: StudyBlock) {
+    updateBlocks(
+      updateBlockTree(material.blocks, blockId, () => updatedBlock)
+    );
+  }
+
+  function updateSelectedBlockSettings(settings: BlockSettings) {
+    if (!selectedBlock) {
+      return;
+    }
+
+    updateMaterialBlock(selectedBlock.id, {
+      ...selectedBlock,
+      settings,
+    });
+  }
+
+  function sendRichTextCommand(command: RichTextCommandType, value?: string) {
+    const targetEditorId =
+      activeRichTextEditorId ??
+      (selectedBlock?.type === "text" ? selectedBlock.id : null);
+
+    if (!targetEditorId) {
+      window.alert("Сначала поставь курсор в текстовый блок или в ячейку таблицы.");
+      return;
+    }
+
+    setRichTextCommand({
+      id: Date.now(),
+      type: command,
+      value,
+      targetEditorId,
+    });
+  }
+
+  function clearSelectedBlock() {
+    setSelectedBlockId(null);
+    setRichTextMarks(emptyRichTextMarks);
+    setActiveRichTextEditorId(null);
+  }
+
+  function selectBlock(block: StudyBlock) {
+    if (selectedBlockId === block.id) {
+      clearSelectedBlock();
+      return;
+    }
+
+    setSelectedBlockId(block.id);
+
+    if (block.type !== "text") {
+      setRichTextMarks(emptyRichTextMarks);
+      setActiveRichTextEditorId(null);
+    }
+  }
+
+  function toggleBlockCollapse(blockId: string) {
+    setCollapsedBlockIds((previous) => {
+      const next = new Set(previous);
+
+      if (next.has(blockId)) {
+        next.delete(blockId);
+      } else {
+        next.add(blockId);
+      }
+
+      return next;
+    });
+  }
+
+  function expandBlock(blockId: string) {
+    setCollapsedBlockIds((previous) => {
+      if (!previous.has(blockId)) {
+        return previous;
+      }
+
+      const next = new Set(previous);
+      next.delete(blockId);
+
+      return next;
+    });
+  }
+
+  function deleteMaterialBlock(blockId: string) {
+    updateBlocks(deleteBlockFromTree(material.blocks, blockId));
+
+    if (selectedBlockId === blockId) {
+      setSelectedBlockId(null);
+      setRichTextMarks(emptyRichTextMarks);
+      setActiveRichTextEditorId(null);
+    }
+  }
+
+  function duplicateMaterialBlock(blockId: string) {
+    updateBlocks(duplicateBlockInTree(material.blocks, blockId));
+  }
+
+  function moveMaterialBlock(blockId: string, direction: -1 | 1) {
+    updateBlocks(moveBlockInTree(material.blocks, blockId, direction));
+  }
+
+  function nestMaterialBlock(blockId: string) {
+    const parentId = findPreviousSiblingId(material.blocks, blockId);
+    const result = nestBlockIntoPreviousSibling(material.blocks, blockId);
+
+    if (!result.changed) {
+      window.alert("Этот блок нельзя вложить: перед ним нет блока на этом же уровне.");
+      return;
+    }
+
+    updateBlocks(result.blocks);
+
+    if (parentId) {
+      expandBlock(parentId);
+    }
+
+    setSelectedBlockId(blockId);
+  }
+
+  function unnestMaterialBlock(blockId: string) {
+    const result = unnestBlockFromParent(material.blocks, blockId);
+
+    if (!result.changed) {
+      window.alert("Этот блок уже находится на верхнем уровне.");
+      return;
+    }
+
+    updateBlocks(result.blocks);
+    setSelectedBlockId(blockId);
+  }
+
+  function renderLinksMode() {
+    return (
+      <section className="mt-4 border border-black bg-white">
+        <div className="border-b border-black bg-neutral-100 px-4 py-3 font-bold">
+          Внутренние ссылки
+        </div>
+
+        <div className="grid gap-0 md:grid-cols-3">
+          <div className="border-b border-black p-4 md:border-b-0 md:border-r">
+            <h3 className="font-bold">Исходящие</h3>
+
+            <div className="mt-3 space-y-2">
+              {outgoingLinks.length === 0 && (
+                <p className="text-sm text-neutral-600">Нет исходящих ссылок.</p>
+              )}
+
+              {outgoingLinks.map((link) =>
+                link.node ? (
+                  <button
+                    key={link.normalized}
+                    type="button"
+                    className="block border border-black bg-white px-2 py-1 text-left text-sm hover:bg-black hover:text-white"
+                    onClick={() => onOpenNode(link.node!.id)}
+                  >
+                    [[{link.label}]]
+                  </button>
+                ) : (
+                  <div
+                    key={link.normalized}
+                    className="border border-black bg-white px-2 py-1 text-sm line-through"
+                  >
+                    [[{link.label}]]
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+
+          <div className="border-b border-black p-4 md:border-b-0 md:border-r">
+            <h3 className="font-bold">Обратные</h3>
+
+            <div className="mt-3 space-y-2">
+              {backlinks.length === 0 && (
+                <p className="text-sm text-neutral-600">Нет обратных ссылок.</p>
+              )}
+
+              {backlinks.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="block border border-black bg-white px-2 py-1 text-left text-sm hover:bg-black hover:text-white"
+                  onClick={() => onOpenNode(item.nodeId)}
+                >
+                  {item.title}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-4">
+            <h3 className="font-bold">Битые</h3>
+
+            <div className="mt-3 space-y-2">
+              {brokenLinks.length === 0 && (
+                <p className="text-sm text-neutral-600">Битых ссылок нет.</p>
+              )}
+
+              {brokenLinks.map((link) => (
+                <div
+                  key={link.normalized}
+                  className="border border-black bg-white px-2 py-1 text-sm line-through"
+                >
+                  [[{link.label}]]
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  function renderEditBlocks(blocks: StudyBlock[], level = 0) {
+    return (
+      <div className="space-y-4">
+        {blocks.map((block, index) => (
+          <BlockCard
+            key={block.id}
+            block={block}
+            index={index}
+            level={level}
+            nodes={nodes}
+            templates={templates}
+            editable
+            selected={selectedBlockId === block.id}
+            isCollapsed={collapsedBlockIds.has(block.id)}
+            richTextCommand={selectedBlockId === block.id ? richTextCommand : null}
+            onRichTextMarksChange={(marks) => {
+              if (selectedBlockId === block.id) {
+                setRichTextMarks(marks);
+              }
+            }}
+            onActiveRichTextEditorChange={(editorId) => {
+              setActiveRichTextEditorId(editorId);
+            }}
+            nestedContent={
+              (block.children?.length ?? 0) > 0
+                ? renderEditBlocks(block.children ?? [], level + 1)
+                : null
+            }
+            onSelect={() => selectBlock(block)}
+            onToggleCollapse={() => toggleBlockCollapse(block.id)}
+            onChange={(updatedBlock) => updateMaterialBlock(block.id, updatedBlock)}
+            onOpenNode={openNodeFromInternalLink}
+            onBackNode={onOpenNode}
+            onMoveUp={() => moveMaterialBlock(block.id, -1)}
+            onMoveDown={() => moveMaterialBlock(block.id, 1)}
+            onNest={() => nestMaterialBlock(block.id)}
+            onUnnest={() => unnestMaterialBlock(block.id)}
+            onDuplicate={() => duplicateMaterialBlock(block.id)}
+            onDelete={() => setPendingDeleteBlock({ blockId: block.id, index })}
+          />
+        ))}
+
+        {blocks.length === 0 && level === 0 && (
+          <div className="border border-black bg-white p-8 text-center">
+            <h3 className="font-bold">Материал пустой</h3>
+            <p className="mt-2 text-sm text-neutral-600">
+              Добавь первый блок через панель выше.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-[1500px]">
+      <section className="border border-black bg-white p-5" onMouseDown={() => clearSelectedBlock()}>
+        <input
+          value={material.title}
+          onChange={(event) => onRenameTitle(event.target.value)}
+          className="w-full border border-transparent bg-white text-2xl font-bold outline-none focus:border-black"
+        />
+
+        <input
+          value={material.tags.join(", ")}
+          onChange={(event) => updateTags(event.target.value)}
+          placeholder="Теги через запятую"
+          className="mt-3 w-full border border-black bg-white px-3 py-2 outline-none"
+        />
+
+        <div className="mt-3 flex items-center justify-between text-sm text-neutral-600">
+          <span>{material.blocks.length} корневых блоков · обновлено {formatDate(material.updatedAt)}</span>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className={mode === "edit" ? "border border-black bg-black px-3 py-1 text-white" : "border border-black bg-white px-3 py-1 text-black"}
+              onClick={() => setMode("edit")}
+            >
+              Редактор
+            </button>
+
+            <button
+              type="button"
+              className={mode === "read" ? "border border-black bg-black px-3 py-1 text-white" : "border border-black bg-white px-3 py-1 text-black"}
+              onClick={() => setMode("read")}
+            >
+              Чтение
+            </button>
+
+            <button
+              type="button"
+              className={mode === "links" ? "border border-black bg-black px-3 py-1 text-white" : "border border-black bg-white px-3 py-1 text-black"}
+              onClick={() => setMode("links")}
+            >
+              Ссылки
+            </button>
+
+            {mode === "read" && (
+              <select
+                value={readPageWidth}
+                onChange={(event) => setReadPageWidth(Number(event.target.value))}
+                className="border border-black bg-white px-3 py-1 text-black outline-none"
+                title="Ширина листа"
+              >
+                <option value={900}>900 px</option>
+                <option value={1000}>1000 px</option>
+                <option value={1100}>1100 px</option>
+                <option value={1200}>1200 px</option>
+              </select>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {mode === "edit" && (
+        <>
+          <div className="sticky top-0 z-40 bg-white pb-3">
+            <AddBlockBar
+              templates={templates}
+              onAddBlock={addRootBlockAndSelect}
+              onManageTemplates={() => setTemplateManagerOpen(true)}
+            />
+          </div>
+
+          <div className="grid min-h-[600px] grid-cols-[minmax(0,1fr)_340px] items-start gap-4">
+            <div
+              className="min-w-0"
+              onMouseDown={(event) => {
+                const target = event.target as HTMLElement;
+
+                if (!target.closest("[data-study-block-id]")) {
+                  clearSelectedBlock();
+                }
+              }}
+            >
+              {renderEditBlocks(material.blocks)}
+            </div>
+
+            <InternalLinkBackButton currentNodeId={material.nodeId} onOpenNode={onOpenNode} />
+
+            <BlockSettingsPanel
+              block={selectedBlock}
+              nodes={nodes}
+              richTextMarks={richTextMarks}
+              onRichTextCommand={sendRichTextCommand}
+              onChangeSettings={updateSelectedBlockSettings}
+            />
+          </div>
+        </>
+      )}
+
+      {mode === "read" && (
+        <div className="mt-4">
+          <ReadPage
+            currentNodeId={material.nodeId}
+            title={material.title}
+            tags={material.tags}
+            blocks={material.blocks}
+            nodes={nodes}
+            templates={templates}
+            pageWidth={readPageWidth}
+            collapsedBlockIds={collapsedBlockIds}
+            onToggleBlockCollapse={toggleBlockCollapse}
+            onOpenNode={openNodeFromInternalLink}
+          />
+        </div>
+      )}
+
+      {mode === "links" && renderLinksMode()}
+
+      {templateManagerOpen && (
+        <TemplateManager
+          templates={templates}
+          onChange={onTemplatesChange}
+          onClose={() => setTemplateManagerOpen(false)}
+        />
+      )}
+
+      <DangerConfirmModal
+        open={Boolean(pendingDeleteBlock)}
+        title="Удалить блок"
+        message={
+          pendingDeleteBlock
+            ? `Будет удалён блок #${pendingDeleteBlock.index + 1} вместе со всеми вложенными блоками. Это действие нельзя отменить автоматически.`
+            : ""
+        }
+        requiredText="DELETE"
+        confirmLabel="Удалить"
+        onCancel={() => setPendingDeleteBlock(null)}
+        onConfirm={() => {
+          if (!pendingDeleteBlock) {
+            return;
+          }
+
+          deleteMaterialBlock(pendingDeleteBlock.blockId);
+          setPendingDeleteBlock(null);
+        }}
+      />
+    </div>
+  );
+}

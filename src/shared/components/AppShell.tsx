@@ -14,14 +14,20 @@ interface AppShellProps {
 
 export function AppShell({ active, onNavigate, sidebarSettings, onSidebarSettingsChange, reminderBadges, children }: AppShellProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const isStudyMode = active === 'study';
+  const isEffectiveSidebarCollapsed = isStudyMode || isSidebarCollapsed;
 
   return (
-    <div className={`app-shell ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+    <div className={`app-shell ${isEffectiveSidebarCollapsed ? 'sidebar-collapsed' : ''} ${isStudyMode ? 'study-shell' : ''}`}>
       <Sidebar
         active={active}
-        isCollapsed={isSidebarCollapsed}
+        isCollapsed={isEffectiveSidebarCollapsed}
         onNavigate={onNavigate}
-        onToggleCollapse={() => setIsSidebarCollapsed((current) => !current)}
+        onToggleCollapse={() => {
+          if (!isStudyMode) {
+            setIsSidebarCollapsed((current) => !current);
+          }
+        }}
         sidebarSettings={sidebarSettings}
         onSidebarSettingsChange={onSidebarSettingsChange}
         reminderBadges={reminderBadges}

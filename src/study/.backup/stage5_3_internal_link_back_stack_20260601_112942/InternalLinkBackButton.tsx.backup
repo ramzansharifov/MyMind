@@ -1,0 +1,99 @@
+﻿import { useEffect, useState } from "react";
+import {
+  clearInternalLinkReturnTarget,
+  getInternalLinkReturnTarget,
+  INTERNAL_NAVIGATION_RETURN_EVENT,
+  type InternalNavigationNode,
+} from "../../utils/internalNavigationHistory";
+
+interface InternalLinkBackButtonProps {
+  currentNodeId?: string;
+  onOpenNode: (nodeId: string) => void;
+}
+
+export function InternalLinkBackButton({
+  currentNodeId = "",
+  onOpenNode,
+}: InternalLinkBackButtonProps) {
+  const [returnTarget, setReturnTarget] = useState<InternalNavigationNode | null>(() =>
+    getInternalLinkReturnTarget()
+  );
+
+  function syncReturnTarget() {
+    const nextTarget = getInternalLinkReturnTarget();
+
+    /*
+      Important:
+      Do NOT clear sessionStorage here.
+
+      When the user clicks an internal link from material A to material B,
+      the return target is saved as A before navigation happens.
+      At that exact moment the current page is still A, so nextTarget.nodeId
+      can equal currentNodeId. If we clear it here, B will never receive the
+      saved return target.
+
+      So we only hide the button on the same page, but keep the return target
+      stored until the new material opens or the user clicks Back / Close.
+    */
+    if (currentNodeId && nextTarget?.nodeId === currentNodeId) {
+      setReturnTarget(null);
+      return;
+    }
+
+    setReturnTarget(nextTarget);
+  }
+
+  useEffect(() => {
+    syncReturnTarget();
+
+    window.addEventListener(INTERNAL_NAVIGATION_RETURN_EVENT, syncReturnTarget);
+    window.addEventListener("storage", syncReturnTarget);
+
+    return () => {
+      window.removeEventListener(INTERNAL_NAVIGATION_RETURN_EVENT, syncReturnTarget);
+      window.removeEventListener("storage", syncReturnTarget);
+    };
+  }, [currentNodeId]);
+
+  if (!returnTarget) {
+    return null;
+  }
+
+  function goBack() {
+    if (!returnTarget) {
+      return;
+    }
+
+    const nodeId = returnTarget.nodeId;
+
+    clearInternalLinkReturnTarget();
+    onOpenNode(nodeId);
+  }
+
+  function closeButton() {
+    clearInternalLinkReturnTarget();
+    setReturnTarget(null);
+  }
+
+  return (
+    <div className="fixed right-4 top-20 z-[9999] flex max-w-[420px] items-stretch border border-black bg-white shadow-[4px_4px_0_#000]">
+      <button
+        type="button"
+        onClick={goBack}
+        className="border-r border-black bg-white px-4 py-2 text-sm hover:bg-black hover:text-white"
+        title={returnTarget.title}
+      >
+        ← Вернуться: {returnTarget.title}
+      </button>
+
+      <button
+        type="button"
+        onClick={closeButton}
+        className="bg-white px-3 py-2 text-sm hover:bg-black hover:text-white"
+        title="Скрыть кнопку"
+      >
+        ×
+      </button>
+    </div>
+  );
+}

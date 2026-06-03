@@ -1,0 +1,92 @@
+﻿import type {
+  CustomBlockTemplate,
+  StudyBlock,
+  StudyNode,
+} from "../../types/study";
+import { getBlockTitle } from "../../utils/blocks";
+import { BlockRenderer } from "./BlockRenderer";
+import type { RichTextActiveMarks, RichTextCommand } from "./RichTextEditor";
+
+interface BlockCardProps {
+  block: StudyBlock;
+  index: number;
+  nodes: StudyNode[];
+  templates: CustomBlockTemplate[];
+  editable: boolean;
+  selected: boolean;
+  richTextCommand?: RichTextCommand | null;
+  onRichTextMarksChange?: (marks: RichTextActiveMarks) => void;
+  onSelect: () => void;
+  onChange: (block: StudyBlock) => void;
+  onOpenNode: (nodeId: string) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+}
+
+export function BlockCard({
+  block,
+  index,
+  nodes,
+  templates,
+  editable,
+  selected,
+  richTextCommand,
+  onRichTextMarksChange,
+  onSelect,
+  onChange,
+  onOpenNode,
+  onMoveUp,
+  onMoveDown,
+  onDuplicate,
+  onDelete,
+}: BlockCardProps) {
+  return (
+    <section
+      onMouseDown={onSelect}
+      className={
+        selected
+          ? "border-2 border-black bg-white"
+          : "border border-black bg-white"
+      }
+    >
+      <header className="flex items-center justify-between border-b border-black bg-neutral-100 px-4 py-3">
+        <div className="font-bold">
+          {getBlockTitle(block, templates)} #{index + 1}
+          {selected && <span className="ml-2 text-xs">SELECTED</span>}
+        </div>
+
+        {editable && (
+          <div className="flex gap-1">
+            <button type="button" className="border border-black bg-white px-2 py-1 text-sm" onClick={onMoveUp}>
+              Up
+            </button>
+            <button type="button" className="border border-black bg-white px-2 py-1 text-sm" onClick={onMoveDown}>
+              Down
+            </button>
+            <button type="button" className="border border-black bg-white px-2 py-1 text-sm" onClick={onDuplicate}>
+              Copy
+            </button>
+            <button type="button" className="border border-black bg-black px-2 py-1 text-sm text-white" onClick={onDelete}>
+              Delete
+            </button>
+          </div>
+        )}
+      </header>
+
+      <div className="p-4">
+        <BlockRenderer
+          block={block}
+          nodes={nodes}
+          templates={templates}
+          editable={editable}
+          richTextCommand={richTextCommand}
+          onRichTextMarksChange={onRichTextMarksChange}
+          onChange={onChange}
+          onOpenNode={onOpenNode}
+        />
+      </div>
+    </section>
+  );
+}

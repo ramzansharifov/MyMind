@@ -1,0 +1,280 @@
+﻿import { useEffect, useState } from "react";
+import type { CustomBlockTemplate, StudyState } from "./types/study";
+import { AppShell } from "./components/layout/AppShell";
+import { TopBar } from "./components/layout/TopBar";
+import { StudyTree } from "./components/tree/StudyTree";
+import { FolderView } from "./components/folder/FolderView";
+import { MaterialEditor } from "./components/editor/MaterialEditor";
+import { CommandPalette } from "./components/command/CommandPalette";
+import { useStudyState } from "./hooks/useStudyState";
+import { getNodePath } from "./utils/tree";
+import {
+  createEmptyStudyState,
+  normalizeImportedStudyState,
+} from "./utils/studyStateValidation";
+import {
+  confirmClearAllData,
+  confirmDangerousDelete,
+} from "./utils/deleteProtection";
+
+function App() {
+  const {
+    state,
+    status,
+    selectedNode,
+    selectedMaterial,
+    actions,
+  } = useStudyState();
+
+  const [commandOpen, setCommandOpen] = useState(false);
+
+  const path = selectedNode ? getNodePath(state.nodes, selectedNode.id) : "Study";
+
+  useEffect(() => {
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandOpen((previous) => !previous);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  function createFolder(parentId?: string | null) {
+    const title = window.prompt("Название папки");
+
+    if (!title?.trim()) {
+      return;
+    }
+
+    actions.createNode("folder", title.trim(), parentId);
+  }
+
+  function createMaterial(parentId?: string | null) {
+    const title = window.prompt("Название материала");
+
+    if (!title?.trim()) {
+      return;
+    }
+
+    actions.createNode("material", title.trim(), parentId);
+  }
+
+  function renameNode(nodeId: string) {
+    const node = state.nodes.find((item) => item.id === nodeId);
+
+    if (!node) {
+      return;
+    }
+
+    const title = window.prompt("Новое название", node.title);
+
+    if (!title?.trim()) {
+      return;
+    }
+
+    actions.renameNode(nodeId, title.trim());
+  }
+
+  function deleteNode(nodeId: string) {
+    const node = state.nodes.find((item) => item.id === nodeId);
+
+    if (!node) {
+      return;
+    }
+
+    const itemType = node.type === "folder" ? "папку" : "материал";
+    const details =
+      node.type === "folder"
+        ? "Вместе с папкой будут удалены все вложенные папки и материалы."
+        : "Материал будет удалён вместе со всеми блоками.";
+
+    if (
+      !confirmDangerousDelete({
+        itemType,
+        itemName: node.title,
+        details,
+      })
+    ) {
+      return;
+    }
+
+    actions.deleteNode(nodeId);
+  }
+
+  function updateTemplates(templates: CustomBlockTemplate[]) {
+    actions.setState((previous) => ({
+      ...previous,
+      customBlockTemplates: templates,
+    }));
+  }
+
+  function exportJson() {
+    const json = JSON.stringify(state, null, 2);
+    const blob = new Blob([json], {
+      type: "application/json",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    const date = new Date().toISOString().slice(0, 10);
+
+    link.href = url;
+    link.download = `mymind-study-${date}.json`;
+    link.click();
+
+    URL.revokeObjectURL(url);
+  }
+
+  function importJson(file: File) {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      try {
+        const text = String(reader.result ?? "");
+        const parsed = JSON.parse(text) as unknown;
+        const normalizedState: StudyState = normalizeImportedStudyState(parsed);
+
+        if (
+          !window.confirm(
+            "Импортировать этот JSON? Текущие данные приложения будут заменены."
+          )
+        ) {
+          return;
+        }
+
+        actions.setState(normalizedState);
+      } catch (error) {
+        console.error(error);
+        window.alert("Не удалось импортировать JSON. Проверь структуру файла.");
+      }
+    };
+
+    reader.readAsText(file);
+  }
+
+  function clearState() {
+    if (!confirmClearAllData()) {
+      return;
+    }
+
+    actions.setState(createEmptyStudyState());
+  }
+
+  const sidebar = (
+    <StudyTree
+      nodes={state.nodes}
+      selectedNodeId={state.selectedNodeId}
+      onSelect={actions.selectNode}
+      onCreateFolder={createFolder}
+      onCreateMaterial={createMaterial}
+      onRename={renameNode}
+      onDelete={deleteNode}
+      onDuplicateMaterial={actions.duplicateMaterial}
+      onMoveNode={actions.moveNode}
+    />
+  );
+
+  const topbar = (
+    <TopBar
+      path={path}
+      status={status}
+      onOpenCommandPalette={() => setCommandOpen(true)}
+      onExportJson={exportJson}
+      onImportJson={importJson}
+      onClearState={clearState}
+    />
+  );
+
+  const commandPalette = (
+    <CommandPalette
+      open={commandOpen}
+      nodes={state.nodes}
+      materials={state.materials}
+      templates={state.customBlockTemplates}
+      onClose={() => setCommandOpen(false)}
+      onOpenNode={actions.selectNode}
+      onCreateFolder={() => createFolder()}
+      onCreateMaterial={() => createMaterial()}
+    />
+  );
+
+  function renderShell(content: React.ReactNode) {
+    return (
+      <>
+        <AppShell sidebar={sidebar} topbar={topbar}>
+          {content}
+        </AppShell>
+
+        {commandPalette}
+      </>
+    );
+  }
+
+  if (status === "loading") {
+    return renderShell(
+      <div className="border border-black bg-white p-6">
+        Загрузка данных из JSON...
+      </div>
+    );
+  }
+
+  if (!selectedNode) {
+    return renderShell(
+      <div className="border border-black bg-white p-6">
+        <h2 className="text-xl font-bold">Ничего не выбрано</h2>
+        <p className="mt-2 text-sm text-neutral-600">
+          Создай папку или материал слева.
+        </p>
+      </div>
+    );
+  }
+
+  if (selectedNode.type === "folder") {
+    return renderShell(
+      <FolderView
+        node={selectedNode}
+        nodes={state.nodes}
+        materials={state.materials}
+        onOpenNode={actions.selectNode}
+        onCreateFolder={() => createFolder(selectedNode.id)}
+        onCreateMaterial={() => createMaterial(selectedNode.id)}
+      />
+    );
+  }
+
+  if (selectedNode.type === "material" && selectedMaterial) {
+    return renderShell(
+      <MaterialEditor
+        material={selectedMaterial}
+        currentNode={selectedNode}
+        nodes={state.nodes}
+        materials={state.materials}
+        templates={state.customBlockTemplates}
+        onTemplatesChange={updateTemplates}
+        onRenameTitle={(title) => actions.updateMaterialTitle(selectedNode.id, title)}
+        onUpdateMaterial={actions.updateMaterial}
+        onAddBlock={(block) => actions.addBlock(selectedMaterial.id, block)}
+        onUpdateBlock={(blockId, block) => actions.updateBlock(selectedMaterial.id, blockId, block)}
+        onDeleteBlock={(blockId) => actions.deleteBlock(selectedMaterial.id, blockId)}
+        onDuplicateBlock={(blockId) => actions.duplicateBlock(selectedMaterial.id, blockId)}
+        onMoveBlock={(blockId, direction) => actions.moveBlock(selectedMaterial.id, blockId, direction)}
+        onOpenNode={actions.selectNode}
+      />
+    );
+  }
+
+  return renderShell(
+    <div className="border border-black bg-white p-6">
+      Материал не найден.
+    </div>
+  );
+}
+
+export default App;

@@ -1,0 +1,3089 @@
+﻿import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
+
+type StudyNodeType = "folder" | "material";
+
+type StudyBlockType =
+  | "heading"
+  | "text"
+  | "latex"
+  | "definition"
+  | "problem"
+  | "solution"
+  | "board"
+  | "file"
+  | "divider"
+  | "custom";
+
+type CustomFieldType =
+  | "text"
+  | "long_text"
+  | "latex"
+  | "number"
+  | "checkbox"
+  | "select"
+  | "date"
+  | "link";
+
+type CustomBlockValue = string | number | boolean;
+
+interface CustomBlockField {
+  id: string;
+  label: string;
+  type: CustomFieldType;
+  required?: boolean;
+  placeholder?: string;
+  options?: string[];
+}
+
+interface CustomBlockTemplate {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  description?: string;
+  fields: CustomBlockField[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface StudyNode {
+  id: string;
+  type: StudyNodeType;
+  title: string;
+  parentId: string | null;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface BoardPoint {
+  x: number;
+  y: number;
+}
+
+interface BoardStroke {
+  id: string;
+  points: BoardPoint[];
+  width: number;
+}
+
+interface StudyBlockBase<T extends StudyBlockType> {
+  id: string;
+  type: T;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ContentStudyBlock
+  extends StudyBlockBase<
+    "heading" | "text" | "latex" | "definition" | "problem" | "solution"
+  > {
+  content: string;
+}
+
+interface BoardStudyBlock extends StudyBlockBase<"board"> {
+  title: string;
+  strokes: BoardStroke[];
+}
+
+interface FileStudyBlock extends StudyBlockBase<"file"> {
+  fileName: string;
+  note: string;
+  mimeType: string;
+  size: number;
+  dataUrl: string;
+}
+
+interface DividerStudyBlock extends StudyBlockBase<"divider"> {}
+
+interface CustomStudyBlock extends StudyBlockBase<"custom"> {
+  templateId: string;
+  values: Record<string, CustomBlockValue>;
+}
+
+type StudyBlock =
+  | ContentStudyBlock
+  | BoardStudyBlock
+  | FileStudyBlock
+  | DividerStudyBlock
+  | CustomStudyBlock;
+
+interface StudyMaterial {
+  id: string;
+  nodeId: string;
+  title: string;
+  blocks: StudyBlock[];
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface StudyState {
+  nodes: StudyNode[];
+  materials: StudyMaterial[];
+  selectedNodeId: string | null;
+  customBlockTemplates: CustomBlockTemplate[];
+}
+
+const STORAGE_KEY = "mymind-study-module-state-v1";
+const MAX_TREE_DEPTH = 15;
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+const now = () => new Date().toISOString();
+
+function createId(prefix: string) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function createDefaultTemplates(): CustomBlockTemplate[] {
+  return [
+    {
+      id: "template_formula",
+      name: "Формула",
+      icon: "∑",
+      color: "#8b5cf6",
+      description: "Формула, объяснение и пример применения.",
+      createdAt: now(),
+      updatedAt: now(),
+      fields: [
+        {
+          id: "formula",
+          label: "Формула",
+          type: "latex",
+          required: true,
+          placeholder: "v = \\frac{s}{t}",
+        },
+        {
+          id: "meaning",
+          label: "Объяснение",
+          type: "long_text",
+          placeholder: "Что означает эта формула?",
+        },
+        {
+          id: "example",
+          label: "Пример применения",
+          type: "long_text",
+          placeholder: "Где применяется?",
+        },
+      ],
+    },
+    {
+      id: "template_exam_ticket",
+      name: "Экзаменационный билет",
+      icon: "🎓",
+      color: "#0ea5e9",
+      description: "Вопрос, краткий ответ и важные тезисы.",
+      createdAt: now(),
+      updatedAt: now(),
+      fields: [
+        {
+          id: "question",
+          label: "Вопрос",
+          type: "text",
+          required: true,
+        },
+        {
+          id: "answer",
+          label: "Краткий ответ",
+          type: "long_text",
+        },
+        {
+          id: "important",
+          label: "Важно запомнить",
+          type: "long_text",
+        },
+      ],
+    },
+    {
+      id: "template_mistake",
+      name: "Ошибка",
+      icon: "⚠️",
+      color: "#f43f5e",
+      description: "Фиксация ошибки и правильного решения.",
+      createdAt: now(),
+      updatedAt: now(),
+      fields: [
+        {
+          id: "mistake",
+          label: "В чём ошибка?",
+          type: "long_text",
+          required: true,
+        },
+        {
+          id: "correct",
+          label: "Как правильно?",
+          type: "long_text",
+        },
+        {
+          id: "repeat",
+          label: "Нужно повторить",
+          type: "link",
+          placeholder: "[[Название материала]]",
+        },
+      ],
+    },
+  ];
+}
+
+function createDefaultStudyState(): StudyState {
+  return {
+    selectedNodeId: "material_kinematics",
+    customBlockTemplates: createDefaultTemplates(),
+    nodes: [
+      {
+        id: "folder_physics",
+        type: "folder",
+        title: "Физика",
+        parentId: null,
+        order: 1,
+        createdAt: now(),
+        updatedAt: now(),
+      },
+      {
+        id: "folder_mechanics",
+        type: "folder",
+        title: "Механика",
+        parentId: "folder_physics",
+        order: 1,
+        createdAt: now(),
+        updatedAt: now(),
+      },
+      {
+        id: "material_kinematics",
+        type: "material",
+        title: "Кинематика",
+        parentId: "folder_mechanics",
+        order: 1,
+        createdAt: now(),
+        updatedAt: now(),
+      },
+      {
+        id: "folder_math",
+        type: "folder",
+        title: "Математика",
+        parentId: null,
+        order: 2,
+        createdAt: now(),
+        updatedAt: now(),
+      },
+    ],
+    materials: [
+      {
+        id: "material_kinematics",
+        nodeId: "material_kinematics",
+        title: "Кинематика",
+        tags: ["физика", "механика"],
+        createdAt: now(),
+        updatedAt: now(),
+        blocks: [
+          {
+            id: "block_1",
+            type: "heading",
+            content: "Основные понятия",
+            createdAt: now(),
+            updatedAt: now(),
+          },
+          {
+            id: "block_2",
+            type: "text",
+            content:
+              "Кинематика изучает движение тел без рассмотрения причин этого движения. Можно создать внутреннюю ссылку так: [[Динамика]] или [[Кинематика]].",
+            createdAt: now(),
+            updatedAt: now(),
+          },
+          {
+            id: "block_3",
+            type: "latex",
+            content: "v = \\frac{s}{t}",
+            createdAt: now(),
+            updatedAt: now(),
+          },
+          {
+            id: "block_4",
+            type: "board",
+            title: "Доска для решения",
+            strokes: [],
+            createdAt: now(),
+            updatedAt: now(),
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function loadStudyState(): StudyState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+
+    if (!raw) {
+      return createDefaultStudyState();
+    }
+
+    const parsed = JSON.parse(raw) as Partial<StudyState>;
+
+    if (!Array.isArray(parsed.nodes) || !Array.isArray(parsed.materials)) {
+      return createDefaultStudyState();
+    }
+
+    return {
+      nodes: parsed.nodes,
+      materials: parsed.materials.map((material) => ({
+        ...material,
+        blocks: Array.isArray(material.blocks)
+          ? material.blocks.map((block) => {
+              if (block.type !== "file") return block;
+              return {
+                ...block,
+                fileName: block.fileName ?? "",
+                note: block.note ?? "",
+                mimeType: block.mimeType ?? "",
+                size: block.size ?? 0,
+                dataUrl: block.dataUrl ?? "",
+              };
+            })
+          : [],
+      })),
+      selectedNodeId: parsed.selectedNodeId ?? parsed.nodes[0]?.id ?? null,
+      customBlockTemplates: Array.isArray(parsed.customBlockTemplates)
+        ? parsed.customBlockTemplates
+        : createDefaultTemplates(),
+    };
+  } catch {
+    return createDefaultStudyState();
+  }
+}
+
+function saveStudyState(state: StudyState) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function getChildren(nodes: StudyNode[], parentId: string | null) {
+  return nodes
+    .filter((node) => node.parentId === parentId)
+    .sort((a, b) => a.order - b.order);
+}
+
+function getNodeDepth(nodes: StudyNode[], nodeId: string | null) {
+  if (!nodeId) return 0;
+
+  let depth = 0;
+  let current = nodes.find((node) => node.id === nodeId);
+
+  while (current) {
+    depth += 1;
+    if (!current.parentId) break;
+    current = nodes.find((node) => node.id === current?.parentId);
+    if (depth > 100) break;
+  }
+
+  return depth;
+}
+
+function getNodePath(nodes: StudyNode[], nodeId: string) {
+  const parts: string[] = [];
+  let current = nodes.find((node) => node.id === nodeId);
+
+  while (current) {
+    parts.unshift(current.title);
+    current = nodes.find((node) => node.id === current?.parentId);
+  }
+
+  return parts.join(" / ");
+}
+
+function collectDescendantIds(nodes: StudyNode[], nodeId: string) {
+  const ids = new Set<string>();
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    nodes.forEach((node) => {
+      if (node.parentId && (node.parentId === nodeId || ids.has(node.parentId))) {
+        if (!ids.has(node.id)) {
+          ids.add(node.id);
+          changed = true;
+        }
+      }
+    });
+  }
+
+  return ids;
+}
+
+function isDescendantNode(nodes: StudyNode[], possibleDescendantId: string, ancestorId: string) {
+  let current = nodes.find((node) => node.id === possibleDescendantId);
+
+  while (current?.parentId) {
+    if (current.parentId === ancestorId) return true;
+    current = nodes.find((node) => node.id === current?.parentId);
+  }
+
+  return false;
+}
+
+function extractInternalLinkLabels(text: string) {
+  const labels: string[] = [];
+  const regex = /\[\[([^\]]+)\]\]/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    labels.push(match[1].trim());
+  }
+
+  return labels;
+}
+
+function findMaterialNodeByTitle(nodes: StudyNode[], title: string) {
+  const normalized = title.trim().toLowerCase();
+
+  return nodes.find(
+    (node) => node.type === "material" && node.title.trim().toLowerCase() === normalized
+  );
+}
+
+function isContentBlock(block: StudyBlock): block is ContentStudyBlock {
+  return (
+    block.type === "heading" ||
+    block.type === "text" ||
+    block.type === "latex" ||
+    block.type === "definition" ||
+    block.type === "problem" ||
+    block.type === "solution"
+  );
+}
+
+function isBoardBlock(block: StudyBlock): block is BoardStudyBlock {
+  return block.type === "board";
+}
+
+function isFileBlock(block: StudyBlock): block is FileStudyBlock {
+  return block.type === "file";
+}
+
+function isCustomBlock(block: StudyBlock): block is CustomStudyBlock {
+  return block.type === "custom";
+}
+
+function getBlockText(block: StudyBlock, templates: CustomBlockTemplate[] = []) {
+  if (isContentBlock(block)) return block.content;
+  if (isBoardBlock(block)) return block.title;
+  if (isFileBlock(block)) return `${block.fileName} ${block.note}`;
+  if (block.type === "divider") return "";
+  if (isCustomBlock(block)) {
+    const template = templates.find((item) => item.id === block.templateId);
+    return [
+      template?.name ?? "Custom block",
+      ...Object.values(block.values).map(String),
+    ].join(" ");
+  }
+
+  return "";
+}
+
+function getBlockTitle(block: StudyBlock, templates: CustomBlockTemplate[] = []) {
+  if (block.type === "heading") return "Заголовок";
+  if (block.type === "text") return "Текст";
+  if (block.type === "latex") return "Формула";
+  if (block.type === "definition") return "Определение";
+  if (block.type === "problem") return "Задача";
+  if (block.type === "solution") return "Решение";
+  if (block.type === "board") return "Доска";
+  if (block.type === "file") return "Файл";
+  if (block.type === "divider") return "Разделитель";
+  if (block.type === "custom") {
+    return templates.find((template) => template.id === block.templateId)?.name ?? "Кастомный блок";
+  }
+
+  return "Блок";
+}
+
+function formatBytes(size: number) {
+  if (!size) return "0 B";
+
+  const units = ["B", "KB", "MB", "GB"];
+  let value = size;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function getDefaultFieldValue(field: CustomBlockField): CustomBlockValue {
+  if (field.type === "checkbox") return false;
+  if (field.type === "number") return 0;
+  return "";
+}
+
+function createCustomBlock(template: CustomBlockTemplate): CustomStudyBlock {
+  const values: Record<string, CustomBlockValue> = {};
+
+  template.fields.forEach((field) => {
+    values[field.id] = getDefaultFieldValue(field);
+  });
+
+  return {
+    id: createId("block"),
+    type: "custom",
+    templateId: template.id,
+    values,
+    createdAt: now(),
+    updatedAt: now(),
+  };
+}
+
+function createSystemBlock(type: Exclude<StudyBlockType, "custom">): StudyBlock {
+  const base = {
+    id: createId("block"),
+    createdAt: now(),
+    updatedAt: now(),
+  };
+
+  if (type === "board") {
+    return {
+      ...base,
+      type,
+      title: "Новая доска",
+      strokes: [],
+    };
+  }
+
+  if (type === "file") {
+    return {
+      ...base,
+      type,
+      fileName: "",
+      note: "",
+      mimeType: "",
+      size: 0,
+      dataUrl: "",
+    };
+  }
+
+  if (type === "divider") {
+    return {
+      ...base,
+      type,
+    };
+  }
+
+  const defaultContent: Record<string, string> = {
+    heading: "Новый заголовок",
+    text: "",
+    latex: "",
+    definition: "",
+    problem: "",
+    solution: "",
+  };
+
+  return {
+    ...base,
+    type,
+    content: defaultContent[type],
+  } as ContentStudyBlock;
+}
+
+function cloneBlock(block: StudyBlock): StudyBlock {
+  return {
+    ...(JSON.parse(JSON.stringify(block)) as StudyBlock),
+    id: createId("block"),
+    createdAt: now(),
+    updatedAt: now(),
+  };
+}
+
+function App() {
+  const [state, setState] = useState<StudyState>(() => loadStudyState());
+  const [saveStatus, setSaveStatus] = useState("Сохранено");
+  const [commandOpen, setCommandOpen] = useState(false);
+
+  const selectedNode = useMemo(
+    () => state.nodes.find((node) => node.id === state.selectedNodeId),
+    [state.nodes, state.selectedNodeId]
+  );
+
+  const selectedMaterial = useMemo(() => {
+    if (!selectedNode || selectedNode.type !== "material") return undefined;
+    return state.materials.find((material) => material.nodeId === selectedNode.id);
+  }, [selectedNode, state.materials]);
+
+  const breadcrumbs = selectedNode ? getNodePath(state.nodes, selectedNode.id) : "Study";
+
+  useEffect(() => {
+    setSaveStatus("Сохранение...");
+    saveStudyState(state);
+
+    const timeout = window.setTimeout(() => {
+      setSaveStatus("Сохранено");
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [state]);
+
+  useEffect(() => {
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandOpen((value) => !value);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  function getTargetParentId() {
+    if (!selectedNode) return null;
+    if (selectedNode.type === "folder") return selectedNode.id;
+    return selectedNode.parentId;
+  }
+
+  function createNode(type: StudyNodeType, explicitParentId?: string | null) {
+    const parentId = explicitParentId === undefined ? getTargetParentId() : explicitParentId;
+    const depth = parentId ? getNodeDepth(state.nodes, parentId) + 1 : 1;
+
+    if (depth > MAX_TREE_DEPTH) {
+      alert(`Нельзя создать уровень глубже ${MAX_TREE_DEPTH}.`);
+      return;
+    }
+
+    const title = window.prompt(type === "folder" ? "Название папки" : "Название материала");
+
+    if (!title?.trim()) return;
+
+    const id = createId(type);
+    const siblings = state.nodes.filter((node) => node.parentId === parentId);
+
+    const node: StudyNode = {
+      id,
+      type,
+      title: title.trim(),
+      parentId,
+      order: siblings.length + 1,
+      createdAt: now(),
+      updatedAt: now(),
+    };
+
+    setState((previous) => {
+      const nextState: StudyState = {
+        ...previous,
+        selectedNodeId: id,
+        nodes: [...previous.nodes, node],
+      };
+
+      if (type === "material") {
+        nextState.materials = [
+          ...previous.materials,
+          {
+            id,
+            nodeId: id,
+            title: title.trim(),
+            blocks: [],
+            tags: [],
+            createdAt: now(),
+            updatedAt: now(),
+          },
+        ];
+      }
+
+      return nextState;
+    });
+  }
+
+  function renameNode(nodeId: string) {
+    const node = state.nodes.find((item) => item.id === nodeId);
+    if (!node) return;
+
+    const title = window.prompt("Новое название", node.title);
+
+    if (!title?.trim()) return;
+
+    setState((previous) => ({
+      ...previous,
+      nodes: previous.nodes.map((item) =>
+        item.id === nodeId ? { ...item, title: title.trim(), updatedAt: now() } : item
+      ),
+      materials: previous.materials.map((material) =>
+        material.nodeId === nodeId
+          ? { ...material, title: title.trim(), updatedAt: now() }
+          : material
+      ),
+    }));
+  }
+
+  function deleteNode(nodeId: string) {
+    const node = state.nodes.find((item) => item.id === nodeId);
+    if (!node) return;
+
+    if (!window.confirm(`Удалить "${getNodePath(state.nodes, nodeId)}" и все вложенные элементы?`)) {
+      return;
+    }
+
+    const idsToDelete = collectDescendantIds(state.nodes, nodeId);
+    idsToDelete.add(nodeId);
+
+    const nextNodes = state.nodes.filter((item) => !idsToDelete.has(item.id));
+
+    setState((previous) => ({
+      ...previous,
+      nodes: nextNodes,
+      materials: previous.materials.filter((material) => !idsToDelete.has(material.nodeId)),
+      selectedNodeId: nextNodes[0]?.id ?? null,
+    }));
+  }
+
+  function duplicateMaterial(nodeId: string) {
+    const sourceNode = state.nodes.find((node) => node.id === nodeId);
+    const sourceMaterial = state.materials.find((material) => material.nodeId === nodeId);
+
+    if (!sourceNode || sourceNode.type !== "material" || !sourceMaterial) {
+      alert("Дублировать можно только материал.");
+      return;
+    }
+
+    const newNodeId = createId("material");
+    const siblings = state.nodes.filter((node) => node.parentId === sourceNode.parentId);
+    const copiedTitle = `${sourceNode.title} copy`;
+
+    const newNode: StudyNode = {
+      ...sourceNode,
+      id: newNodeId,
+      title: copiedTitle,
+      order: siblings.length + 1,
+      createdAt: now(),
+      updatedAt: now(),
+    };
+
+    const newMaterial: StudyMaterial = {
+      ...sourceMaterial,
+      id: newNodeId,
+      nodeId: newNodeId,
+      title: copiedTitle,
+      blocks: sourceMaterial.blocks.map(cloneBlock),
+      createdAt: now(),
+      updatedAt: now(),
+    };
+
+    setState((previous) => ({
+      ...previous,
+      selectedNodeId: newNodeId,
+      nodes: [...previous.nodes, newNode],
+      materials: [...previous.materials, newMaterial],
+    }));
+  }
+
+  function moveNode(draggedNodeId: string, targetNodeId: string | null) {
+    const draggedNode = state.nodes.find((node) => node.id === draggedNodeId);
+    if (!draggedNode) return;
+
+    let newParentId: string | null = null;
+
+    if (targetNodeId) {
+      const targetNode = state.nodes.find((node) => node.id === targetNodeId);
+      if (!targetNode) return;
+      newParentId = targetNode.type === "folder" ? targetNode.id : targetNode.parentId;
+    }
+
+    if (newParentId === draggedNodeId) {
+      alert("Нельзя переместить элемент внутрь самого себя.");
+      return;
+    }
+
+    if (newParentId && isDescendantNode(state.nodes, newParentId, draggedNodeId)) {
+      alert("Нельзя переместить папку внутрь её дочерней папки.");
+      return;
+    }
+
+    const depth = newParentId ? getNodeDepth(state.nodes, newParentId) + 1 : 1;
+
+    if (depth > MAX_TREE_DEPTH) {
+      alert(`Нельзя переместить элемент глубже ${MAX_TREE_DEPTH} уровня.`);
+      return;
+    }
+
+    setState((previous) => {
+      const siblings = previous.nodes.filter(
+        (node) => node.parentId === newParentId && node.id !== draggedNodeId
+      );
+
+      return {
+        ...previous,
+        selectedNodeId: draggedNodeId,
+        nodes: previous.nodes.map((node) =>
+          node.id === draggedNodeId
+            ? {
+                ...node,
+                parentId: newParentId,
+                order: siblings.length + 1,
+                updatedAt: now(),
+              }
+            : node
+        ),
+      };
+    });
+  }
+
+  function updateMaterial(updatedMaterial: StudyMaterial) {
+    setState((previous) => ({
+      ...previous,
+      materials: previous.materials.map((material) =>
+        material.id === updatedMaterial.id ? updatedMaterial : material
+      ),
+    }));
+  }
+
+  function renameSelectedMaterial(title: string) {
+    if (!selectedMaterial || !selectedNode) return;
+
+    setState((previous) => ({
+      ...previous,
+      nodes: previous.nodes.map((node) =>
+        node.id === selectedNode.id ? { ...node, title, updatedAt: now() } : node
+      ),
+      materials: previous.materials.map((material) =>
+        material.id === selectedMaterial.id ? { ...material, title, updatedAt: now() } : material
+      ),
+    }));
+  }
+
+  function exportJson() {
+    const blob = new Blob([JSON.stringify(state, null, 2)], {
+      type: "application/json",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "mymind-study-export.json";
+    link.click();
+
+    URL.revokeObjectURL(url);
+  }
+
+  function resetDemo() {
+    if (!window.confirm("Сбросить все данные и вернуть демо-пример?")) return;
+    setState(createDefaultStudyState());
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-900">
+      <div className="flex min-h-screen">
+        <StudyTree
+          nodes={state.nodes}
+          selectedNodeId={state.selectedNodeId}
+          onSelect={(nodeId) =>
+            setState((previous) => ({
+              ...previous,
+              selectedNodeId: nodeId,
+            }))
+          }
+          onCreateFolder={() => createNode("folder")}
+          onCreateMaterial={() => createNode("material")}
+          onCreateFolderAt={(parentId) => createNode("folder", parentId)}
+          onCreateMaterialAt={(parentId) => createNode("material", parentId)}
+          onRename={renameNode}
+          onDelete={deleteNode}
+          onDuplicateMaterial={duplicateMaterial}
+          onMoveNode={moveNode}
+        />
+
+        <main className="flex min-w-0 flex-1 flex-col">
+          <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+            <div className="min-w-0">
+              <p className="truncate text-sm text-slate-500">Study / {breadcrumbs}</p>
+              <h1 className="text-xl font-semibold">MyMind Study</h1>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setCommandOpen(true)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+              >
+                Поиск <span className="ml-2 text-xs text-slate-400">Ctrl K</span>
+              </button>
+
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm text-emerald-700">
+                {saveStatus}
+              </span>
+            </div>
+          </header>
+
+          <div className="min-h-0 flex-1 overflow-auto p-6">
+            {selectedMaterial ? (
+              <BlockEditor
+                material={selectedMaterial}
+                nodes={state.nodes}
+                customTemplates={state.customBlockTemplates}
+                onChange={updateMaterial}
+                onRenameTitle={renameSelectedMaterial}
+                onOpenNode={(nodeId) =>
+                  setState((previous) => ({
+                    ...previous,
+                    selectedNodeId: nodeId,
+                  }))
+                }
+                onTemplatesChange={(templates) =>
+                  setState((previous) => ({
+                    ...previous,
+                    customBlockTemplates: templates,
+                  }))
+                }
+              />
+            ) : selectedNode ? (
+              <FolderDashboard
+                node={selectedNode}
+                nodes={state.nodes}
+                materials={state.materials}
+                onOpenNode={(nodeId) =>
+                  setState((previous) => ({
+                    ...previous,
+                    selectedNodeId: nodeId,
+                  }))
+                }
+                onCreateFolder={() => createNode("folder", selectedNode.id)}
+                onCreateMaterial={() => createNode("material", selectedNode.id)}
+              />
+            ) : (
+              <EmptyState
+                title="Ничего не выбрано"
+                text="Создай папку или материал слева, чтобы начать работу."
+              />
+            )}
+          </div>
+        </main>
+      </div>
+
+      <CommandPalette
+        open={commandOpen}
+        nodes={state.nodes}
+        materials={state.materials}
+        templates={state.customBlockTemplates}
+        onClose={() => setCommandOpen(false)}
+        onOpenNode={(nodeId) =>
+          setState((previous) => ({
+            ...previous,
+            selectedNodeId: nodeId,
+          }))
+        }
+        onCreateFolder={() => createNode("folder")}
+        onCreateMaterial={() => createNode("material")}
+        onExport={exportJson}
+        onReset={resetDemo}
+      />
+    </div>
+  );
+}
+
+interface StudyTreeProps {
+  nodes: StudyNode[];
+  selectedNodeId: string | null;
+  onSelect: (nodeId: string) => void;
+  onCreateFolder: () => void;
+  onCreateMaterial: () => void;
+  onCreateFolderAt: (parentId: string) => void;
+  onCreateMaterialAt: (parentId: string) => void;
+  onRename: (nodeId: string) => void;
+  onDelete: (nodeId: string) => void;
+  onDuplicateMaterial: (nodeId: string) => void;
+  onMoveNode: (draggedNodeId: string, targetNodeId: string | null) => void;
+}
+
+function StudyTree({
+  nodes,
+  selectedNodeId,
+  onSelect,
+  onCreateFolder,
+  onCreateMaterial,
+  onCreateFolderAt,
+  onCreateMaterialAt,
+  onRename,
+  onDelete,
+  onDuplicateMaterial,
+  onMoveNode,
+}: StudyTreeProps) {
+  const [query, setQuery] = useState("");
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set());
+
+  const normalizedQuery = query.trim().toLowerCase();
+
+  function toggleCollapse(nodeId: string) {
+    setCollapsedIds((previous) => {
+      const next = new Set(previous);
+
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+
+      return next;
+    });
+  }
+
+  function handleDragStart(event: DragEvent<HTMLDivElement>, nodeId: string) {
+    event.dataTransfer.setData("text/plain", nodeId);
+    event.dataTransfer.effectAllowed = "move";
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>, targetNodeId: string | null) {
+    event.preventDefault();
+
+    const draggedNodeId = event.dataTransfer.getData("text/plain");
+
+    if (!draggedNodeId || draggedNodeId === targetNodeId) return;
+
+    onMoveNode(draggedNodeId, targetNodeId);
+  }
+
+  function renderNode(node: StudyNode, level: number) {
+    const children = getChildren(nodes, node.id);
+    const hasChildren = children.length > 0;
+    const isSelected = selectedNodeId === node.id;
+    const isCollapsed = collapsedIds.has(node.id);
+
+    if (normalizedQuery && !node.title.toLowerCase().includes(normalizedQuery)) {
+      const childMatches = children.some((child) =>
+        child.title.toLowerCase().includes(normalizedQuery)
+      );
+
+      if (!childMatches) return null;
+    }
+
+    return (
+      <div key={node.id}>
+        <div
+          draggable
+          onDragStart={(event) => handleDragStart(event, node.id)}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => handleDrop(event, node.id)}
+          className={[
+            "group mb-1 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm",
+            isSelected ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100",
+          ].join(" ")}
+          style={{ paddingLeft: 8 + level * 16 }}
+          onClick={() => onSelect(node.id)}
+        >
+          <button
+            type="button"
+            className="w-5 text-center text-xs"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (node.type === "folder") toggleCollapse(node.id);
+            }}
+          >
+            {node.type === "folder" ? (hasChildren ? (isCollapsed ? "▸" : "▾") : "•") : "•"}
+          </button>
+
+          <span className="w-5">{node.type === "folder" ? "📁" : "📄"}</span>
+          <span className="min-w-0 flex-1 truncate">{node.title}</span>
+
+          <div
+            className={[
+              "hidden items-center gap-1 group-hover:flex",
+              isSelected ? "text-white" : "text-slate-500",
+            ].join(" ")}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {node.type === "folder" && (
+              <>
+                <button
+                  type="button"
+                  title="Новая папка"
+                  onClick={() => onCreateFolderAt(node.id)}
+                  className="rounded px-1 hover:bg-black/10"
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  title="Новый материал"
+                  onClick={() => onCreateMaterialAt(node.id)}
+                  className="rounded px-1 hover:bg-black/10"
+                >
+                  ✎
+                </button>
+              </>
+            )}
+
+            {node.type === "material" && (
+              <button
+                type="button"
+                title="Дублировать"
+                onClick={() => onDuplicateMaterial(node.id)}
+                className="rounded px-1 hover:bg-black/10"
+              >
+                ⧉
+              </button>
+            )}
+
+            <button
+              type="button"
+              title="Переименовать"
+              onClick={() => onRename(node.id)}
+              className="rounded px-1 hover:bg-black/10"
+            >
+              ✏
+            </button>
+
+            <button
+              type="button"
+              title="Удалить"
+              onClick={() => onDelete(node.id)}
+              className="rounded px-1 hover:bg-black/10"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        {node.type === "folder" && !isCollapsed && (
+          <div>{children.map((child) => renderNode(child, level + 1))}</div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <aside className="flex h-screen w-80 shrink-0 flex-col border-r border-slate-200 bg-white">
+      <div className="border-b border-slate-200 p-4">
+        <h2 className="text-lg font-semibold">Study Tree</h2>
+        <p className="mt-1 text-sm text-slate-500">Папки, материалы и структура обучения</p>
+
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={onCreateFolder}
+            className="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-700"
+          >
+            Папка
+          </button>
+          <button
+            type="button"
+            onClick={onCreateMaterial}
+            className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-500"
+          >
+            Материал
+          </button>
+        </div>
+
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Поиск..."
+          className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+        />
+      </div>
+
+      <div
+        className="min-h-0 flex-1 overflow-auto p-3"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => handleDrop(event, null)}
+      >
+        {getChildren(nodes, null).map((node) => renderNode(node, 0))}
+
+        {nodes.length === 0 && (
+          <p className="p-3 text-sm text-slate-500">Пока нет папок и материалов.</p>
+        )}
+
+        <div className="mt-6 rounded-lg border border-dashed border-slate-300 p-3 text-center text-xs text-slate-400">
+          Перетащи сюда элемент, чтобы переместить его в корень
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+interface FolderDashboardProps {
+  node: StudyNode;
+  nodes: StudyNode[];
+  materials: StudyMaterial[];
+  onOpenNode: (nodeId: string) => void;
+  onCreateFolder: () => void;
+  onCreateMaterial: () => void;
+}
+
+function FolderDashboard({
+  node,
+  nodes,
+  materials,
+  onOpenNode,
+  onCreateFolder,
+  onCreateMaterial,
+}: FolderDashboardProps) {
+  const directChildren = getChildren(nodes, node.id);
+  const descendantIds = collectDescendantIds(nodes, node.id);
+  const nestedMaterials = materials
+    .filter((material) => descendantIds.has(material.nodeId))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+  const directFolders = directChildren.filter((child) => child.type === "folder");
+  const directMaterials = directChildren.filter((child) => child.type === "material");
+  const totalBlocks = nestedMaterials.reduce((sum, material) => sum + material.blocks.length, 0);
+
+  return (
+    <div className="mx-auto max-w-6xl">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-sm text-slate-500">Папка</p>
+            <h2 className="mt-1 text-3xl font-semibold">{node.title}</h2>
+            <p className="mt-2 text-slate-500">
+              {directFolders.length} папок · {directMaterials.length} материалов · {totalBlocks} блоков внутри
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onCreateFolder}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+            >
+              Новая папка
+            </button>
+            <button
+              type="button"
+              onClick={onCreateMaterial}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-500"
+            >
+              Новый материал
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {directChildren.map((child) => {
+          const material = materials.find((item) => item.nodeId === child.id);
+          const preview = material?.blocks.map((block) => getBlockText(block)).find(Boolean) ?? "";
+
+          return (
+            <button
+              key={child.id}
+              type="button"
+              onClick={() => onOpenNode(child.id)}
+              className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-blue-300 hover:shadow-md"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{child.type === "folder" ? "📁" : "📄"}</span>
+                <div className="min-w-0">
+                  <h3 className="truncate font-semibold">{child.title}</h3>
+                  <p className="text-sm text-slate-500">
+                    {child.type === "folder" ? "Папка" : `${material?.blocks.length ?? 0} блоков`}
+                  </p>
+                </div>
+              </div>
+
+              {preview && (
+                <p className="mt-4 line-clamp-3 text-sm text-slate-500">
+                  {preview}
+                </p>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {directChildren.length === 0 && (
+        <EmptyState
+          title="Папка пустая"
+          text="Создай внутри неё папку или материал."
+        />
+      )}
+
+      {nestedMaterials.length > 0 && (
+        <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5">
+          <h3 className="font-semibold">Недавно обновлённые материалы внутри папки</h3>
+
+          <div className="mt-4 divide-y divide-slate-100">
+            {nestedMaterials.slice(0, 5).map((material) => (
+              <button
+                key={material.id}
+                type="button"
+                onClick={() => onOpenNode(material.nodeId)}
+                className="flex w-full items-center justify-between py-3 text-left hover:text-blue-600"
+              >
+                <span>{material.title}</span>
+                <span className="text-sm text-slate-400">{formatDate(material.updatedAt)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface BlockEditorProps {
+  material: StudyMaterial;
+  nodes: StudyNode[];
+  customTemplates: CustomBlockTemplate[];
+  onChange: (material: StudyMaterial) => void;
+  onRenameTitle: (title: string) => void;
+  onOpenNode: (nodeId: string) => void;
+  onTemplatesChange: (templates: CustomBlockTemplate[]) => void;
+}
+
+function BlockEditor({
+  material,
+  nodes,
+  customTemplates,
+  onChange,
+  onRenameTitle,
+  onOpenNode,
+  onTemplatesChange,
+}: BlockEditorProps) {
+  const [mode, setMode] = useState<"edit" | "read" | "resources">("edit");
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set());
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
+  const [focusedBoardId, setFocusedBoardId] = useState<string | null>(null);
+
+  const focusedBoard = material.blocks.find(
+    (block): block is BoardStudyBlock => block.type === "board" && block.id === focusedBoardId
+  );
+
+  function updateMaterial(patch: Partial<StudyMaterial>) {
+    onChange({
+      ...material,
+      ...patch,
+      updatedAt: now(),
+    });
+  }
+
+  function updateBlock(blockId: string, updatedBlock: StudyBlock) {
+    updateMaterial({
+      blocks: material.blocks.map((block) =>
+        block.id === blockId
+          ? ({
+              ...updatedBlock,
+              updatedAt: now(),
+            } as StudyBlock)
+          : block
+      ),
+    });
+  }
+
+  function deleteBlock(blockId: string) {
+    if (!window.confirm("Удалить блок?")) return;
+
+    updateMaterial({
+      blocks: material.blocks.filter((block) => block.id !== blockId),
+    });
+  }
+
+  function duplicateBlock(blockId: string) {
+    const index = material.blocks.findIndex((block) => block.id === blockId);
+    if (index < 0) return;
+
+    const copy = cloneBlock(material.blocks[index]);
+
+    updateMaterial({
+      blocks: [
+        ...material.blocks.slice(0, index + 1),
+        copy,
+        ...material.blocks.slice(index + 1),
+      ],
+    });
+  }
+
+  function moveBlock(blockId: string, direction: -1 | 1) {
+    const index = material.blocks.findIndex((block) => block.id === blockId);
+    const targetIndex = index + direction;
+
+    if (index < 0 || targetIndex < 0 || targetIndex >= material.blocks.length) return;
+
+    const nextBlocks = [...material.blocks];
+    const current = nextBlocks[index];
+
+    nextBlocks[index] = nextBlocks[targetIndex];
+    nextBlocks[targetIndex] = current;
+
+    updateMaterial({
+      blocks: nextBlocks,
+    });
+  }
+
+  function addSystemBlock(type: Exclude<StudyBlockType, "custom">) {
+    updateMaterial({
+      blocks: [...material.blocks, createSystemBlock(type)],
+    });
+  }
+
+  function addCustomBlock(templateId: string) {
+    const template = customTemplates.find((item) => item.id === templateId);
+    if (!template) return;
+
+    updateMaterial({
+      blocks: [...material.blocks, createCustomBlock(template)],
+    });
+  }
+
+  function toggleCollapse(blockId: string) {
+    setCollapsedIds((previous) => {
+      const next = new Set(previous);
+
+      if (next.has(blockId)) {
+        next.delete(blockId);
+      } else {
+        next.add(blockId);
+      }
+
+      return next;
+    });
+  }
+
+  function updateTags(value: string) {
+    updateMaterial({
+      tags: value
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    });
+  }
+
+  return (
+    <div className="mx-auto max-w-5xl">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <input
+              value={material.title}
+              onChange={(event) => onRenameTitle(event.target.value)}
+              className="w-full border-none bg-transparent text-3xl font-semibold outline-none"
+            />
+
+            <input
+              value={material.tags.join(", ")}
+              onChange={(event) => updateTags(event.target.value)}
+              placeholder="Теги через запятую"
+              className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            />
+
+            <p className="mt-2 text-sm text-slate-400">
+              {material.blocks.length} блоков · обновлено {formatDate(material.updatedAt)}
+            </p>
+          </div>
+
+          <div className="flex rounded-lg border border-slate-300 bg-slate-50 p-1">
+            {(["edit", "read", "resources"] as const).map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setMode(item)}
+                className={[
+                  "rounded-md px-3 py-1.5 text-sm",
+                  mode === item ? "bg-white shadow-sm" : "text-slate-500 hover:text-slate-900",
+                ].join(" ")}
+              >
+                {item === "edit" ? "Редактор" : item === "read" ? "Чтение" : "Ресурсы"}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {mode === "resources" ? (
+        <MaterialResources
+          material={material}
+          nodes={nodes}
+          templates={customTemplates}
+          onOpenNode={onOpenNode}
+        />
+      ) : (
+        <>
+          {mode === "edit" && (
+            <AddBlockPanel
+              templates={customTemplates}
+              onAddSystemBlock={addSystemBlock}
+              onAddCustomBlock={addCustomBlock}
+              onManageTemplates={() => setTemplateManagerOpen(true)}
+            />
+          )}
+
+          <div className="mt-6 space-y-4">
+            {material.blocks.map((block, index) => {
+              const collapsed = collapsedIds.has(block.id);
+
+              return (
+                <div
+                  key={block.id}
+                  className="rounded-2xl border border-slate-200 bg-white shadow-sm"
+                >
+                  <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleCollapse(block.id)}
+                      className="flex min-w-0 items-center gap-2 text-left"
+                    >
+                      <span className="text-slate-400">{collapsed ? "▸" : "▾"}</span>
+                      <span className="font-medium">{getBlockTitle(block, customTemplates)}</span>
+                      <span className="text-sm text-slate-400">#{index + 1}</span>
+                    </button>
+
+                    {mode === "edit" && (
+                      <div className="flex items-center gap-1">
+                        <IconButton label="↑" onClick={() => moveBlock(block.id, -1)} />
+                        <IconButton label="↓" onClick={() => moveBlock(block.id, 1)} />
+                        <IconButton label="⧉" onClick={() => duplicateBlock(block.id)} />
+                        <IconButton label="×" danger onClick={() => deleteBlock(block.id)} />
+                      </div>
+                    )}
+                  </div>
+
+                  {!collapsed && (
+                    <div className="p-4">
+                      {mode === "edit" ? (
+                        <EditBlock
+                          block={block}
+                          nodes={nodes}
+                          templates={customTemplates}
+                          onChange={(updatedBlock) => updateBlock(block.id, updatedBlock)}
+                          onOpenBoard={() => setFocusedBoardId(block.id)}
+                        />
+                      ) : (
+                        <ReadBlock
+                          block={block}
+                          nodes={nodes}
+                          templates={customTemplates}
+                          onOpenNode={onOpenNode}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {material.blocks.length === 0 && (
+            <EmptyState
+              title="Материал пустой"
+              text="Добавь первый блок: текст, формулу, задачу, файл или доску."
+            />
+          )}
+        </>
+      )}
+
+      {templateManagerOpen && (
+        <TemplateManager
+          templates={customTemplates}
+          onChange={onTemplatesChange}
+          onClose={() => setTemplateManagerOpen(false)}
+        />
+      )}
+
+      {focusedBoard && (
+        <BoardFocusModal
+          block={focusedBoard}
+          onClose={() => setFocusedBoardId(null)}
+          onChange={(strokes) =>
+            updateBlock(focusedBoard.id, {
+              ...focusedBoard,
+              strokes,
+            })
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+interface AddBlockPanelProps {
+  templates: CustomBlockTemplate[];
+  onAddSystemBlock: (type: Exclude<StudyBlockType, "custom">) => void;
+  onAddCustomBlock: (templateId: string) => void;
+  onManageTemplates: () => void;
+}
+
+function AddBlockPanel({
+  templates,
+  onAddSystemBlock,
+  onAddCustomBlock,
+  onManageTemplates,
+}: AddBlockPanelProps) {
+  const systemBlocks: Array<{
+    type: Exclude<StudyBlockType, "custom">;
+    label: string;
+  }> = [
+    { type: "heading", label: "Заголовок" },
+    { type: "text", label: "Текст" },
+    { type: "latex", label: "Формула" },
+    { type: "definition", label: "Определение" },
+    { type: "problem", label: "Задача" },
+    { type: "solution", label: "Решение" },
+    { type: "board", label: "Доска" },
+    { type: "file", label: "Файл" },
+    { type: "divider", label: "Линия" },
+  ];
+
+  return (
+    <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap gap-2">
+        {systemBlocks.map((block) => (
+          <button
+            key={block.type}
+            type="button"
+            onClick={() => onAddSystemBlock(block.type)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:border-blue-300 hover:bg-blue-50"
+          >
+            + {block.label}
+          </button>
+        ))}
+
+        {templates.map((template) => (
+          <button
+            key={template.id}
+            type="button"
+            onClick={() => onAddCustomBlock(template.id)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:border-blue-300 hover:bg-blue-50"
+          >
+            + {template.icon} {template.name}
+          </button>
+        ))}
+
+        <button
+          type="button"
+          onClick={onManageTemplates}
+          className="ml-auto rounded-lg bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-700"
+        >
+          Шаблоны блоков
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface EditBlockProps {
+  block: StudyBlock;
+  nodes: StudyNode[];
+  templates: CustomBlockTemplate[];
+  onChange: (block: StudyBlock) => void;
+  onOpenBoard: () => void;
+}
+
+function EditBlock({ block, nodes, templates, onChange, onOpenBoard }: EditBlockProps) {
+  if (isContentBlock(block)) {
+    if (block.type === "heading") {
+      return (
+        <input
+          value={block.content}
+          onChange={(event) =>
+            onChange({
+              ...block,
+              content: event.target.value,
+            })
+          }
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xl font-semibold outline-none focus:border-blue-500"
+        />
+      );
+    }
+
+    return (
+      <div>
+        <textarea
+          value={block.content}
+          onChange={(event) =>
+            onChange({
+              ...block,
+              content: event.target.value,
+            })
+          }
+          rows={block.type === "latex" ? 3 : 6}
+          placeholder={
+            block.type === "latex"
+              ? "Напиши LaTeX: v = \\frac{s}{t}"
+              : "Текст блока..."
+          }
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-500"
+        />
+
+        {block.type === "latex" && (
+          <pre className="mt-3 overflow-auto rounded-lg bg-slate-950 p-4 text-sm text-white">
+            {block.content || "LaTeX preview"}
+          </pre>
+        )}
+
+        {block.content.includes("[[") && (
+          <div className="mt-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-800">
+            Внутренние ссылки:
+            <div className="mt-2 flex flex-wrap gap-2">
+              {extractInternalLinkLabels(block.content).map((label) => {
+                const target = findMaterialNodeByTitle(nodes, label);
+
+                return (
+                  <span
+                    key={label}
+                    className={[
+                      "rounded-full px-2 py-1 text-xs",
+                      target ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700",
+                    ].join(" ")}
+                  >
+                    [[{label}]] {target ? "найдена" : "не найдена"}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (isBoardBlock(block)) {
+    return (
+      <div>
+        <input
+          value={block.title}
+          onChange={(event) =>
+            onChange({
+              ...block,
+              title: event.target.value,
+            })
+          }
+          className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-500"
+        />
+
+        <BoardCanvas
+          title={block.title}
+          strokes={block.strokes}
+          editable
+          onChange={(strokes) =>
+            onChange({
+              ...block,
+              strokes,
+            })
+          }
+        />
+
+        <button
+          type="button"
+          onClick={onOpenBoard}
+          className="mt-3 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
+        >
+          Открыть доску крупно
+        </button>
+      </div>
+    );
+  }
+
+  if (isFileBlock(block)) {
+    return (
+      <div className="space-y-3">
+        <input
+          type="file"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+
+            if (!file) return;
+
+            if (file.size > MAX_FILE_SIZE) {
+              alert(`Файл слишком большой. Максимум: ${formatBytes(MAX_FILE_SIZE)}.`);
+              return;
+            }
+
+            const reader = new FileReader();
+
+            reader.onload = () => {
+              onChange({
+                ...block,
+                fileName: file.name,
+                mimeType: file.type,
+                size: file.size,
+                dataUrl: String(reader.result ?? ""),
+              });
+            };
+
+            reader.readAsDataURL(file);
+          }}
+          className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        />
+
+        <textarea
+          value={block.note}
+          onChange={(event) =>
+            onChange({
+              ...block,
+              note: event.target.value,
+            })
+          }
+          placeholder="Комментарий к файлу..."
+          rows={3}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-500"
+        />
+
+        {block.fileName && (
+          <div className="rounded-lg bg-slate-50 p-3 text-sm">
+            <p className="font-medium">{block.fileName}</p>
+            <p className="text-slate-500">
+              {block.mimeType || "unknown"} · {formatBytes(block.size)}
+            </p>
+
+            {block.dataUrl && (
+              <a
+                href={block.dataUrl}
+                download={block.fileName}
+                className="mt-2 inline-block text-blue-600 hover:underline"
+              >
+                Скачать файл
+              </a>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (block.type === "divider") {
+    return <hr className="border-slate-300" />;
+  }
+
+  if (isCustomBlock(block)) {
+    const template = templates.find((item) => item.id === block.templateId);
+
+    if (!template) {
+      return <p className="text-sm text-rose-600">Шаблон блока не найден.</p>;
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <span
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-white"
+            style={{ backgroundColor: template.color }}
+          >
+            {template.icon}
+          </span>
+          <div>
+            <h4 className="font-semibold">{template.name}</h4>
+            {template.description && (
+              <p className="text-sm text-slate-500">{template.description}</p>
+            )}
+          </div>
+        </div>
+
+        {template.fields.map((field) => (
+          <CustomFieldInput
+            key={field.id}
+            field={field}
+            value={block.values[field.id] ?? getDefaultFieldValue(field)}
+            onChange={(value) =>
+              onChange({
+                ...block,
+                values: {
+                  ...block.values,
+                  [field.id]: value,
+                },
+              })
+            }
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return null;
+}
+
+interface CustomFieldInputProps {
+  field: CustomBlockField;
+  value: CustomBlockValue;
+  onChange: (value: CustomBlockValue) => void;
+}
+
+function CustomFieldInput({ field, value, onChange }: CustomFieldInputProps) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium">
+        {field.label}
+        {field.required && <span className="text-rose-500"> *</span>}
+      </span>
+
+      {field.type === "long_text" || field.type === "latex" ? (
+        <textarea
+          value={String(value)}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={field.placeholder}
+          rows={field.type === "latex" ? 3 : 5}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-500"
+        />
+      ) : field.type === "checkbox" ? (
+        <label className="flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2">
+          <input
+            type="checkbox"
+            checked={Boolean(value)}
+            onChange={(event) => onChange(event.target.checked)}
+          />
+          <span className="text-sm">Да / Нет</span>
+        </label>
+      ) : field.type === "select" ? (
+        <select
+          value={String(value)}
+          onChange={(event) => onChange(event.target.value)}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-500"
+        >
+          <option value="">Выбрать...</option>
+          {(field.options ?? []).map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
+          value={String(value)}
+          onChange={(event) =>
+            onChange(field.type === "number" ? Number(event.target.value) : event.target.value)
+          }
+          placeholder={field.placeholder}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-500"
+        />
+      )}
+    </label>
+  );
+}
+
+interface ReadBlockProps {
+  block: StudyBlock;
+  nodes: StudyNode[];
+  templates: CustomBlockTemplate[];
+  onOpenNode: (nodeId: string) => void;
+}
+
+function ReadBlock({ block, nodes, templates, onOpenNode }: ReadBlockProps) {
+  if (isContentBlock(block)) {
+    if (block.type === "heading") {
+      return <h2 className="text-2xl font-semibold">{block.content}</h2>;
+    }
+
+    if (block.type === "latex") {
+      return (
+        <pre className="overflow-auto rounded-lg bg-slate-950 p-4 text-sm text-white">
+          {block.content || "Пустая формула"}
+        </pre>
+      );
+    }
+
+    const labels: Record<string, string> = {
+      text: "Текст",
+      definition: "Определение",
+      problem: "Задача",
+      solution: "Решение",
+    };
+
+    return (
+      <div>
+        <p className="mb-2 text-sm font-medium text-slate-400">{labels[block.type]}</p>
+        <div className="whitespace-pre-wrap leading-7">
+          <TextWithLinks text={block.content} nodes={nodes} onOpenNode={onOpenNode} />
+        </div>
+      </div>
+    );
+  }
+
+  if (isBoardBlock(block)) {
+    return (
+      <div>
+        <h3 className="mb-3 font-semibold">{block.title}</h3>
+        <BoardCanvas title={block.title} strokes={block.strokes} editable={false} onChange={() => {}} />
+      </div>
+    );
+  }
+
+  if (isFileBlock(block)) {
+    return (
+      <div className="rounded-lg bg-slate-50 p-4">
+        <h3 className="font-semibold">{block.fileName || "Файл не выбран"}</h3>
+        <p className="mt-1 text-sm text-slate-500">{block.note}</p>
+        {block.dataUrl && (
+          <a
+            href={block.dataUrl}
+            download={block.fileName}
+            className="mt-3 inline-block text-sm text-blue-600 hover:underline"
+          >
+            Скачать · {formatBytes(block.size)}
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  if (block.type === "divider") {
+    return <hr className="border-slate-300" />;
+  }
+
+  if (isCustomBlock(block)) {
+    const template = templates.find((item) => item.id === block.templateId);
+
+    if (!template) {
+      return <p className="text-sm text-rose-600">Шаблон блока не найден.</p>;
+    }
+
+    return (
+      <div>
+        <div className="mb-4 flex items-center gap-3">
+          <span
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-white"
+            style={{ backgroundColor: template.color }}
+          >
+            {template.icon}
+          </span>
+          <h3 className="font-semibold">{template.name}</h3>
+        </div>
+
+        <div className="space-y-3">
+          {template.fields.map((field) => (
+            <div key={field.id} className="rounded-lg bg-slate-50 p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                {field.label}
+              </p>
+              <p className="mt-1 whitespace-pre-wrap">
+                {String(block.values[field.id] ?? "") || "—"}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+interface TextWithLinksProps {
+  text: string;
+  nodes: StudyNode[];
+  onOpenNode: (nodeId: string) => void;
+}
+
+function TextWithLinks({ text, nodes, onOpenNode }: TextWithLinksProps) {
+  const parts: Array<{ type: "text" | "link"; value: string; nodeId?: string }> = [];
+  const regex = /\[\[([^\]]+)\]\]/g;
+
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({
+        type: "text",
+        value: text.slice(lastIndex, match.index),
+      });
+    }
+
+    const label = match[1].trim();
+    const target = findMaterialNodeByTitle(nodes, label);
+
+    parts.push({
+      type: "link",
+      value: label,
+      nodeId: target?.id,
+    });
+
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push({
+      type: "text",
+      value: text.slice(lastIndex),
+    });
+  }
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (part.type === "text") {
+          return <span key={index}>{part.value}</span>;
+        }
+
+        if (part.nodeId) {
+          return (
+            <button
+              key={index}
+              type="button"
+              onClick={() => onOpenNode(part.nodeId!)}
+              className="rounded bg-blue-50 px-1 text-blue-700 hover:bg-blue-100"
+            >
+              [[{part.value}]]
+            </button>
+          );
+        }
+
+        return (
+          <span key={index} className="rounded bg-rose-50 px-1 text-rose-700">
+            [[{part.value}]]
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+interface BoardCanvasProps {
+  title: string;
+  strokes: BoardStroke[];
+  editable: boolean;
+  onChange: (strokes: BoardStroke[]) => void;
+}
+
+function BoardCanvas({ title, strokes, editable, onChange }: BoardCanvasProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const activeStrokeIdRef = useRef<string | null>(null);
+  const strokesRef = useRef<BoardStroke[]>(strokes);
+  const [tool, setTool] = useState<"pen" | "eraser">("pen");
+  const [penSize, setPenSize] = useState(3);
+
+  useEffect(() => {
+    strokesRef.current = strokes;
+  }, [strokes]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    context.strokeStyle = "#0f172a";
+    context.lineCap = "round";
+    context.lineJoin = "round";
+
+    strokes.forEach((stroke) => {
+      if (stroke.points.length < 2) return;
+
+      context.beginPath();
+      context.lineWidth = stroke.width;
+      context.moveTo(stroke.points[0].x, stroke.points[0].y);
+
+      stroke.points.slice(1).forEach((point) => {
+        context.lineTo(point.x, point.y);
+      });
+
+      context.stroke();
+    });
+
+    if (strokes.length === 0) {
+      context.fillStyle = "#94a3b8";
+      context.font = "18px sans-serif";
+      context.fillText(title || "Доска", 24, 42);
+      context.font = "14px sans-serif";
+      context.fillText("Здесь можно рисовать схемы и решения", 24, 68);
+    }
+  }, [strokes, title]);
+
+  function getPoint(event: PointerEvent<HTMLCanvasElement>): BoardPoint {
+    const canvas = event.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+    };
+  }
+
+  function distance(a: BoardPoint, b: BoardPoint) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  function strokeHitsPoint(stroke: BoardStroke, point: BoardPoint, radius: number) {
+    return stroke.points.some((strokePoint) => distance(strokePoint, point) <= radius);
+  }
+
+  function pushStrokes(next: BoardStroke[]) {
+    strokesRef.current = next;
+    onChange(next);
+  }
+
+  function handlePointerDown(event: PointerEvent<HTMLCanvasElement>) {
+    if (!editable) return;
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    const point = getPoint(event);
+
+    if (tool === "eraser") {
+      pushStrokes(strokesRef.current.filter((stroke) => !strokeHitsPoint(stroke, point, 18)));
+      return;
+    }
+
+    const stroke: BoardStroke = {
+      id: createId("stroke"),
+      width: penSize,
+      points: [point],
+    };
+
+    activeStrokeIdRef.current = stroke.id;
+    pushStrokes([...strokesRef.current, stroke]);
+  }
+
+  function handlePointerMove(event: PointerEvent<HTMLCanvasElement>) {
+    if (!editable) return;
+
+    const point = getPoint(event);
+
+    if (tool === "eraser" && event.buttons === 1) {
+      pushStrokes(strokesRef.current.filter((stroke) => !strokeHitsPoint(stroke, point, 18)));
+      return;
+    }
+
+    const activeId = activeStrokeIdRef.current;
+
+    if (!activeId || event.buttons !== 1) return;
+
+    pushStrokes(
+      strokesRef.current.map((stroke) =>
+        stroke.id === activeId
+          ? {
+              ...stroke,
+              points: [...stroke.points, point],
+            }
+          : stroke
+      )
+    );
+  }
+
+  function stopDrawing() {
+    activeStrokeIdRef.current = null;
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+      {editable && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setTool("pen")}
+            className={[
+              "rounded-lg px-3 py-1.5 text-sm",
+              tool === "pen" ? "bg-blue-600 text-white" : "bg-white",
+            ].join(" ")}
+          >
+            Ручка
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTool("eraser")}
+            className={[
+              "rounded-lg px-3 py-1.5 text-sm",
+              tool === "eraser" ? "bg-blue-600 text-white" : "bg-white",
+            ].join(" ")}
+          >
+            Ластик
+          </button>
+
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            Толщина
+            <input
+              type="range"
+              min={1}
+              max={12}
+              value={penSize}
+              onChange={(event) => setPenSize(Number(event.target.value))}
+            />
+          </label>
+
+          <button
+            type="button"
+            onClick={() => onChange(strokes.slice(0, -1))}
+            className="rounded-lg bg-white px-3 py-1.5 text-sm hover:bg-slate-100"
+          >
+            Undo
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="rounded-lg bg-white px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50"
+          >
+            Очистить
+          </button>
+        </div>
+      )}
+
+      <canvas
+        ref={canvasRef}
+        width={1200}
+        height={420}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={stopDrawing}
+        onPointerCancel={stopDrawing}
+        className={[
+          "h-[280px] w-full rounded-lg border border-slate-200 bg-white",
+          editable ? "touch-none cursor-crosshair" : "",
+        ].join(" ")}
+      />
+    </div>
+  );
+}
+
+interface BoardFocusModalProps {
+  block: BoardStudyBlock;
+  onClose: () => void;
+  onChange: (strokes: BoardStroke[]) => void;
+}
+
+function BoardFocusModal({ block, onClose, onChange }: BoardFocusModalProps) {
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/80 p-6">
+      <div className="flex h-full flex-col rounded-2xl bg-white p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-semibold">{block.title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white"
+          >
+            Закрыть
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1">
+          <BoardCanvas
+            title={block.title}
+            strokes={block.strokes}
+            editable
+            onChange={onChange}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface MaterialResourcesProps {
+  material: StudyMaterial;
+  nodes: StudyNode[];
+  templates: CustomBlockTemplate[];
+  onOpenNode: (nodeId: string) => void;
+}
+
+function MaterialResources({ material, nodes, templates, onOpenNode }: MaterialResourcesProps) {
+  const headings = material.blocks.filter(
+    (block): block is ContentStudyBlock => block.type === "heading"
+  );
+
+  const latexBlocks = material.blocks.filter(
+    (block): block is ContentStudyBlock => block.type === "latex"
+  );
+
+  const boardBlocks = material.blocks.filter(isBoardBlock);
+  const fileBlocks = material.blocks.filter(isFileBlock);
+  const customBlocks = material.blocks.filter(isCustomBlock);
+
+  const links = Array.from(
+    new Set(
+      material.blocks.flatMap((block) => extractInternalLinkLabels(getBlockText(block, templates)))
+    )
+  );
+
+  return (
+    <div className="mt-6 grid gap-4 md:grid-cols-2">
+      <ResourceCard title="Заголовки">
+        {headings.length ? (
+          headings.map((block) => <p key={block.id}>{block.content}</p>)
+        ) : (
+          <Muted>Нет заголовков</Muted>
+        )}
+      </ResourceCard>
+
+      <ResourceCard title="Формулы">
+        {latexBlocks.length ? (
+          latexBlocks.map((block) => (
+            <pre key={block.id} className="overflow-auto rounded-lg bg-slate-950 p-3 text-sm text-white">
+              {block.content}
+            </pre>
+          ))
+        ) : (
+          <Muted>Нет формул</Muted>
+        )}
+      </ResourceCard>
+
+      <ResourceCard title="Доски">
+        {boardBlocks.length ? (
+          boardBlocks.map((block) => <p key={block.id}>{block.title}</p>)
+        ) : (
+          <Muted>Нет досок</Muted>
+        )}
+      </ResourceCard>
+
+      <ResourceCard title="Файлы">
+        {fileBlocks.length ? (
+          fileBlocks.map((block) => (
+            <p key={block.id}>
+              {block.fileName || "Файл без названия"} · {formatBytes(block.size)}
+            </p>
+          ))
+        ) : (
+          <Muted>Нет файлов</Muted>
+        )}
+      </ResourceCard>
+
+      <ResourceCard title="Кастомные блоки">
+        {customBlocks.length ? (
+          customBlocks.map((block) => (
+            <p key={block.id}>{getBlockTitle(block, templates)}</p>
+          ))
+        ) : (
+          <Muted>Нет кастомных блоков</Muted>
+        )}
+      </ResourceCard>
+
+      <ResourceCard title="Внутренние ссылки">
+        {links.length ? (
+          links.map((label) => {
+            const target = findMaterialNodeByTitle(nodes, label);
+
+            return target ? (
+              <button
+                key={label}
+                type="button"
+                onClick={() => onOpenNode(target.id)}
+                className="block text-blue-600 hover:underline"
+              >
+                [[{label}]]
+              </button>
+            ) : (
+              <p key={label} className="text-rose-600">
+                [[{label}]] — не найдена
+              </p>
+            );
+          })
+        ) : (
+          <Muted>Нет ссылок</Muted>
+        )}
+      </ResourceCard>
+    </div>
+  );
+}
+
+interface ResourceCardProps {
+  title: string;
+  children: React.ReactNode;
+}
+
+function ResourceCard({ title, children }: ResourceCardProps) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="mb-4 font-semibold">{title}</h3>
+      <div className="space-y-3 text-sm">{children}</div>
+    </section>
+  );
+}
+
+function Muted({ children }: { children: React.ReactNode }) {
+  return <p className="text-sm text-slate-400">{children}</p>;
+}
+
+interface TemplateManagerProps {
+  templates: CustomBlockTemplate[];
+  onChange: (templates: CustomBlockTemplate[]) => void;
+  onClose: () => void;
+}
+
+function TemplateManager({ templates, onChange, onClose }: TemplateManagerProps) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [name, setName] = useState("Новый блок");
+  const [icon, setIcon] = useState("B");
+  const [color, setColor] = useState("#2563eb");
+  const [description, setDescription] = useState("");
+  const [fields, setFields] = useState<CustomBlockField[]>([
+    {
+      id: createId("field"),
+      label: "Поле",
+      type: "text",
+    },
+  ]);
+
+  const fieldTypes: Array<{ value: CustomFieldType; label: string }> = [
+    { value: "text", label: "Text" },
+    { value: "long_text", label: "Long text" },
+    { value: "latex", label: "Latex" },
+    { value: "number", label: "Number" },
+    { value: "checkbox", label: "Checkbox" },
+    { value: "select", label: "Select" },
+    { value: "date", label: "Date" },
+    { value: "link", label: "Link" },
+  ];
+
+  function resetDraft() {
+    setEditingId(null);
+    setName("Новый блок");
+    setIcon("B");
+    setColor("#2563eb");
+    setDescription("");
+    setFields([
+      {
+        id: createId("field"),
+        label: "Поле",
+        type: "text",
+      },
+    ]);
+  }
+
+  function editTemplate(template: CustomBlockTemplate) {
+    setEditingId(template.id);
+    setName(template.name);
+    setIcon(template.icon);
+    setColor(template.color);
+    setDescription(template.description ?? "");
+    setFields(JSON.parse(JSON.stringify(template.fields)) as CustomBlockField[]);
+  }
+
+  function updateField(fieldId: string, patch: Partial<CustomBlockField>) {
+    setFields((previous) =>
+      previous.map((field) =>
+        field.id === fieldId
+          ? {
+              ...field,
+              ...patch,
+            }
+          : field
+      )
+    );
+  }
+
+  function addField() {
+    setFields((previous) => [
+      ...previous,
+      {
+        id: createId("field"),
+        label: "Новое поле",
+        type: "text",
+      },
+    ]);
+  }
+
+  function removeField(fieldId: string) {
+    setFields((previous) => previous.filter((field) => field.id !== fieldId));
+  }
+
+  function saveTemplate() {
+    if (!name.trim()) {
+      alert("Укажи название шаблона.");
+      return;
+    }
+
+    const cleanFields = fields
+      .map((field) => ({
+        ...field,
+        label: field.label.trim(),
+        options:
+          field.type === "select"
+            ? (field.options ?? []).map((option) => option.trim()).filter(Boolean)
+            : field.options,
+      }))
+      .filter((field) => field.label);
+
+    if (cleanFields.length === 0) {
+      alert("Добавь хотя бы одно поле.");
+      return;
+    }
+
+    if (editingId) {
+      onChange(
+        templates.map((template) =>
+          template.id === editingId
+            ? {
+                ...template,
+                name: name.trim(),
+                icon: icon.trim() || "B",
+                color,
+                description: description.trim(),
+                fields: cleanFields,
+                updatedAt: now(),
+              }
+            : template
+        )
+      );
+    } else {
+      onChange([
+        ...templates,
+        {
+          id: createId("template"),
+          name: name.trim(),
+          icon: icon.trim() || "B",
+          color,
+          description: description.trim(),
+          fields: cleanFields,
+          createdAt: now(),
+          updatedAt: now(),
+        },
+      ]);
+    }
+
+    resetDraft();
+  }
+
+  function deleteTemplate(templateId: string) {
+    if (!window.confirm("Удалить шаблон? Уже созданные блоки могут потерять отображение.")) {
+      return;
+    }
+
+    onChange(templates.filter((template) => template.id !== templateId));
+
+    if (editingId === templateId) {
+      resetDraft();
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/60 p-6">
+      <div className="mx-auto flex max-h-full max-w-6xl flex-col rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-200 p-5">
+          <div>
+            <h2 className="text-xl font-semibold">Шаблоны блоков</h2>
+            <p className="text-sm text-slate-500">Создавай свои типы учебных блоков</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white"
+          >
+            Закрыть
+          </button>
+        </div>
+
+        <div className="grid min-h-0 flex-1 gap-6 overflow-auto p-5 md:grid-cols-[1fr_1.3fr]">
+          <section>
+            <h3 className="mb-3 font-semibold">Готовые шаблоны</h3>
+
+            <div className="space-y-3">
+              {templates.map((template) => (
+                <div key={template.id} className="rounded-xl border border-slate-200 p-4">
+                  <div className="flex items-center gap-3">
+                    <span
+                      className="flex h-9 w-9 items-center justify-center rounded-lg text-white"
+                      style={{ backgroundColor: template.color }}
+                    >
+                      {template.icon}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-medium">{template.name}</h4>
+                      <p className="text-sm text-slate-500">
+                        {template.fields.length} полей
+                      </p>
+                    </div>
+                  </div>
+
+                  {template.description && (
+                    <p className="mt-3 text-sm text-slate-500">{template.description}</p>
+                  )}
+
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => editTemplate(template)}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteTemplate(template.id)}
+                      className="rounded-lg border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-semibold">
+                {editingId ? "Редактирование шаблона" : "Новый шаблон"}
+              </h3>
+
+              {editingId && (
+                <button
+                  type="button"
+                  onClick={resetDraft}
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  Создать новый
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-4 rounded-xl border border-slate-200 p-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <label>
+                  <span className="mb-1 block text-sm font-medium">Название</span>
+                  <input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  />
+                </label>
+
+                <label>
+                  <span className="mb-1 block text-sm font-medium">Иконка</span>
+                  <input
+                    value={icon}
+                    onChange={(event) => setIcon(event.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  />
+                </label>
+
+                <label>
+                  <span className="mb-1 block text-sm font-medium">Цвет</span>
+                  <input
+                    type="color"
+                    value={color}
+                    onChange={(event) => setColor(event.target.value)}
+                    className="h-10 w-full rounded-lg border border-slate-300"
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Описание</span>
+                <textarea
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  rows={2}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                />
+              </label>
+
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="font-medium">Поля</h4>
+                  <button
+                    type="button"
+                    onClick={addField}
+                    className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm text-white"
+                  >
+                    Добавить поле
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {fields.map((field) => (
+                    <div key={field.id} className="rounded-lg bg-slate-50 p-3">
+                      <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
+                        <input
+                          value={field.label}
+                          onChange={(event) =>
+                            updateField(field.id, {
+                              label: event.target.value,
+                            })
+                          }
+                          placeholder="Название поля"
+                          className="rounded-lg border border-slate-300 px-3 py-2"
+                        />
+
+                        <select
+                          value={field.type}
+                          onChange={(event) =>
+                            updateField(field.id, {
+                              type: event.target.value as CustomFieldType,
+                            })
+                          }
+                          className="rounded-lg border border-slate-300 px-3 py-2"
+                        >
+                          {fieldTypes.map((type) => (
+                            <option key={type.value} value={type.value}>
+                              {type.label}
+                            </option>
+                          ))}
+                        </select>
+
+                        <button
+                          type="button"
+                          onClick={() => removeField(field.id)}
+                          className="rounded-lg border border-rose-200 px-3 py-2 text-rose-600 hover:bg-rose-50"
+                        >
+                          ×
+                        </button>
+                      </div>
+
+                      <input
+                        value={field.placeholder ?? ""}
+                        onChange={(event) =>
+                          updateField(field.id, {
+                            placeholder: event.target.value,
+                          })
+                        }
+                        placeholder="Placeholder"
+                        className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2"
+                      />
+
+                      {field.type === "select" && (
+                        <textarea
+                          value={(field.options ?? []).join("\n")}
+                          onChange={(event) =>
+                            updateField(field.id, {
+                              options: event.target.value.split("\n"),
+                            })
+                          }
+                          placeholder="Варианты, каждый с новой строки"
+                          rows={3}
+                          className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2"
+                        />
+                      )}
+
+                      <label className="mt-3 flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(field.required)}
+                          onChange={(event) =>
+                            updateField(field.id, {
+                              required: event.target.checked,
+                            })
+                          }
+                        />
+                        Обязательное поле
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={saveTemplate}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-500"
+              >
+                {editingId ? "Сохранить изменения" : "Создать шаблон"}
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface CommandPaletteProps {
+  open: boolean;
+  nodes: StudyNode[];
+  materials: StudyMaterial[];
+  templates: CustomBlockTemplate[];
+  onClose: () => void;
+  onOpenNode: (nodeId: string) => void;
+  onCreateFolder: () => void;
+  onCreateMaterial: () => void;
+  onExport: () => void;
+  onReset: () => void;
+}
+
+interface CommandResult {
+  id: string;
+  title: string;
+  subtitle: string;
+  action: () => void;
+}
+
+function CommandPalette({
+  open,
+  nodes,
+  materials,
+  templates,
+  onClose,
+  onOpenNode,
+  onCreateFolder,
+  onCreateMaterial,
+  onExport,
+  onReset,
+}: CommandPaletteProps) {
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setQuery("");
+      window.setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [open]);
+
+  const results = useMemo<CommandResult[]>(() => {
+    const normalized = query.trim().toLowerCase();
+
+    const actions: CommandResult[] = [
+      {
+        id: "action_create_folder",
+        title: "Создать папку",
+        subtitle: "Action",
+        action: onCreateFolder,
+      },
+      {
+        id: "action_create_material",
+        title: "Создать материал",
+        subtitle: "Action",
+        action: onCreateMaterial,
+      },
+      {
+        id: "action_export",
+        title: "Экспортировать JSON",
+        subtitle: "Action",
+        action: onExport,
+      },
+      {
+        id: "action_reset",
+        title: "Сбросить демо-данные",
+        subtitle: "Action",
+        action: onReset,
+      },
+    ];
+
+    const nodeResults: CommandResult[] = nodes.map((node) => ({
+      id: `node_${node.id}`,
+      title: node.title,
+      subtitle: node.type === "folder" ? "Папка" : "Материал",
+      action: () => onOpenNode(node.id),
+    }));
+
+    const blockResults: CommandResult[] = materials.flatMap((material) =>
+      material.blocks.map((block) => ({
+        id: `block_${material.id}_${block.id}`,
+        title: getBlockText(block, templates).slice(0, 80) || getBlockTitle(block, templates),
+        subtitle: `Блок · ${material.title}`,
+        action: () => onOpenNode(material.nodeId),
+      }))
+    );
+
+    return [...actions, ...nodeResults, ...blockResults].filter((result) => {
+      if (!normalized) return true;
+
+      return `${result.title} ${result.subtitle}`.toLowerCase().includes(normalized);
+    });
+  }, [
+    query,
+    nodes,
+    materials,
+    templates,
+    onCreateFolder,
+    onCreateMaterial,
+    onExport,
+    onReset,
+    onOpenNode,
+  ]);
+
+  if (!open) return null;
+
+  function run(result: CommandResult) {
+    result.action();
+    onClose();
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") {
+      onClose();
+    }
+
+    if (event.key === "Enter" && results[0]) {
+      run(results[0]);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/50 p-6" onMouseDown={onClose}>
+      <div
+        className="mx-auto max-w-2xl rounded-2xl bg-white shadow-2xl"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="border-b border-slate-200 p-4">
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Поиск по материалам, блокам и командам..."
+            className="w-full border-none text-lg outline-none"
+          />
+        </div>
+
+        <div className="max-h-[520px] overflow-auto p-2">
+          {results.map((result) => (
+            <button
+              key={result.id}
+              type="button"
+              onClick={() => run(result)}
+              className="flex w-full items-center justify-between rounded-xl px-4 py-3 text-left hover:bg-slate-100"
+            >
+              <span className="min-w-0">
+                <span className="block truncate font-medium">{result.title}</span>
+                <span className="block text-sm text-slate-500">{result.subtitle}</span>
+              </span>
+            </button>
+          ))}
+
+          {results.length === 0 && (
+            <p className="p-6 text-center text-sm text-slate-500">Ничего не найдено</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IconButton({
+  label,
+  danger,
+  onClick,
+}: {
+  label: string;
+  danger?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "rounded-lg px-2 py-1 text-sm hover:bg-slate-100",
+        danger ? "text-rose-600 hover:bg-rose-50" : "text-slate-500",
+      ].join(" ")}
+    >
+      {label}
+    </button>
+  );
+}
+
+function EmptyState({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+      <h3 className="text-lg font-semibold">{title}</h3>
+      <p className="mt-2 text-slate-500">{text}</p>
+    </div>
+  );
+}
+
+export default App;

@@ -1,0 +1,247 @@
+﻿import type {
+  BlockSettings,
+  BlockTextAlign,
+  StudyBlock,
+} from "../../types/study";
+import { getBlockTitle } from "../../utils/blocks";
+
+interface BlockSettingsPanelProps {
+  block: StudyBlock | null;
+  onChangeSettings: (settings: BlockSettings) => void;
+}
+
+const fontFamilies = [
+  "Arial",
+  "Helvetica",
+  "Verdana",
+  "Tahoma",
+  "Trebuchet MS",
+  "Georgia",
+  "Times New Roman",
+  "Courier New",
+  "Consolas",
+  "system-ui",
+];
+
+const codeLanguages = [
+  "plain",
+  "javascript",
+  "typescript",
+  "tsx",
+  "jsx",
+  "html",
+  "css",
+  "json",
+  "python",
+  "cpp",
+  "java",
+  "sql",
+  "bash",
+  "powershell",
+];
+
+function getSettings(block: StudyBlock | null): BlockSettings {
+  return block?.settings ?? {};
+}
+
+export function BlockSettingsPanel({
+  block,
+  onChangeSettings,
+}: BlockSettingsPanelProps) {
+  if (!block) {
+    return (
+      <aside className="h-full border-l border-black bg-white p-4">
+        <h3 className="font-bold">Настройки блока</h3>
+        <p className="mt-3 text-sm text-neutral-600">
+          Выбери блок слева, чтобы изменить его оформление.
+        </p>
+      </aside>
+    );
+  }
+
+  const settings = getSettings(block);
+
+  function updateSetting<K extends keyof BlockSettings>(
+    key: K,
+    value: BlockSettings[K]
+  ) {
+    onChangeSettings({
+      ...settings,
+      [key]: value,
+    });
+  }
+
+  function resetSettings() {
+    onChangeSettings({});
+  }
+
+  return (
+    <aside className="h-full overflow-auto border-l border-black bg-white">
+      <div className="border-b border-black bg-neutral-100 px-4 py-3">
+        <h3 className="font-bold">Настройки блока</h3>
+        <p className="mt-1 text-sm text-neutral-600">
+          {getBlockTitle(block)}
+        </p>
+      </div>
+
+      <div className="space-y-4 p-4">
+        <label className="block">
+          <span className="mb-1 block text-sm font-bold">Размер шрифта</span>
+          <input
+            type="number"
+            min={8}
+            max={72}
+            value={settings.fontSize ?? ""}
+            placeholder="По умолчанию"
+            onChange={(event) =>
+              updateSetting(
+                "fontSize",
+                event.target.value ? Number(event.target.value) : undefined
+              )
+            }
+            className="w-full border border-black bg-white px-3 py-2 outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-bold">Шрифт</span>
+          <select
+            value={settings.fontFamily ?? ""}
+            onChange={(event) =>
+              updateSetting("fontFamily", event.target.value || undefined)
+            }
+            className="w-full border border-black bg-white px-3 py-2 outline-none"
+          >
+            <option value="">По умолчанию</option>
+            {fontFamilies.map((font) => (
+              <option key={font} value={font}>
+                {font}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="mb-1 block text-sm font-bold">Цвет текста</span>
+            <input
+              type="color"
+              value={settings.textColor ?? "#000000"}
+              onChange={(event) => updateSetting("textColor", event.target.value)}
+              className="h-10 w-full border border-black bg-white"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-sm font-bold">Фон блока</span>
+            <input
+              type="color"
+              value={settings.backgroundColor ?? "#ffffff"}
+              onChange={(event) => updateSetting("backgroundColor", event.target.value)}
+              className="h-10 w-full border border-black bg-white"
+            />
+          </label>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="mb-1 block text-sm font-bold">Цвет рамки</span>
+            <input
+              type="color"
+              value={settings.borderColor ?? "#000000"}
+              onChange={(event) => updateSetting("borderColor", event.target.value)}
+              className="h-10 w-full border border-black bg-white"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-sm font-bold">Padding</span>
+            <input
+              type="number"
+              min={0}
+              max={80}
+              value={settings.padding ?? ""}
+              placeholder="auto"
+              onChange={(event) =>
+                updateSetting(
+                  "padding",
+                  event.target.value ? Number(event.target.value) : undefined
+                )
+              }
+              className="w-full border border-black bg-white px-3 py-2 outline-none"
+            />
+          </label>
+        </div>
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-bold">Выравнивание</span>
+          <select
+            value={settings.textAlign ?? "left"}
+            onChange={(event) =>
+              updateSetting("textAlign", event.target.value as BlockTextAlign)
+            }
+            className="w-full border border-black bg-white px-3 py-2 outline-none"
+          >
+            <option value="left">Слева</option>
+            <option value="center">По центру</option>
+            <option value="right">Справа</option>
+          </select>
+        </label>
+
+        {block.type === "code" && (
+          <div className="border border-black bg-neutral-100 p-3">
+            <h4 className="mb-3 font-bold">Настройки кода</h4>
+
+            <label className="block">
+              <span className="mb-1 block text-sm font-bold">Язык</span>
+              <select
+                value={settings.codeLanguage ?? "plain"}
+                onChange={(event) =>
+                  updateSetting("codeLanguage", event.target.value)
+                }
+                className="w-full border border-black bg-white px-3 py-2 outline-none"
+              >
+                {codeLanguages.map((language) => (
+                  <option key={language} value={language}>
+                    {language}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="mt-3 flex items-center gap-2 border border-black bg-white px-3 py-2">
+              <input
+                type="checkbox"
+                checked={Boolean(settings.codeWrap)}
+                onChange={(event) =>
+                  updateSetting("codeWrap", event.target.checked)
+                }
+              />
+              <span className="text-sm">Переносить строки</span>
+            </label>
+          </div>
+        )}
+
+        {block.type === "board" && (
+          <div className="border border-black bg-neutral-100 p-3 text-sm">
+            Для доски настройки оформления применяются к контейнеру блока. Рисование, zoom и перемещение остаются внутри самой доски.
+          </div>
+        )}
+
+        {block.type === "file" && (
+          <div className="border border-black bg-neutral-100 p-3 text-sm">
+            Для файла настройки применяются к контейнеру блока. Превью файла остаётся в исходном формате.
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={resetSettings}
+          className="w-full border border-black bg-white px-3 py-2 text-sm hover:bg-black hover:text-white"
+        >
+          Сбросить настройки блока
+        </button>
+      </div>
+    </aside>
+  );
+}

@@ -1,0 +1,234 @@
+﻿import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
+import type {
+  CustomBlockTemplate,
+  StudyMaterial,
+  StudyNode,
+} from "../../types/study";
+import { getBlockText, getBlockTitle } from "../../utils/blocks";
+import { getNodePath } from "../../utils/tree";
+
+interface CommandPaletteProps {
+  open: boolean;
+  nodes: StudyNode[];
+  materials: StudyMaterial[];
+  templates: CustomBlockTemplate[];
+  onClose: () => void;
+  onOpenNode: (nodeId: string) => void;
+  onCreateFolder: () => void;
+  onCreateMaterial: () => void;
+}
+
+interface CommandResult {
+  id: string;
+  title: string;
+  subtitle: string;
+  type: "command" | "folder" | "material" | "block";
+  action: () => void;
+}
+
+function normalize(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function CommandPalette({
+  open,
+  nodes,
+  materials,
+  templates,
+  onClose,
+  onOpenNode,
+  onCreateFolder,
+  onCreateMaterial,
+}: CommandPaletteProps) {
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setQuery("");
+    }
+  }, [open]);
+
+  const results = useMemo<CommandResult[]>(() => {
+    const commands: CommandResult[] = [
+      {
+        id: "command_create_folder",
+        title: "Создать папку",
+        subtitle: "Команда",
+        type: "command",
+        action: onCreateFolder,
+      },
+      {
+        id: "command_create_material",
+        title: "Создать материал",
+        subtitle: "Команда",
+        type: "command",
+        action: onCreateMaterial,
+      },
+    ];
+
+    const nodeResults: CommandResult[] = nodes.map((node) => ({
+      id: `node_${node.id}`,
+      title: node.title,
+      subtitle:
+        node.type === "folder"
+          ? `Папка · ${getNodePath(nodes, node.id)}`
+          : `Материал · ${getNodePath(nodes, node.id)}`,
+      type: node.type,
+      action: () => onOpenNode(node.id),
+    }));
+
+    const blockResults: CommandResult[] = materials.flatMap((material) => {
+      const materialNode = nodes.find((node) => node.id === material.nodeId);
+      const materialPath = materialNode
+        ? getNodePath(nodes, materialNode.id)
+        : material.title;
+
+      return material.blocks.map((block, index) => {
+        const blockText = getBlockText(block, templates).trim();
+        const blockTitle = getBlockTitle(block, templates);
+
+        return {
+          id: `block_${material.id}_${block.id}`,
+          title: blockText || `${blockTitle} #${index + 1}`,
+          subtitle: `Блок · ${blockTitle} · ${materialPath}`,
+          type: "block" as const,
+          action: () => onOpenNode(material.nodeId),
+        };
+      });
+    });
+
+    const allResults = [...commands, ...nodeResults, ...blockResults];
+
+    const normalizedQuery = normalize(query);
+
+    if (!normalizedQuery) {
+      return allResults.slice(0, 40);
+    }
+
+    return allResults
+      .filter((result) => {
+        const haystack = normalize(`${result.title} ${result.subtitle}`);
+
+        return haystack.includes(normalizedQuery);
+      })
+      .slice(0, 60);
+  }, [
+    query,
+    nodes,
+    materials,
+    templates,
+    onCreateFolder,
+    onCreateMaterial,
+    onOpenNode,
+  ]);
+
+  if (!open) {
+    return null;
+  }
+
+  function runResult(result: CommandResult) {
+    result.action();
+    onClose();
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+
+    if (event.key === "Enter" && results[0]) {
+      event.preventDefault();
+      runResult(results[0]);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-white/90 p-6"
+      onMouseDown={onClose}
+    >
+      <div
+        className="mx-auto max-w-3xl border border-black bg-white"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="border-b border-black p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-bold">Command Palette</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="border border-black bg-black px-3 py-1 text-sm text-white"
+            >
+              Esc
+            </button>
+          </div>
+
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Поиск по папкам, материалам, блокам и командам..."
+            className="w-full border border-black bg-white px-3 py-2 text-lg outline-none"
+          />
+
+          <p className="mt-2 text-xs text-neutral-600">
+            Ctrl + Shift + K — открыть. Enter — открыть первый результат. Esc — закрыть.
+          </p>
+        </div>
+
+        <div className="max-h-[560px] overflow-auto">
+          {results.length === 0 && (
+            <div className="p-6 text-center text-sm text-neutral-600">
+              Ничего не найдено.
+            </div>
+          )}
+
+          {results.map((result) => (
+            <button
+              key={result.id}
+              type="button"
+              onClick={() => runResult(result)}
+              className="grid w-full grid-cols-[110px_1fr] border-b border-neutral-300 bg-white text-left hover:bg-black hover:text-white"
+            >
+              <div className="border-r border-neutral-300 px-3 py-3 text-xs uppercase">
+                {result.type}
+              </div>
+
+              <div className="min-w-0 px-3 py-3">
+                <div className="truncate font-bold">
+                  {result.title}
+                </div>
+
+                <div className="truncate text-sm opacity-70">
+                  {result.subtitle}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

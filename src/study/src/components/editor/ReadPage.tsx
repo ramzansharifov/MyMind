@@ -1,0 +1,324 @@
+﻿import type {
+  CustomBlockTemplate,
+  StudyBlock,
+  StudyNode,
+} from "../../types/study";
+import { BlockRenderer } from "./BlockRenderer";
+import { InternalLinkBackButton } from "./InternalLinkBackButton";
+
+interface ReadPageProps {
+  currentNodeId: string;
+  title: string;
+  tags: string[];
+  blocks: StudyBlock[];
+  nodes: StudyNode[];
+  templates: CustomBlockTemplate[];
+  pageWidth: number;
+  collapsedBlockIds: Set<string>;
+  onToggleBlockCollapse: (blockId: string) => void;
+  onOpenNode: (nodeId: string) => void;
+  onBackNode?: (nodeId: string) => void;
+}
+
+interface TocItem {
+  id: string;
+  title: string;
+  level: number;
+}
+
+function stripHtml(value: string): string {
+  const element = document.createElement("div");
+  element.innerHTML = value;
+
+  return element.textContent || element.innerText || value;
+}
+
+function normalizeTocTitle(value: string): string {
+  const cleanValue = stripHtml(value).replace(/\s+/g, " ").trim();
+
+  return cleanValue || "Без названия";
+}
+
+function getHeadingLevel(block: StudyBlock, nestingLevel: number): number {
+  if (block.type !== "heading") {
+    return Math.min(3, nestingLevel + 1);
+  }
+
+  if (block.settings?.headingStyle === "h1") {
+    return 1;
+  }
+
+  if (block.settings?.headingStyle === "h2") {
+    return 2;
+  }
+
+  if (block.settings?.headingStyle === "h3") {
+    return 3;
+  }
+
+  return Math.min(3, nestingLevel + 1);
+}
+
+function collectTocItems(
+  blocks: StudyBlock[],
+  collapsedBlockIds: Set<string>,
+  nestingLevel = 0
+): TocItem[] {
+  return blocks.flatMap((block) => {
+    const ownItem =
+      block.type === "heading"
+        ? [
+            {
+              id: block.id,
+              title: normalizeTocTitle(block.content),
+              level: getHeadingLevel(block, nestingLevel),
+            },
+          ]
+        : [];
+
+    const children = block.children ?? [];
+    const canReadChildren = children.length > 0 && !collapsedBlockIds.has(block.id);
+
+    if (!canReadChildren) {
+      return ownItem;
+    }
+
+    return [
+      ...ownItem,
+      ...collectTocItems(children, collapsedBlockIds, nestingLevel + 1),
+    ];
+  });
+}
+
+function scrollToBlock(blockId: string) {
+  const target = document.querySelector(`[data-study-block-id="${blockId}"]`);
+
+  if (!target) {
+    return;
+  }
+
+  target.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
+}
+
+function getReadBlockSpacing(block: StudyBlock): string {
+  if (block.type === "heading") {
+    return "mt-9 first:mt-0";
+  }
+
+  if (block.type === "divider") {
+    return "my-8";
+  }
+
+  if (block.type === "board" || block.type === "file") {
+    return "my-8";
+  }
+
+  if (block.type === "code" || block.type === "latex") {
+    return "my-6";
+  }
+
+  return "my-4";
+}
+
+function renderReadBlocks(
+  blocks: StudyBlock[],
+  nodes: StudyNode[],
+  templates: CustomBlockTemplate[],
+  collapsedBlockIds: Set<string>,
+  onToggleBlockCollapse: (blockId: string) => void,
+  onOpenNode: (nodeId: string) => void,
+  level = 0
+) {
+  return blocks.map((block) => {
+    const children = block.children ?? [];
+    const hasChildren = children.length > 0;
+    const isCollapsed = collapsedBlockIds.has(block.id);
+
+    return (
+      <section
+        key={block.id}
+        id={`read-block-${block.id}`}
+        data-study-block-id={block.id}
+        className={[
+          getReadBlockSpacing(block),
+          block.type === "heading" ? "scroll-mt-20" : "",
+        ].join(" ")}
+      >
+        <div className={hasChildren ? "grid grid-cols-[32px_1fr] gap-2" : ""}>
+          {hasChildren && (
+            <button
+              type="button"
+              onClick={() => onToggleBlockCollapse(block.id)}
+              className="mt-1 h-7 border border-black bg-white text-sm hover:bg-black hover:text-white"
+              title={isCollapsed ? "Развернуть дочерние блоки" : "Свернуть дочерние блоки"}
+            >
+              {isCollapsed ? "+" : "-"}
+            </button>
+          )}
+
+          <div>
+            <BlockRenderer
+              block={block}
+              nodes={nodes}
+              templates={templates}
+              editable={false}
+              onChange={() => {}}
+              onOpenNode={onOpenNode}
+            />
+
+            {hasChildren && isCollapsed && (
+              <div className="mt-3 border border-dashed border-black bg-neutral-100 px-3 py-2 text-sm text-neutral-700">
+                Дочерние блоки скрыты: {children.length}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {hasChildren && !isCollapsed && (
+          <div
+            className={
+              level === 0
+                ? "mt-4 border-l border-black pl-5"
+                : "mt-4 border-l border-neutral-400 pl-5"
+            }
+          >
+            {renderReadBlocks(
+              children,
+              nodes,
+              templates,
+              collapsedBlockIds,
+              onToggleBlockCollapse,
+              onOpenNode,
+              level + 1
+            )}
+          </div>
+        )}
+      </section>
+    );
+  });
+}
+
+function printReadPage() {
+  window.print();
+}
+
+export function ReadPage({
+  currentNodeId,
+  title,
+  tags,
+  blocks,
+  nodes,
+  templates,
+  pageWidth,
+  collapsedBlockIds,
+  onToggleBlockCollapse,
+  onOpenNode,
+  onBackNode,
+}: ReadPageProps) {
+  const tocItems = collectTocItems(blocks, collapsedBlockIds);
+  const hasToc = tocItems.length > 0;
+
+  return (
+    <>
+      <InternalLinkBackButton currentNodeId={currentNodeId} onOpenNode={onBackNode ?? onOpenNode} />
+
+      <div className="read-page-toolbar mx-auto mb-4 flex max-w-[1500px] justify-end gap-2">
+        <button
+          type="button"
+          onClick={printReadPage}
+          className="border border-black bg-white px-4 py-2 text-sm hover:bg-black hover:text-white"
+        >
+          Print / PDF
+        </button>
+      </div>
+
+      <div
+      className={
+        hasToc
+          ? "read-page-print-root mx-auto grid max-w-[1500px] grid-cols-[minmax(0,1fr)_280px] items-start gap-4"
+          : "read-page-print-root mx-auto max-w-[1500px]"
+      }
+    >
+      <article
+        className="read-page-sheet mx-auto border border-black bg-white px-14 py-12"
+        style={{
+          maxWidth: pageWidth,
+          width: "100%",
+        }}
+      >
+        <header className="mb-10 border-b border-black pb-6">
+          <h1 className="text-4xl font-black leading-tight">
+            {title}
+          </h1>
+
+          {tags.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="border border-black bg-white px-2 py-1 text-xs"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </header>
+
+        {blocks.length === 0 && (
+          <p className="text-neutral-600">
+            В этом материале пока нет содержимого.
+          </p>
+        )}
+
+        <div className="leading-7">
+          {renderReadBlocks(
+            blocks,
+            nodes,
+            templates,
+            collapsedBlockIds,
+            onToggleBlockCollapse,
+            onOpenNode
+          )}
+        </div>
+      </article>
+
+      {hasToc && (
+        <aside className="read-page-toc sticky top-4 max-h-[calc(100vh-32px)] overflow-auto border border-black bg-white">
+          <div className="border-b border-black bg-neutral-100 px-4 py-3">
+            <h2 className="font-bold">Содержание</h2>
+            <p className="mt-1 text-xs text-neutral-600">
+              Заголовков: {tocItems.length}
+            </p>
+          </div>
+
+          <nav className="p-2">
+            {tocItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => scrollToBlock(item.id)}
+                className="block w-full border-b border-neutral-300 bg-white px-2 py-2 text-left text-sm hover:bg-black hover:text-white"
+                style={{
+                  paddingLeft: `${8 + (item.level - 1) * 16}px`,
+                }}
+                title={item.title}
+              >
+                <span className="mr-2 text-xs opacity-60">
+                  H{item.level}
+                </span>
+                <span className="break-words">
+                  {item.title}
+                </span>
+              </button>
+            ))}
+          </nav>
+        </aside>
+      )}
+    </div>
+    </>
+  );
+}

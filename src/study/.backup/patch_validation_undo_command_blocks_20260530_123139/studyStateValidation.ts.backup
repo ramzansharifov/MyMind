@@ -1,0 +1,38 @@
+﻿import type { StudyState } from "../types/study";
+
+export function normalizeImportedStudyState(value: unknown): StudyState {
+  if (!value || typeof value !== "object") {
+    throw new Error("Imported file is not a valid object.");
+  }
+
+  const raw = value as Partial<StudyState>;
+
+  if (!Array.isArray(raw.nodes)) {
+    throw new Error("Imported JSON does not contain valid nodes array.");
+  }
+
+  if (!Array.isArray(raw.materials)) {
+    throw new Error("Imported JSON does not contain valid materials array.");
+  }
+
+  return {
+    selectedNodeId:
+      typeof raw.selectedNodeId === "string" || raw.selectedNodeId === null
+        ? raw.selectedNodeId
+        : raw.nodes[0]?.id ?? null,
+    nodes: raw.nodes,
+    materials: raw.materials,
+    customBlockTemplates: Array.isArray(raw.customBlockTemplates)
+      ? raw.customBlockTemplates
+      : [],
+  };
+}
+
+export function createEmptyStudyState(): StudyState {
+  return {
+    selectedNodeId: null,
+    nodes: [],
+    materials: [],
+    customBlockTemplates: [],
+  };
+}

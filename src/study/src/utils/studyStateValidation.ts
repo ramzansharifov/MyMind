@@ -1,0 +1,567 @@
+﻿import type {
+  BlockSettings,
+  BoardPoint,
+  BoardStroke,
+  CustomBlockField,
+  CustomBlockTemplate,
+  CustomBlockValue,
+  CustomFieldType,
+  StudyBlock,
+  StudyBlockType,
+  TableCellStyle,
+  TableCellSpan,
+  StudyMaterial,
+  StudyNode,
+  StudyNodeType,
+  StudyState,
+} from "../types/study";
+
+const allowedNodeTypes: StudyNodeType[] = ["folder", "material"];
+
+const allowedBlockTypes: StudyBlockType[] = [
+  "heading",
+  "text",
+  "latex",
+  "markdown",
+  "code",
+  "table",
+  "definition",
+  "problem",
+  "solution",
+  "board",
+  "file",
+  "divider",
+  "custom",
+];
+
+const allowedFieldTypes: CustomFieldType[] = [
+  "text",
+  "long_text",
+  "latex",
+  "number",
+  "checkbox",
+  "select",
+  "date",
+  "link",
+];
+
+function makeId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function now(): string {
+  return new Date().toISOString();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function asString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function asNumber(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function asBoolean(value: unknown, fallback = false): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function asDateString(value: unknown): string {
+  const raw = asString(value);
+
+  if (!raw) {
+    return now();
+  }
+
+  const time = Date.parse(raw);
+
+  return Number.isFinite(time) ? raw : now();
+}
+
+function asNullableString(value: unknown): string | null {
+  return typeof value === "string" || value === null ? value : null;
+}
+
+function normalizeSettings(value: unknown): BlockSettings | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const settings: BlockSettings = {};
+
+  if (value.headingStyle === "h1" || value.headingStyle === "h2" || value.headingStyle === "h3") {
+    settings.headingStyle = value.headingStyle;
+  }
+
+  if (typeof value.fontSize === "number" && Number.isFinite(value.fontSize)) {
+    settings.fontSize = value.fontSize;
+  }
+
+  if (typeof value.textColor === "string") {
+    settings.textColor = value.textColor;
+  }
+
+  if (typeof value.backgroundColor === "string") {
+    settings.backgroundColor = value.backgroundColor;
+  }
+
+  if (typeof value.padding === "number" && Number.isFinite(value.padding)) {
+    settings.padding = value.padding;
+  }
+
+  if (value.textAlign === "left" || value.textAlign === "center" || value.textAlign === "right") {
+    settings.textAlign = value.textAlign;
+  }
+
+  if (typeof value.codeLanguage === "string") {
+    settings.codeLanguage = value.codeLanguage;
+  }
+
+  if (typeof value.codeWrap === "boolean") {
+    settings.codeWrap = value.codeWrap;
+  }
+
+  return Object.keys(settings).length > 0 ? settings : undefined;
+}
+
+function normalizeNode(value: unknown, index: number): StudyNode | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const type = allowedNodeTypes.includes(value.type as StudyNodeType)
+    ? (value.type as StudyNodeType)
+    : null;
+
+  if (!type) {
+    return null;
+  }
+
+  return {
+    id: asString(value.id, makeId(type)),
+    type,
+    title: asString(value.title, type === "folder" ? "Новая папка" : "Новый материал"),
+    parentId: asNullableString(value.parentId),
+    order: asNumber(value.order, index + 1),
+    createdAt: asDateString(value.createdAt),
+    updatedAt: asDateString(value.updatedAt),
+  };
+}
+
+function normalizePoint(value: unknown): BoardPoint | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const x = asNumber(value.x, Number.NaN);
+  const y = asNumber(value.y, Number.NaN);
+
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+
+  return {
+    x,
+    y,
+  };
+}
+
+function normalizeStroke(value: unknown): BoardStroke | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const points = Array.isArray(value.points)
+    ? (value.points.map(normalizePoint).filter(Boolean) as BoardPoint[])
+    : [];
+
+  return {
+    id: asString(value.id, makeId("stroke")),
+    width: Math.max(1, asNumber(value.width, 3)),
+    color: asString(value.color, "#000000"),
+    points,
+  };
+}
+
+function normalizeCustomValue(value: unknown): CustomBlockValue {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+
+  return "";
+}
+
+function normalizeRows(value: unknown): string[][] {
+  if (!Array.isArray(value)) {
+    return [["", ""], ["", ""]];
+  }
+
+  const rows = value
+    .filter((row) => Array.isArray(row))
+    .map((row) => row.map((cell) => asString(cell)));
+
+  return rows.length > 0 ? rows : [["", ""], ["", ""]];
+}
+
+function normalizeColumnWidths(value: unknown): number[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const widths = value
+    .map((width) => asNumber(width, 180))
+    .map((width) => Math.max(80, Math.min(600, width)));
+
+  return widths.length > 0 ? widths : undefined;
+}
+
+function normalizeTableCellStyle(value: unknown): TableCellStyle | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const style: TableCellStyle = {};
+
+  if (typeof value.backgroundColor === "string") {
+    style.backgroundColor = value.backgroundColor;
+  }
+
+  if (typeof value.textColor === "string") {
+    style.textColor = value.textColor;
+  }
+
+  if (
+    value.textAlign === "left" ||
+    value.textAlign === "center" ||
+    value.textAlign === "right"
+  ) {
+    style.textAlign = value.textAlign;
+  }
+
+  if (
+    value.verticalAlign === "top" ||
+    value.verticalAlign === "middle" ||
+    value.verticalAlign === "bottom"
+  ) {
+    style.verticalAlign = value.verticalAlign;
+  }
+
+  return Object.keys(style).length > 0 ? style : null;
+}
+
+function normalizeTableCellStyles(value: unknown): Record<string, TableCellStyle> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const styles: Record<string, TableCellStyle> = {};
+
+  Object.entries(value).forEach(([key, itemValue]) => {
+    if (!/^\d+:\d+$/.test(key)) {
+      return;
+    }
+
+    const style = normalizeTableCellStyle(itemValue);
+
+    if (style) {
+      styles[key] = style;
+    }
+  });
+
+  return Object.keys(styles).length > 0 ? styles : undefined;
+}
+
+function normalizeTableCellSpan(value: unknown): TableCellSpan | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const span: TableCellSpan = {};
+
+  const rowSpan = asNumber(value.rowSpan, 1);
+  const colSpan = asNumber(value.colSpan, 1);
+
+  if (Number.isFinite(rowSpan) && rowSpan > 1) {
+    span.rowSpan = Math.max(1, Math.min(50, Math.round(rowSpan)));
+  }
+
+  if (Number.isFinite(colSpan) && colSpan > 1) {
+    span.colSpan = Math.max(1, Math.min(50, Math.round(colSpan)));
+  }
+
+  if (typeof value.hidden === "boolean") {
+    span.hidden = value.hidden;
+  }
+
+  return Object.keys(span).length > 0 ? span : null;
+}
+
+function normalizeTableCellSpans(value: unknown): Record<string, TableCellSpan> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const spans: Record<string, TableCellSpan> = {};
+
+  Object.entries(value).forEach(([key, itemValue]) => {
+    if (!/^\d+:\d+$/.test(key)) {
+      return;
+    }
+
+    const span = normalizeTableCellSpan(itemValue);
+
+    if (span) {
+      spans[key] = span;
+    }
+  });
+
+  return Object.keys(spans).length > 0 ? spans : undefined;
+}
+
+function normalizeTableCellMergeBackups(value: unknown): Record<string, Record<string, string>> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const backups: Record<string, Record<string, string>> = {};
+
+  Object.entries(value).forEach(([masterKey, backupValue]) => {
+    if (!/^\d+:\d+$/.test(masterKey) || !isRecord(backupValue)) {
+      return;
+    }
+
+    const backup: Record<string, string> = {};
+
+    Object.entries(backupValue).forEach(([cellKey, cellValue]) => {
+      if (!/^\d+:\d+$/.test(cellKey)) {
+        return;
+      }
+
+      backup[cellKey] = asString(cellValue);
+    });
+
+    if (Object.keys(backup).length > 0) {
+      backups[masterKey] = backup;
+    }
+  });
+
+  return Object.keys(backups).length > 0 ? backups : undefined;
+}
+
+function normalizeBlock(value: unknown): StudyBlock | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const rawType = asString(value.type, "text");
+
+  const type = allowedBlockTypes.includes(rawType as StudyBlockType)
+    ? (rawType as StudyBlockType)
+    : "text";
+
+  const children = Array.isArray(value.children)
+    ? (value.children.map(normalizeBlock).filter(Boolean) as StudyBlock[])
+    : [];
+
+  const base = {
+    id: asString(value.id, makeId("block")),
+    createdAt: asDateString(value.createdAt),
+    updatedAt: asDateString(value.updatedAt),
+    settings: normalizeSettings(value.settings),
+    children,
+  };
+
+  if (type === "table") {
+    return {
+      ...base,
+      type: "table",
+      rows: normalizeRows(value.rows),
+      hasHeader: asBoolean(value.hasHeader, true),
+      columnWidths: normalizeColumnWidths(value.columnWidths),
+      cellStyles: normalizeTableCellStyles(value.cellStyles),
+      cellSpans: normalizeTableCellSpans(value.cellSpans),
+      cellMergeBackups: normalizeTableCellMergeBackups(value.cellMergeBackups),
+    };
+  }
+
+  if (type === "board") {
+    return {
+      ...base,
+      type: "board",
+      title: asString(value.title, "Новая доска"),
+      strokes: Array.isArray(value.strokes)
+        ? (value.strokes.map(normalizeStroke).filter(Boolean) as BoardStroke[])
+        : [],
+    };
+  }
+
+  if (type === "file") {
+    return {
+      ...base,
+      type: "file",
+      fileId: asString(value.fileId),
+      fileName: asString(value.fileName),
+      note: asString(value.note),
+      mimeType: asString(value.mimeType),
+      size: Math.max(0, asNumber(value.size, 0)),
+    };
+  }
+
+  if (type === "divider") {
+    return {
+      ...base,
+      type: "divider",
+    };
+  }
+
+  if (type === "custom") {
+    const rawValues = isRecord(value.values) ? value.values : {};
+    const values: Record<string, CustomBlockValue> = {};
+
+    Object.entries(rawValues).forEach(([key, itemValue]) => {
+      values[key] = normalizeCustomValue(itemValue);
+    });
+
+    return {
+      ...base,
+      type: "custom",
+      templateId: asString(value.templateId),
+      values,
+    };
+  }
+
+  return {
+    ...base,
+    type,
+    content: asString(value.content),
+  };
+}
+
+function normalizeMaterial(value: unknown, index: number): StudyMaterial | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const blocks = Array.isArray(value.blocks)
+    ? (value.blocks.map(normalizeBlock).filter(Boolean) as StudyBlock[])
+    : [];
+
+  const tags = Array.isArray(value.tags)
+    ? value.tags.map((tag) => asString(tag)).filter(Boolean)
+    : [];
+
+  return {
+    id: asString(value.id, makeId("material")),
+    nodeId: asString(value.nodeId),
+    title: asString(value.title, `Материал ${index + 1}`),
+    blocks,
+    tags,
+    createdAt: asDateString(value.createdAt),
+    updatedAt: asDateString(value.updatedAt),
+  };
+}
+
+function normalizeField(value: unknown): CustomBlockField | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const type = allowedFieldTypes.includes(value.type as CustomFieldType)
+    ? (value.type as CustomFieldType)
+    : "text";
+
+  return {
+    id: asString(value.id, makeId("field")),
+    label: asString(value.label, "Поле"),
+    type,
+    required: asBoolean(value.required),
+    placeholder: asString(value.placeholder),
+    options: Array.isArray(value.options)
+      ? value.options.map((option) => asString(option)).filter(Boolean)
+      : [],
+  };
+}
+
+function normalizeTemplate(value: unknown, index: number): CustomBlockTemplate | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  return {
+    id: asString(value.id, makeId("template")),
+    name: asString(value.name, `Шаблон ${index + 1}`),
+    icon: asString(value.icon, "B"),
+    color: asString(value.color, "#000000"),
+    description: asString(value.description),
+    fields: Array.isArray(value.fields)
+      ? (value.fields.map(normalizeField).filter(Boolean) as CustomBlockField[])
+      : [],
+    createdAt: asDateString(value.createdAt),
+    updatedAt: asDateString(value.updatedAt),
+  };
+}
+
+export function createEmptyStudyState(): StudyState {
+  return {
+    selectedNodeId: null,
+    nodes: [],
+    materials: [],
+    customBlockTemplates: [],
+  };
+}
+
+export function normalizeStudyState(value: unknown): StudyState {
+  if (!isRecord(value)) {
+    return createEmptyStudyState();
+  }
+
+  const nodes = Array.isArray(value.nodes)
+    ? (value.nodes.map(normalizeNode).filter(Boolean) as StudyNode[])
+    : [];
+
+  const nodeIds = new Set(nodes.map((node) => node.id));
+
+  const repairedNodes = nodes.map((node) => ({
+    ...node,
+    parentId: node.parentId && nodeIds.has(node.parentId) ? node.parentId : null,
+  }));
+
+  const materials = Array.isArray(value.materials)
+    ? (value.materials.map(normalizeMaterial).filter(Boolean) as StudyMaterial[])
+    : [];
+
+  const repairedMaterials = materials.filter((material) => {
+    if (!material.nodeId) {
+      return false;
+    }
+
+    const node = repairedNodes.find((item) => item.id === material.nodeId);
+
+    return Boolean(node && node.type === "material");
+  });
+
+  const customBlockTemplates = Array.isArray(value.customBlockTemplates)
+    ? (value.customBlockTemplates.map(normalizeTemplate).filter(Boolean) as CustomBlockTemplate[])
+    : [];
+
+  const rawSelectedNodeId = asNullableString(value.selectedNodeId);
+
+  const selectedNodeId =
+    rawSelectedNodeId && repairedNodes.some((node) => node.id === rawSelectedNodeId)
+      ? rawSelectedNodeId
+      : repairedNodes[0]?.id ?? null;
+
+  return {
+    selectedNodeId,
+    nodes: repairedNodes,
+    materials: repairedMaterials,
+    customBlockTemplates,
+  };
+}
+
+export function normalizeImportedStudyState(value: unknown): StudyState {
+  return normalizeStudyState(value);
+}

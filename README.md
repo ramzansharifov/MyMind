@@ -1,121 +1,309 @@
 # MyMind
 
-MyMind is a local-first desktop second brain built with React, TypeScript, Electron, Vite, and JSON file storage. It keeps movies, workouts, todo items, finance records, habits, life events, journal entries, notes, projects, contacts, health entries, goals, inventory, and settings fully offline.
+MyMind is a local-first desktop “second brain” for personal knowledge, routines, finance, health, planning, and media tracking. The application is built as a hybrid Electron + React + TypeScript system with all primary data stored in local JSON files under the user’s Documents folder, which makes it easy to inspect, back up, and evolve without depending on a remote database.
 
-There is no backend, cloud sync, database, SQLite layer, or authentication yet. The renderer never reads files directly; it uses a secure Electron preload API and IPC handlers in the main process.
+The project is intentionally designed around a simple principle: the UI should be rich and modular, while the data layer remains transparent, resilient, and editable by the user. There is no cloud backend, no authentication layer, and no remote sync service in the current version.
 
-## Install
+---
 
-```powershell
-npm install
-```
+## 1. Product vision
 
-## Run In Development
+MyMind is not just a notebook. It is a small personal operating system for everyday life:
 
-```powershell
-npm run dev
-```
+- capture ideas, notes, templates, and projects;
+- track habits, workouts, nutrition, health, and calendar events;
+- manage finance, inventory, contacts, goals, and movies;
+- keep everything available offline and under user control;
+- support incremental extension through isolated modules.
 
-This starts Vite, compiles the Electron main/preload TypeScript files, and opens the Electron app.
+This makes the app suitable for both personal productivity and long-term experimentation with a modular knowledge workspace.
 
-## Build
+---
 
-```powershell
-npm run build
-```
+## 2. Core design principles
 
-## Build A Windows Installer
+### Local-first
 
-```powershell
-npm run dist:win
-```
+The app stores its working data in `Documents/MyMind/data/` and uses the Electron main process as the only place that reads and writes files. The renderer process never directly touches the filesystem.
 
-The Windows distributable is created by electron-builder in `release/`.
+### Modularity
 
-## JSON Storage
+Each feature area lives in its own module folder under `src/modules/`. The top-level shell is thin, and each page receives typed data from `App.tsx` through well-defined props.
 
-App data is stored locally in:
+### Resilience
+
+The storage backend includes recovery behavior for missing or corrupted files. If a collection is broken, the app backs it up as `.corrupted.<timestamp>` and recreates a safe default structure instead of crashing.
+
+### Extensibility
+
+The data model is already split by collection and module, so new domains can be added through a repeatable pattern: types, renderer page, storage mapping, and navigation registration.
+
+---
+
+## 3. Technology stack
+
+- React 19 + TypeScript for the UI layer
+- Vite for frontend development and build pipeline
+- Electron 33 for the desktop shell and OS integration
+- IPC (Electron preload + main process) for safe renderer-to-main communication
+- JSON files as the primary persistence format
+- BlockNote for the rich note editor experience
+- Recharts for data visualization
+- Lucide React icons for the interface
+
+This stack is intentionally lightweight: no heavy backend, no database migration complexity, and no dependency on external services.
+
+---
+
+## 4. Application architecture
+
+### 4.1 Runtime flow
+
+1. `electron/main.ts` creates the desktop window.
+2. `electron/preload.ts` exposes a limited API to the renderer via `contextBridge`.
+3. The renderer calls `storageClient` in `src/shared/storage/storageClient.ts`.
+4. IPC handlers in `electron/ipc/storage.ipc.ts` perform file operations in the Electron main process.
+5. The app state in `src/shared/app/useAppData.ts` hydrates collections from storage, normalizes them, and persists changes back.
+
+This separation ensures that a renderer-side bug cannot directly corrupt local files.
+
+### 4.2 Why the IPC layer matters
+
+The architecture intentionally places all file I/O in the main process:
+
+- safer access control;
+- central recovery and backup logic;
+- easier future replacement of JSON storage with SQLite or another backend;
+- better control over exported/imported data and asset handling.
+
+### 4.3 Renderer structure
+
+The main shell is centered in `src/App.tsx`:
+
+- it manages the current module;
+- lazy-loads pages for performance;
+- handles reminders and note-editor dirty-state navigation;
+- passes collection data into each module page.
+
+The `AppShell` and navigation definitions organize the interface around a modular sidebar and grouped sections.
+
+---
+
+## 5. Data model and storage strategy
+
+### 5.1 Primary storage location
+
+All runtime data is stored under:
 
 ```text
 Documents/MyMind/data/
 ```
 
-The project also includes a `data/` folder with the same file names as a development template:
+The repository also contains a `data/` template folder with the same file names used by the app during development.
 
-```text
-movies.json
-workouts.json
-todos.json
-finance.json
-habits.json
-calendar_events.json
-journal_entries.json
-notes.json
-projects.json
-contacts.json
-health.json
-goals.json
-inventory.json
-app_settings.json
+### 5.2 Collection catalog
+
+The current data collections are:
+
+- `movies.json`
+- `workouts.json`
+- `todos.json`
+- `finance.json`
+- `habits.json`
+- `calendar_events.json`
+- `journal_entries.json`
+- `notes.json`
+- `templates.json`
+- `projects.json`
+- `contacts.json`
+- `health.json`
+- `goals.json`
+- `inventory.json`
+- `app_settings.json`
+
+### 5.3 Collection shapes
+
+- list-based collections are stored as arrays;
+- composite modules such as `workouts`, `finance`, `habits`, `todos`, and `health` use structured objects;
+- settings are stored as one object under `app_settings.json`.
+
+This makes the storage format readable and easy to inspect with a text editor, while still allowing structured logic in the renderer.
+
+### 5.4 Data safety logic
+
+The storage implementation in `electron/ipc/storage.ipc.ts` includes:
+
+- automatic creation of missing files;
+- atomic write operations using temp files + rename;
+- corruption backup into `.corrupted.<timestamp>` files;
+- retry handling for transient filesystem errors;
+- queueing for collection writes to reduce race conditions.
+
+This is one of the strongest parts of the codebase because it protects the workspace from common user and OS-level failures.
+
+---
+
+## 6. Current module map
+
+### Dashboard
+
+A central overview screen that aggregates signals from the whole workspace, presents important panels, and gives fast navigation into key modules.
+
+### Movies
+
+Tracks watched or planned movies and related personal media records.
+
+### Workouts
+
+Provides workout data, exercise libraries, training plans, logs, session history, and nutrition entries. It is one of the most structured module domains in the project.
+
+### Todos
+
+Handles task lists with due dates, groups, local reminders, and task lifecycle management.
+
+### Finance
+
+Supports starting balances, transactions, savings goals, tags, filters, and reset flows.
+
+### Habits
+
+A routine builder with daily habit tracking and completion notes.
+
+### Calendar
+
+Provides month-grid planning, event management, reminders, and date-based life organization.
+
+### Journal
+
+Serves as a reflective or diary-style section for personal entries.
+
+### Notes
+
+A knowledge workspace with preview cards, note indexing, search support, rich content editing, and asset management.
+
+### Templates
+
+Stores reusable content structures for recurring notes or forms.
+
+### Projects
+
+Keeps project-oriented records and individual work items.
+
+### Contacts
+
+Stores contact information in grouped data records.
+
+### Health
+
+Tracks health metrics, logs, and other wellbeing-related entries.
+
+### Goals
+
+Supports personal outcome tracking and long-term planning.
+
+### Inventory
+
+Captures physical or digital inventory items and their state.
+
+### Settings
+
+Centralizes theme mode, density, language, currency, start section, data folder access, backup import/export, and the current data workspace.
+
+---
+
+## 7. Notes and asset system
+
+The notes system is more advanced than the rest of the project because it includes:
+
+- indexed note metadata;
+- a search index;
+- draft persistence;
+- asset upload and storage;
+- HTML cache generation;
+- cleanup of unused assets.
+
+This part of the codebase is very important because it demonstrates how the app can evolve from simple JSON records to a richer, document-centric workspace without introducing a database dependency.
+
+---
+
+## 8. Data lifecycle and operational behavior
+
+The app supports several operational patterns:
+
+- archive records;
+- move records to trash;
+- pin important items;
+- retain trashed records for a limited period;
+- clean expired trash during startup or workspace maintenance;
+- restore and import previous backups.
+
+Trash retention is currently set to 30 days, which makes the system practical for personal record keeping without forcing permanent deletion.
+
+---
+
+## 9. Development workflow
+
+### Install
+
+```powershell
+npm install
 ```
 
-List collections are initialized with `[]`. Composite collections use objects:
+### Run in development
 
-```json
-{
-  "plans": [],
-  "sessions": []
-}
+```powershell
+npm run dev
 ```
 
-If a JSON file is missing, the Electron storage layer creates it. If JSON is corrupted, the app creates a `.corrupted.<timestamp>` backup and recreates the original file with a safe default value.
+This starts Vite, watches TypeScript for Electron files, and launches the Electron desktop app.
 
-## Current Modules
+### Build the web/electron bundle
 
-- Dashboard with global overview and pinned signals
-- Global search across the local workspace
-- Record Center in Settings for recent active records across modules
-- Movies
-- Workouts with an exercise library, training plans, factual workout logs, session history, and nutrition journal
-- Todo with due dates and local reminders
-- Finance with starting balance, optional income/expense tags, a full reset flow, transaction filters, and a separate savings goals page
-- Habits as a daily routine builder with daily completion notes and preserved history when habits are removed from the active list
-- Calendar with a month grid, date-based events, important upcoming events, and reminders
-- Journal
-- Notes / Knowledge Base with preview cards and a full-page rich text editor
-- Projects
-- Contacts
-- Health
-- Goals
-- Inventory
-- Archive and trash manager with 30-day trash retention
-- Settings with theme, interface density, accent color, start section, currency, backup export/import, and data folder access
-- Full single-file JSON backup export/import with import preview
-- English/Russian interface language switch in Settings
+```powershell
+npm run build
+```
 
-## Current Data Lifecycle
+### Build a Windows installer
 
-Regular pages can archive records, move records to trash, and pin important records on the page. Archived and trashed records are hidden from normal lists and global search. Trash entries keep an expiration timestamp and are automatically removed after 30 days when the app starts.
+```powershell
+npm run dist:win
+```
 
-## Adding A Module Later
+The distributable output is placed under `release/`.
 
-1. Add module types in `src/modules/new_module/types.ts`.
-2. Add UI components and a page in `src/modules/new_module/`.
-3. Add collection mapping in `electron/ipc/storage.ipc.ts` if the module needs a new JSON file.
-4. Add the collection type to `src/shared/storage/storageTypes.ts`.
-5. Register the page in `src/App.tsx` and the sidebar in `src/shared/components/Sidebar.tsx`.
-6. Keep calculations in module utility files instead of embedding business logic in UI components.
+---
 
-## Future Linked Records
+## 10. How to extend the app safely
 
-The current app intentionally keeps modules independent. A future version should add lightweight links between records, for example goals linked to projects, projects linked to tasks, contacts linked to notes, and life events linked to journal entries. This should be implemented as optional relationship metadata first, not as a hard dependency between modules.
+A new module should follow this pattern:
 
-## Future JSON To SQLite Migration
+1. Define typed entities in `src/modules/new_module/types.ts`.
+2. Create the page and UI in `src/modules/new_module/`.
+3. Add storage collection support in `electron/ipc/storage.ipc.ts` if a new file is needed.
+4. Add collection metadata in `src/shared/storage/storageTypes.ts`.
+5. Register the module in `src/App.tsx` and the navigation shell.
+6. Keep calculations and transforms in utility files rather than directly in components.
 
-The migration path should replace the storage implementation behind IPC, not the React pages:
+This keeps the app architecture consistent even as the feature set grows.
 
-1. Keep TypeScript entity models stable.
-2. Add SQLite tables that mirror the current JSON shape.
-3. Build a one-time importer from `Documents/MyMind/data/*.json`.
-4. Swap the Electron IPC storage handlers from JSON reads/writes to SQLite calls.
-5. Keep JSON export/import as a backup format.
+---
+
+## 11. Future evolution ideas
+
+The project is already structured for further growth:
+
+- add lightweight relationship metadata between records (goal → project, contact → note, event → journal entry);
+- replace the JSON storage backend behind IPC with SQLite or another durable engine;
+- add richer analytics and charting for finance, habits, and health;
+- support import/export of individual modules and full snapshots;
+- introduce search ranking, tagging, and smart filtering.
+
+The current design makes that future migration possible without rewriting the UI pages first.
+
+---
+
+## 12. Summary
+
+MyMind is a focused, offline-first desktop workspace that combines personal knowledge management, planning, tracking, and local automation in one app. Its main technical strength is not complexity but clarity: React pages, Electron IPC, and JSON collections are intentionally separated so the project remains understandable, secure, and easy to extend.
+
+In other words, MyMind is currently a small but well-structured personal OS for local digital life, and its architecture is already ready for the next step: richer integrations, smarter linking, and a more durable storage backend.

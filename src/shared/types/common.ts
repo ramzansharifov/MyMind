@@ -74,6 +74,7 @@ export type ModuleKey =
   | 'journal'
   | 'notes'
   | 'templates'
+  | 'study'
   | 'projects'
   | 'contacts'
   | 'health'

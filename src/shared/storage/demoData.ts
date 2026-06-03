@@ -33,6 +33,8 @@ export function isAppDataEmpty(data: AppData) {
     data.journalEntries.items.length === 0 &&
     data.notes.items.length === 0 &&
     data.templates.items.length === 0 &&
+    data.study.materials.length === 0 &&
+    data.study.nodes.length === 0 &&
     data.projects.length === 0 &&
     data.contacts.items.length === 0 &&
     data.health.entries.length === 0 &&
@@ -879,6 +881,12 @@ export function createDemoData(): AppData {
         },
       ],
       groups: [],
+    },
+    study: {
+      selectedNodeId: null,
+      nodes: [],
+      materials: [],
+      customBlockTemplates: [],
     },
     projects: [
       {

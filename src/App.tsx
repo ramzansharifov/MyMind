@@ -20,6 +20,7 @@ const CalendarPage = lazy(() => import('./modules/calendar/CalendarPage').then((
 const JournalPage = lazy(() => import('./modules/journal/JournalPage').then((module) => ({ default: module.JournalPage })));
 const NotesPage = lazy(() => import('./modules/notes/NotesPage').then((module) => ({ default: module.NotesPage })));
 const TemplatesPage = lazy(() => import('./modules/templates/TemplatesPage').then((module) => ({ default: module.TemplatesPage })));
+const StudyPage = lazy(() => import('./modules/study/StudyPage').then((module) => ({ default: module.StudyPage })));
 const SettingsPage = lazy(() => import('./modules/settings/SettingsPage').then((module) => ({ default: module.SettingsPage })));
 const ProjectsPage = lazy(() => import('./modules/projects/ProjectsPage').then((module) => ({ default: module.ProjectsPage })));
 const ContactsPage = lazy(() => import('./modules/contacts/ContactsPage').then((module) => ({ default: module.ContactsPage })));
@@ -188,6 +189,13 @@ export function App() {
           <TemplatesPage
             data={data.templates}
             onChange={(templates) => setData((current) => ({ ...current, templates }))}
+          />
+        );
+      case 'study':
+        return (
+          <StudyPage
+            data={data.study}
+            onChange={(study) => setData((current) => ({ ...current, study }))}
           />
         );
       case 'projects':

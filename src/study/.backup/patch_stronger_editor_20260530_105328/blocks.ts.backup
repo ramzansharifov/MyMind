@@ -1,0 +1,176 @@
+﻿import type {
+  BoardStudyBlock,
+  ContentStudyBlock,
+  CustomBlockTemplate,
+  CustomBlockValue,
+  CustomStudyBlock,
+  FileStudyBlock,
+  StudyBlock,
+  StudyBlockType,
+} from "../types/study";
+import { createId, now } from "./ids";
+
+export type SystemBlockType = Exclude<StudyBlockType, "custom">;
+
+export function isContentBlock(block: StudyBlock): block is ContentStudyBlock {
+  return (
+    block.type === "heading" ||
+    block.type === "text" ||
+    block.type === "latex" ||
+    block.type === "definition" ||
+    block.type === "problem" ||
+    block.type === "solution"
+  );
+}
+
+export function isBoardBlock(block: StudyBlock): block is BoardStudyBlock {
+  return block.type === "board";
+}
+
+export function isFileBlock(block: StudyBlock): block is FileStudyBlock {
+  return block.type === "file";
+}
+
+export function isCustomBlock(block: StudyBlock): block is CustomStudyBlock {
+  return block.type === "custom";
+}
+
+export function getBlockTitle(
+  block: StudyBlock,
+  templates: CustomBlockTemplate[] = []
+): string {
+  if (block.type === "heading") return "Заголовок";
+  if (block.type === "text") return "Текст";
+  if (block.type === "latex") return "Формула";
+  if (block.type === "definition") return "Определение";
+  if (block.type === "problem") return "Задача";
+  if (block.type === "solution") return "Решение";
+  if (block.type === "board") return "Доска";
+  if (block.type === "file") return "Файл";
+  if (block.type === "divider") return "Разделитель";
+
+  if (block.type === "custom") {
+    return templates.find((template) => template.id === block.templateId)?.name ?? "Кастомный блок";
+  }
+
+  return "Блок";
+}
+
+export function getBlockText(
+  block: StudyBlock,
+  templates: CustomBlockTemplate[] = []
+): string {
+  if (isContentBlock(block)) {
+    return block.content;
+  }
+
+  if (isBoardBlock(block)) {
+    return block.title;
+  }
+
+  if (isFileBlock(block)) {
+    return `${block.fileName} ${block.note}`;
+  }
+
+  if (isCustomBlock(block)) {
+    const template = templates.find((item) => item.id === block.templateId);
+
+    return [
+      template?.name ?? "Custom block",
+      ...Object.values(block.values).map(String),
+    ].join(" ");
+  }
+
+  return "";
+}
+
+export function getDefaultCustomValue(type: string): CustomBlockValue {
+  if (type === "checkbox") {
+    return false;
+  }
+
+  if (type === "number") {
+    return 0;
+  }
+
+  return "";
+}
+
+export function createBlock(type: SystemBlockType): StudyBlock {
+  const base = {
+    id: createId("block"),
+    createdAt: now(),
+    updatedAt: now(),
+  };
+
+  if (type === "board") {
+    return {
+      ...base,
+      type,
+      title: "Новая доска",
+      strokes: [],
+    };
+  }
+
+  if (type === "file") {
+    return {
+      ...base,
+      type,
+      fileName: "",
+      note: "",
+      mimeType: "",
+      size: 0,
+      dataUrl: "",
+    };
+  }
+
+  if (type === "divider") {
+    return {
+      ...base,
+      type,
+    };
+  }
+
+  const contentByType: Record<string, string> = {
+    heading: "Новый заголовок",
+    text: "",
+    latex: "",
+    definition: "",
+    problem: "",
+    solution: "",
+  };
+
+  return {
+    ...base,
+    type,
+    content: contentByType[type],
+  } as ContentStudyBlock;
+}
+
+export function createCustomBlock(template: CustomBlockTemplate): CustomStudyBlock {
+  const values: Record<string, CustomBlockValue> = {};
+
+  template.fields.forEach((field) => {
+    values[field.id] = getDefaultCustomValue(field.type);
+  });
+
+  return {
+    id: createId("block"),
+    type: "custom",
+    templateId: template.id,
+    values,
+    createdAt: now(),
+    updatedAt: now(),
+  };
+}
+
+export function cloneBlock(block: StudyBlock): StudyBlock {
+  const copy = JSON.parse(JSON.stringify(block)) as StudyBlock;
+
+  return {
+    ...copy,
+    id: createId("block"),
+    createdAt: now(),
+    updatedAt: now(),
+  };
+}
