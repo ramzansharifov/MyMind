@@ -47,8 +47,6 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
   const rootFolders = getNodeChildren(safeData.nodes, null).filter((node) => node.type === 'folder');
   const selectedPath = getNodePath(safeData.nodes, safeData.selectedNodeId);
 
-  const returnTarget = selectedNode ? getInternalLinkReturnTarget(selectedNode.id) : null;
-
   function commit(next: StudyData, options: { remember?: boolean } = {}) {
     const normalized = normalizeStudyData(next);
     if (options.remember !== false) {
@@ -60,13 +58,6 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
 
   function updateSelectedNode(nodeId: string | null) {
     commit({ ...safeData, selectedNodeId: nodeId }, { remember: false });
-  }
-
-  function handleGoBack() {
-    if (returnTarget && selectedNode) {
-        clearInternalLinkReturnTarget(selectedNode.id);
-        updateSelectedNode(returnTarget.id);
-    }
   }
 
   function createNode(type: StudyNodeType, parentId: string | null, title: string) {
@@ -248,23 +239,15 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
             )}
           />
 
-          <div className="study-top-nav">
-              {selectedPath.length > 0 ? (
-                <div className="study-breadcrumbs">
-                  {selectedPath.map((node) => (
-                    <button key={node.id} type="button" onClick={() => updateSelectedNode(node.id)}>
-                      {node.title}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-
-              {returnTarget && (
-                  <button className="button ghost study-back-link" onClick={handleGoBack}>
-                      ← Back to {returnTarget.title}
-                  </button>
-              )}
-          </div>
+          {selectedPath.length > 0 ? (
+            <div className="study-breadcrumbs">
+              {selectedPath.map((node) => (
+                <button key={node.id} type="button" onClick={() => updateSelectedNode(node.id)}>
+                  {node.title}
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           {selectedMaterial ? (
             <StudyMaterialEditor

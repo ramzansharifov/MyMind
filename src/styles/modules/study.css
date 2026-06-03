@@ -128,6 +128,18 @@
   padding-right: 4px;
   align-content: start;
   grid-auto-rows: max-content;
+  border: 2px dashed transparent;
+  transition: all 0.2s ease;
+}
+
+.study-tree-root.drop-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.study-tree-row.drop-target {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  outline: 2px solid var(--accent);
 }
 
 .study-tree-toc {
@@ -490,8 +502,32 @@
 
 .study-textarea.code,
 .study-textarea.markdown,
-.study-textarea.latex {
+.study-textarea.latex,
+.study-raw-editor {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.study-raw-editor {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: var(--surface-soft);
+    color: var(--text);
+    font-size: 14px;
+    min-height: 120px;
+    resize: vertical;
+    outline: none;
+}
+
+.study-latex-editor-wrap {
+    display: grid;
+    gap: 8px;
+}
+
+.study-latex-toolbar {
+    display: flex;
+    justify-content: flex-end;
 }
 
 .study-nested-blocks {
@@ -689,6 +725,36 @@
   width: 100%;
   border: 0;
   border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+
+.study-back-button-overlay {
+    position: fixed;
+    bottom: 24px;
+    right: 344px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+}
+
+.study-back-stack-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    margin-left: 8px;
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 800;
 }
 
 .study-side-panel {
@@ -697,10 +763,25 @@
 
 .study-setting-info,
 .study-color-row,
-.study-range-field {
+.study-range-field,
+.study-settings-group-title {
   display: grid;
   gap: 8px;
   color: var(--muted);
+}
+
+.study-settings-group-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    margin-top: 16px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.study-settings-group-title:first-of-type {
+    margin-top: 0;
 }
 
 .study-setting-info strong {
@@ -725,6 +806,38 @@
 .study-color-dot.active {
   border-color: var(--accent-strong);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.study-color-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.study-color-input-wrap input[type="color"] {
+    flex: 1;
+    height: 36px;
+    padding: 2px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface-soft);
+}
+
+.study-color-reset {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface-soft);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 18px;
+}
+
+.study-color-reset:hover {
+    background: var(--bg-hover);
 }
 
 .study-range-field input[type='range'] {
@@ -854,6 +967,54 @@
 .study-read-toc nav button.level-3 {
   padding-left: 30px;
   color: var(--muted);
+}
+
+.study-rich-text-editor, .study-rich-text-view {
+    min-height: 24px;
+    line-height: 1.6;
+}
+
+.study-rich-text-editor {
+    outline: none;
+}
+
+.study-table-rich-cell .study-rich-text-editor {
+    padding: 8px;
+}
+
+.study-table-cell.selected {
+    background: color-mix(in srgb, var(--accent) 15%, transparent) !important;
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.study-table-cell-selector {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    border: 1px solid white;
+    cursor: nwse-resize;
+    z-index: 10;
+}
+
+.study-grid-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.study-font-size-tool {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.study-font-size-tool input {
+    width: 60px;
 }
 
 .study-read-block {

@@ -1,11 +1,11 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import type {
   StudyBlock,
   StudyBlockSettings,
   StudyCustomBlockTemplate,
-  StudyMaterial,
   StudyNode,
   StudyBlockTextAlign,
+  StudyHeadingStyle,
 } from '../../types';
 import {
   emitTableCommand,
@@ -17,6 +17,7 @@ import type {
   RichTextActiveMarks,
   RichTextCommandType,
 } from './StudyRichTextEditor';
+import { CodeLanguageInput } from './CodeLanguageInput';
 
 interface StudySettingsPanelProps {
   block: StudyBlock | null;
@@ -54,9 +55,7 @@ export function StudySettingsPanel({
         setTableSelection(null);
         return;
       }
-      if (!selection) {
-        return;
-      }
+      if (!selection) return;
       if (selection.blockId === block.id) {
         setTableSelection(selection);
       }
@@ -89,9 +88,7 @@ export function StudySettingsPanel({
   }
 
   function runTableCommand(type: Parameters<typeof emitTableCommand>[1], value?: number | string) {
-    if (!block) {
-      return;
-    }
+    if (!block) return;
     emitTableCommand(block.id, type, value);
   }
 
@@ -127,54 +124,33 @@ export function StudySettingsPanel({
       <div className="study-settings-content">
         {isTable && (
           <div className="study-table-settings">
+             <h4 className="study-settings-group-title">Table Actions</h4>
              <div className="study-choice-row">
-                <button
-                    type="button"
-                    onClick={() => runTableCommand("toggleHeader")}
-                    className={`button ghost ${getToolButtonClass(block.hasHeader)}`}
-                >
-                    Header
-                </button>
-                <button
-                    type="button"
-                    onClick={() => runTableCommand("exportCsv")}
-                    className="button ghost"
-                >
-                    Export CSV
-                </button>
+                <button type="button" onClick={() => runTableCommand("toggleHeader")} className={`button ghost ${getToolButtonClass(block.hasHeader)}`}>Header</button>
+                <button type="button" onClick={() => runTableCommand("exportCsv")} className="button ghost">CSV</button>
              </div>
 
              <div className="study-grid-actions">
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addRowAbove")} className="button ghost">Row above</button>
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addRowBelow")} className="button ghost">Row below</button>
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("deleteRow")} className="button ghost">Delete row</button>
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("moveRowUp")} className="button ghost">Row up</button>
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("moveRowDown")} className="button ghost">Row down</button>
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addColumnLeft")} className="button ghost">Col left</button>
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addColumnRight")} className="button ghost">Col right</button>
-                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("deleteColumn")} className="button ghost">Delete col</button>
+                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addRowAbove")} className="button ghost">Row ↑</button>
+                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addRowBelow")} className="button ghost">Row ↓</button>
+                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("deleteRow")} className="button ghost danger">Del Row</button>
+                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addColumnLeft")} className="button ghost">Col ←</button>
+                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("addColumnRight")} className="button ghost">Col →</button>
+                <button type="button" disabled={!hasSelectedTableCell} onClick={() => runTableCommand("deleteColumn")} className="button ghost danger">Del Col</button>
              </div>
 
              {tableSelection && (
                 <div className="study-cell-settings">
-                   <label className="study-range-field">
-                      <span>Col Width</span>
-                      <input type="range" min={80} max={600} value={tableSelection.columnWidth} onChange={(e) => runTableCommand("setColumnWidth", Number(e.target.value))} />
-                   </label>
+                   <h4 className="study-settings-group-title">Cell Settings</h4>
+                   <RangeField label={`Col Width (${tableSelection.columnWidth}px)`} min={80} max={600} value={tableSelection.columnWidth} onChange={(v) => runTableCommand("setColumnWidth", v)} />
 
                    <div className="study-choice-row">
                       <button type="button" onClick={() => runTableCommand("mergeSelectedCells")} className="button ghost">Merge</button>
                       <button type="button" onClick={() => runTableCommand("splitSelectedCells")} className="button ghost">Split</button>
                    </div>
 
-                   <div className="study-color-row">
-                      <span>Cell BG</span>
-                      <input type="color" defaultValue={tableSelection.cellStyle?.backgroundColor ?? "#ffffff"} onChange={(e) => runTableCommand("setCellBackgroundColor", e.target.value)} />
-                   </div>
-                   <div className="study-color-row">
-                      <span>Cell Text</span>
-                      <input type="color" defaultValue={tableSelection.cellStyle?.textColor ?? "#000000"} onChange={(e) => runTableCommand("setCellTextColor", e.target.value)} />
-                   </div>
+                   <ColorRow label="Cell BG" value={tableSelection.cellStyle?.backgroundColor} onChange={(v) => runTableCommand("setCellBackgroundColor", v)} />
+                   <ColorRow label="Cell Text" value={tableSelection.cellStyle?.textColor} onChange={(v) => runTableCommand("setCellTextColor", v)} />
 
                    <div className="study-choice-row">
                       {(['left', 'center', 'right'] as const).map(align => (
@@ -188,6 +164,7 @@ export function StudySettingsPanel({
 
         {showRichTools && (
           <div className="study-rich-formatting">
+            <h4 className="study-settings-group-title">Text Formatting</h4>
             <div className="study-choice-row">
               <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("bold")} className={`button ghost ${getToolButtonClass(marks.bold)}`}>B</button>
               <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("italic")} className={`button ghost ${getToolButtonClass(marks.italic)}`}>I</button>
@@ -201,13 +178,14 @@ export function StudySettingsPanel({
             </div>
 
             <div className="study-choice-row">
-              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("unorderedList", "disc")} className="button ghost">UL</button>
-              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("orderedList", "decimal")} className="button ghost">OL</button>
-              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("unorderedList", "checkbox-list")} className="button ghost">Check</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("unorderedList", "disc")} className={`button ghost ${getToolButtonClass(marks.unorderedList && marks.listStyle === 'disc')}`}>UL</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("orderedList", "decimal")} className={`button ghost ${getToolButtonClass(marks.orderedList)}`}>OL</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => runRichCommand("unorderedList", "checkbox-list")} className={`button ghost ${getToolButtonClass(marks.listStyle === 'checkbox-list')}`}>Check</button>
             </div>
           </div>
         )}
 
+        <h4 className="study-settings-group-title">Block Visuals</h4>
         {block.type === 'heading' && (
            <div className="study-choice-row">
               {(['h1', 'h2', 'h3'] as const).map(style => (
@@ -216,25 +194,14 @@ export function StudySettingsPanel({
            </div>
         )}
 
-        <label className="study-range-field">
-          <span>Font size</span>
-          <input type="range" min={12} max={64} value={settings.fontSize ?? 16} onChange={(e) => updateSetting("fontSize", Number(e.target.value))} />
-        </label>
+        {block.type === 'code' && (
+            <CodeLanguageInput value={settings.codeLanguage} onChange={(v) => updateSetting("codeLanguage", v)} />
+        )}
 
-        <div className="study-color-row">
-          <span>Text color</span>
-          <input type="color" value={settings.textColor ?? "#000000"} onChange={(e) => updateSetting("textColor", e.target.value)} />
-        </div>
-
-        <div className="study-color-row">
-           <span>Background</span>
-           <input type="color" value={settings.backgroundColor ?? "#ffffff"} onChange={(e) => updateSetting("backgroundColor", e.target.value)} />
-        </div>
-
-        <label className="study-range-field">
-          <span>Padding</span>
-          <input type="range" min={0} max={48} value={settings.padding ?? 18} onChange={(e) => updateSetting("padding", Number(e.target.value))} />
-        </label>
+        <RangeField label="Font size" min={8} max={72} value={settings.fontSize ?? (block.type === 'heading' ? 24 : 16)} onChange={(v) => updateSetting("fontSize", v)} />
+        <ColorRow label="Text color" value={settings.textColor} onChange={(v) => updateSetting("textColor", v)} />
+        <ColorRow label="Block BG" value={settings.backgroundColor} onChange={(v) => updateSetting("backgroundColor", v)} />
+        <RangeField label="Padding" min={0} max={64} value={settings.padding ?? 16} onChange={(v) => updateSetting("padding", v)} />
 
         <div className="study-choice-row">
           {(['left', 'center', 'right'] as const).map(align => (
@@ -242,11 +209,12 @@ export function StudySettingsPanel({
           ))}
         </div>
 
+        {block.type === 'board' && (
+            <RangeField label="Board Height" min={200} max={1200} value={settings.boardHeight ?? 400} onChange={(v) => updateSetting("boardHeight", v)} />
+        )}
+
         {block.type === 'divider' && (
-           <div className="study-color-row">
-              <span>Divider color</span>
-              <input type="color" value={settings.dividerColor ?? "#000000"} onChange={(e) => updateSetting("dividerColor", e.target.value)} />
-           </div>
+           <ColorRow label="Divider color" value={settings.dividerColor} onChange={(v) => updateSetting("dividerColor", v)} />
         )}
 
         <div className="study-panel-actions">
@@ -256,4 +224,25 @@ export function StudySettingsPanel({
       </div>
     </aside>
   );
+}
+
+function RangeField({ label, min, max, value, onChange }: { label: string; min: number; max: number; value: number; onChange: (v: number) => void }) {
+    return (
+        <label className="study-range-field">
+            <span>{label}</span>
+            <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(Number(e.target.value))} />
+        </label>
+    );
+}
+
+function ColorRow({ label, value, onChange }: { label: string; value?: string; onChange: (v: string | undefined) => void }) {
+    return (
+        <div className="study-color-row">
+            <span>{label}</span>
+            <div className="study-color-input-wrap">
+                <input type="color" value={value ?? "#ffffff"} onChange={(e) => onChange(e.target.value)} />
+                <button type="button" className="study-color-reset" onClick={() => onChange(undefined)}>×</button>
+            </div>
+        </div>
+    );
 }

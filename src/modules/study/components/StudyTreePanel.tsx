@@ -1,5 +1,18 @@
-import { Copy, FileText, Folder, FolderPlus, ListTree, MoreHorizontal, Pencil, Plus, Search, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import {
+  Copy,
+  FileText,
+  Folder,
+  FolderPlus,
+  ListTree,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  ChevronRight,
+  ChevronDown,
+} from 'lucide-react';
+import { useMemo, useState, type DragEvent } from 'react';
 import { Tooltip } from '../../../shared/components/Tooltip';
 import { getNodeChildren, getStudyMaterialPreview } from '../studyUtils';
 import type { StudyMaterial, StudyNode } from '../types';
@@ -17,7 +30,7 @@ interface StudyTreePanelProps {
   onRenameNode: (node: StudyNode) => void;
   onDeleteNode: (nodeId: string) => void;
   onDuplicateMaterial: (nodeId: string) => void;
-  onMoveNode: (nodeId: string, parentId: string | null) => void;
+  onMoveNode: (draggedNodeId: string, targetParentId: string | null) => void;
   tocItems?: StudyTocItem[];
   showToc?: boolean;
   onTocItemClick?: (blockId: string) => void;
@@ -42,6 +55,10 @@ export function StudyTreePanel({
 }: StudyTreePanelProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(nodes.filter((node) => node.type === 'folder').map((node) => node.id)));
   const [menuNodeId, setMenuNodeId] = useState<string | null>(null);
+  const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [isRootDropActive, setIsRootDropActive] = useState(false);
+
   const normalizedQuery = query.trim().toLowerCase();
 
   const visibleNodeIds = useMemo(() => {
@@ -59,11 +76,12 @@ export function StudyTreePanel({
     const visible = new Set<string>();
     const matches = (node: StudyNode) => {
       const material = materials.find((item) => item.nodeId === node.id);
-      return `${node.title} ${material ? getStudyMaterialPreview(material) : ''}`.toLowerCase().includes(normalizedQuery);
+      return `${node.title} ${material ? getStudyMaterialPreview(material) : ''}`.toLowerCase().indexOf(normalizedQuery) !== -1;
     };
 
     const walk = (node: StudyNode): boolean => {
-      const childMatches = (byParent.get(node.id) ?? []).some(walk);
+      const children = byParent.get(node.id) ?? [];
+      const childMatches = children.some(walk);
       const nodeMatches = matches(node);
       if (nodeMatches || childMatches) {
         visible.add(node.id);
@@ -89,6 +107,23 @@ export function StudyTreePanel({
       }
       return next;
     });
+  }
+
+  function handleRootDragOver(event: DragEvent) {
+    event.preventDefault();
+    if (draggedNodeId) {
+      setIsRootDropActive(true);
+      setDropTargetId(null);
+    }
+  }
+
+  function handleRootDrop(event: DragEvent) {
+    event.preventDefault();
+    setIsRootDropActive(false);
+    const nodeId = event.dataTransfer.getData('text/study-node');
+    if (nodeId) {
+      onMoveNode(nodeId, null);
+    }
   }
 
   return (
@@ -118,14 +153,10 @@ export function StudyTreePanel({
       </label>
 
       <div
-        className="study-tree-root"
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={(event) => {
-          const nodeId = event.dataTransfer.getData('text/study-node');
-          if (nodeId) {
-            onMoveNode(nodeId, null);
-          }
-        }}
+        className={`study-tree-root${isRootDropActive ? ' drop-active' : ''}`}
+        onDragOver={handleRootDragOver}
+        onDragLeave={() => setIsRootDropActive(false)}
+        onDrop={handleRootDrop}
       >
         {getNodeChildren(nodes, null).map((node) => (
           <TreeNode
@@ -137,6 +168,8 @@ export function StudyTreePanel({
             selectedNodeId={selectedNodeId}
             expanded={expanded}
             menuNodeId={menuNodeId}
+            draggedNodeId={draggedNodeId}
+            dropTargetId={dropTargetId}
             onToggleExpanded={toggleExpanded}
             onSelectNode={onSelectNode}
             onCreateFolder={onCreateFolder}
@@ -146,11 +179,23 @@ export function StudyTreePanel({
             onDuplicateMaterial={onDuplicateMaterial}
             onMoveNode={onMoveNode}
             onSetMenuNodeId={setMenuNodeId}
+            onDragStart={setDraggedNodeId}
+            onDragEnd={() => {
+              setDraggedNodeId(null);
+              setDropTargetId(null);
+            }}
+            onDragOverNode={setDropTargetId}
           />
         ))}
+
+        {nodes.length === 0 && (
+          <div className="study-tree-empty">
+             <p className="study-muted">Tree is empty.</p>
+          </div>
+        )}
       </div>
 
-      {showToc ? (
+      {showToc && (
         <div className="study-read-toc study-tree-toc">
           <div className="study-read-toc-head">
             <ListTree size={17} aria-hidden />
@@ -174,7 +219,7 @@ export function StudyTreePanel({
             <p className="study-muted">No headings yet.</p>
           )}
         </div>
-      ) : null}
+      )}
     </aside>
   );
 }
@@ -187,6 +232,8 @@ interface TreeNodeProps {
   selectedNodeId: string | null;
   expanded: Set<string>;
   menuNodeId: string | null;
+  draggedNodeId: string | null;
+  dropTargetId: string | null;
   onToggleExpanded: (nodeId: string) => void;
   onSelectNode: (nodeId: string) => void;
   onCreateFolder: (parentId: string | null) => void;
@@ -194,8 +241,11 @@ interface TreeNodeProps {
   onRenameNode: (node: StudyNode) => void;
   onDeleteNode: (nodeId: string) => void;
   onDuplicateMaterial: (nodeId: string) => void;
-  onMoveNode: (nodeId: string, parentId: string | null) => void;
+  onMoveNode: (draggedNodeId: string, targetParentId: string | null) => void;
   onSetMenuNodeId: (nodeId: string | null) => void;
+  onDragStart: (nodeId: string) => void;
+  onDragEnd: () => void;
+  onDragOverNode: (nodeId: string | null) => void;
 }
 
 function TreeNode({
@@ -206,6 +256,8 @@ function TreeNode({
   selectedNodeId,
   expanded,
   menuNodeId,
+  draggedNodeId,
+  dropTargetId,
   onToggleExpanded,
   onSelectNode,
   onCreateFolder,
@@ -215,6 +267,9 @@ function TreeNode({
   onDuplicateMaterial,
   onMoveNode,
   onSetMenuNodeId,
+  onDragStart,
+  onDragEnd,
+  onDragOverNode,
 }: TreeNodeProps) {
   if (!visibleNodeIds.has(node.id)) {
     return null;
@@ -223,29 +278,42 @@ function TreeNode({
   const children = getNodeChildren(nodes, node.id).filter((child) => visibleNodeIds.has(child.id));
   const isExpanded = expanded.has(node.id);
   const material = materials.find((item) => item.nodeId === node.id);
+  const isFolder = node.type === 'folder';
+  const isDropTarget = dropTargetId === node.id;
+
+  function handleDragOver(event: DragEvent) {
+    if (isFolder && draggedNodeId && draggedNodeId !== node.id) {
+      event.preventDefault();
+      event.stopPropagation();
+      onDragOverNode(node.id);
+    }
+  }
+
+  function handleDrop(event: DragEvent) {
+    if (isFolder) {
+      event.preventDefault();
+      event.stopPropagation();
+      const id = event.dataTransfer.getData('text/study-node');
+      if (id && id !== node.id) {
+        onMoveNode(id, node.id);
+      }
+    }
+    onDragEnd();
+  }
 
   return (
     <div className="study-tree-node">
       <div
-        className={`study-tree-row${selectedNodeId === node.id ? ' active' : ''}`}
+        className={`study-tree-row${selectedNodeId === node.id ? ' active' : ''}${isDropTarget ? ' drop-target' : ''}`}
         draggable
         onDragStart={(event) => {
           event.dataTransfer.setData('text/study-node', node.id);
+          onDragStart(node.id);
         }}
-        onDragOver={(event) => {
-          if (node.type === 'folder') {
-            event.preventDefault();
-          }
-        }}
-        onDrop={(event) => {
-          if (node.type === 'folder') {
-            const draggedNodeId = event.dataTransfer.getData('text/study-node');
-            if (draggedNodeId) {
-              event.stopPropagation();
-              onMoveNode(draggedNodeId, node.id);
-            }
-          }
-        }}
+        onDragEnd={onDragEnd}
+        onDragOver={handleDragOver}
+        onDragLeave={() => isDropTarget && onDragOverNode(null)}
+        onDrop={handleDrop}
       >
         <div
           className="study-tree-main-button"
@@ -259,63 +327,66 @@ function TreeNode({
             }
           }}
         >
-          {node.type === 'folder' ? (
-            <button
-              className="study-tree-expander"
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onToggleExpanded(node.id);
-              }}
-            >
-              {isExpanded ? 'v' : '>'}
-            </button>
-          ) : (
-            <span className="study-tree-expander spacer" />
-          )}
-          {node.type === 'folder' ? <Folder size={17} aria-hidden /> : <FileText size={17} aria-hidden />}
+          <button
+            className="study-tree-expander"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+                if (isFolder) onToggleExpanded(node.id);
+            }}
+          >
+            {isFolder ? (isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <span className="spacer" />}
+          </button>
+          {isFolder ? <Folder size={17} aria-hidden /> : <FileText size={17} aria-hidden />}
           <span>
             <strong>{node.title}</strong>
-            {material ? <small>{material.blocks.length} blocks</small> : null}
+            {material && material.blocks.length > 0 && <small>{material.blocks.length} blocks</small>}
           </span>
         </div>
 
-        <button className="icon-button subtle" type="button" onClick={() => onSetMenuNodeId(menuNodeId === node.id ? null : node.id)}>
+        <button
+          className={`icon-button subtle${menuNodeId === node.id ? ' active' : ''}`}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSetMenuNodeId(menuNodeId === node.id ? null : node.id);
+          }}
+        >
           <MoreHorizontal size={16} aria-hidden />
         </button>
 
-        {menuNodeId === node.id ? (
-          <div className="study-tree-menu glass-panel">
-            {node.type === 'folder' ? (
+        {menuNodeId === node.id && (
+          <div className="study-tree-menu glass-panel" onMouseDown={(e) => e.stopPropagation()}>
+            {isFolder ? (
               <>
-                <button type="button" onClick={() => onCreateFolder(node.id)}>
+                <button type="button" onClick={() => { onCreateFolder(node.id); onSetMenuNodeId(null); }}>
                   <FolderPlus size={14} aria-hidden />
                   New folder
                 </button>
-                <button type="button" onClick={() => onCreateMaterial(node.id)}>
+                <button type="button" onClick={() => { onCreateMaterial(node.id); onSetMenuNodeId(null); }}>
                   <Plus size={14} aria-hidden />
                   New material
                 </button>
               </>
             ) : (
-              <button type="button" onClick={() => onDuplicateMaterial(node.id)}>
+              <button type="button" onClick={() => { onDuplicateMaterial(node.id); onSetMenuNodeId(null); }}>
                 <Copy size={14} aria-hidden />
                 Duplicate
               </button>
             )}
-            <button type="button" onClick={() => onRenameNode(node)}>
+            <button type="button" onClick={() => { onRenameNode(node); onSetMenuNodeId(null); }}>
               <Pencil size={14} aria-hidden />
               Rename
             </button>
-            <button className="danger" type="button" onClick={() => onDeleteNode(node.id)}>
+            <button className="danger" type="button" onClick={() => { onDeleteNode(node.id); onSetMenuNodeId(null); }}>
               <Trash2 size={14} aria-hidden />
               Delete
             </button>
           </div>
-        ) : null}
+        )}
       </div>
 
-      {node.type === 'folder' && isExpanded && children.length > 0 ? (
+      {isFolder && isExpanded && children.length > 0 && (
         <div className="study-tree-children">
           {children.map((child) => (
             <TreeNode
@@ -327,6 +398,8 @@ function TreeNode({
               selectedNodeId={selectedNodeId}
               expanded={expanded}
               menuNodeId={menuNodeId}
+              draggedNodeId={draggedNodeId}
+              dropTargetId={dropTargetId}
               onToggleExpanded={onToggleExpanded}
               onSelectNode={onSelectNode}
               onCreateFolder={onCreateFolder}
@@ -336,10 +409,13 @@ function TreeNode({
               onDuplicateMaterial={onDuplicateMaterial}
               onMoveNode={onMoveNode}
               onSetMenuNodeId={onSetMenuNodeId}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onDragOverNode={onDragOverNode}
             />
           ))}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

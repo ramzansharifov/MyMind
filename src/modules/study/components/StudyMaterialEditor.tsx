@@ -47,6 +47,7 @@ import { emptyRichTextMarks } from '../utils/richTextCore';
 import type { RichTextActiveMarks, RichTextCommand, RichTextCommandType } from './editor/StudyRichTextEditor';
 import { StudyReadView } from './editor/StudyReadView';
 import { StudyLinksView } from './editor/StudyLinksView';
+import { StudyInternalLinkBackButton } from './editor/StudyInternalLinkBackButton';
 
 interface StudyMaterialEditorProps {
   material: StudyMaterial;
@@ -186,7 +187,12 @@ export function StudyMaterialEditor({
   };
 
   return (
-    <div className="study-material-editor">
+    <div className="study-material-editor" onMouseDown={(e) => {
+        const target = e.target as HTMLElement;
+        if (!target.closest('[data-study-block-id]') && !target.closest('.study-side-panel') && !target.closest('.study-material-top')) {
+            setSelectedBlockId(null);
+        }
+    }}>
       <div className="study-material-top glass-panel">
         <div className="study-material-title-block">
           <input
@@ -217,6 +223,7 @@ export function StudyMaterialEditor({
         <div className="study-editor-layout">
           <div className="study-editor-main">
             <AddBlockBar templates={templates} onAddBlock={addBlock} onAddCustomBlock={addCustomBlock} onOpenTemplateManager={onOpenTemplateManager} />
+            <StudyInternalLinkBackButton currentNodeId={material.nodeId} onOpenNode={onOpenMaterial} />
 
             {material.blocks.length === 0 ? (
               <button className="study-empty-block glass-panel" type="button" onClick={() => addBlock('text')}>
