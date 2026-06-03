@@ -159,6 +159,7 @@ export interface StudyCustomBlockField {
 
 export interface StudyCustomBlockTemplate extends BaseEntity {
   title: string;
+  icon?: string;
   description?: string;
   accentColor?: string;
   fields: StudyCustomBlockField[];

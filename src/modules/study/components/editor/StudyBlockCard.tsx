@@ -99,12 +99,57 @@ export function EditableBlockCard({
     onSelect(block.id);
   }
 
+  function handleKeyDown(event: React.KeyboardEvent) {
+    const isCommand = event.ctrlKey || event.metaKey;
+
+    if (event.key === 'Tab') {
+      const target = event.target as HTMLElement;
+      if (target.closest('.study-rich-text-editor, .study-code-editor, .study-table-rich-cell')) {
+        return;
+      }
+
+      event.preventDefault();
+      if (event.shiftKey) {
+        onUnnest(block.id);
+      } else {
+        onNest(block.id);
+      }
+      return;
+    }
+
+    if (isCommand && event.key === 'ArrowUp') {
+        event.preventDefault();
+        onMove(block.id, -1);
+        return;
+    }
+    if (isCommand && event.key === 'ArrowDown') {
+        event.preventDefault();
+        onMove(block.id, 1);
+        return;
+    }
+    if (isCommand && event.key === 'd') {
+        event.preventDefault();
+        onDuplicate(block.id);
+        return;
+    }
+    if (isCommand && event.key === 'Backspace' && isSelected) {
+        // Only delete if not in an input/editor
+        const target = event.target as HTMLElement;
+        if (!target.closest('input, textarea, [contenteditable="true"]')) {
+            event.preventDefault();
+            onDelete(block.id);
+        }
+    }
+  }
+
   return (
     <article
       className={`study-block glass-panel${isSelected ? ' active' : ''}`}
       data-study-block-id={block.id}
       onMouseDown={handleBlockMouseDown}
+      onKeyDown={handleKeyDown}
       style={getVisualStyle(block)}
+      tabIndex={0}
     >
       <div className="study-block-grip">
         <GripVertical size={16} aria-hidden />

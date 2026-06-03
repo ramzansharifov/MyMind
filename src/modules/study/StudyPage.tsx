@@ -1,4 +1,4 @@
-import { FolderPlus, Plus, Redo2, Undo2, Folder, FileText } from 'lucide-react';
+import { FolderPlus, Plus, Redo2, Undo2, Folder, FileText, Settings } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { EmptyState } from '../../shared/components/EmptyState';
@@ -40,7 +40,7 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
   const [query, setQuery] = useState('');
   const [nodeDialog, setNodeDialog] = useState<NodeDialog>(null);
   const [dialogTitle, setDialogTitle] = useState('');
-  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'workspace' | 'templates'>('workspace');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
@@ -229,109 +229,125 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
 
   return (
     <section className="study-page">
-      <div className="study-workspace">
-        <StudyTreePanel
-          nodes={safeData.nodes}
-          materials={safeData.materials}
-          selectedNodeId={safeData.selectedNodeId}
-          query={query}
-          onQueryChange={setQuery}
-          onSelectNode={updateSelectedNode}
-          onCreateFolder={(parentId) => openCreateDialog('folder', parentId)}
-          onCreateMaterial={(parentId) => openCreateDialog('material', parentId)}
-          onRenameNode={openRenameDialog}
-          onDeleteNode={deleteNode}
-          onDuplicateMaterial={duplicateMaterial}
-          onMoveNode={moveNode}
-          tocItems={readTocItems}
-          showToc={editorMode === 'read' && !!selectedMaterial}
-          onTocItemClick={scrollToStudyReadBlock}
-          collapsed={sidebarCollapsed}
-        />
-
+      {viewMode === 'templates' ? (
         <main className="study-main">
-          <PageHeader
-            title="Study"
-            subtitle="A tree of folders, learning materials, rich blocks, custom templates and read mode."
-            actions={(
-              <div className="study-header-actions">
-                <Tooltip content="Undo">
-                  <button className="icon-button" type="button" onClick={undo} disabled={past.length === 0}>
-                    <Undo2 size={18} aria-hidden />
-                  </button>
-                </Tooltip>
-                <Tooltip content="Redo">
-                  <button className="icon-button" type="button" onClick={redo} disabled={future.length === 0}>
-                    <Redo2 size={18} aria-hidden />
-                  </button>
-                </Tooltip>
-                <Tooltip content="Create folder">
-                  <button className="button ghost icon-text" type="button" onClick={() => openCreateDialog('folder')}>
-                    <FolderPlus size={18} aria-hidden />
-                    Folder
-                  </button>
-                </Tooltip>
-                <AddButton label="Add material" onClick={() => openCreateDialog('material', selectedFolder?.id ?? null)} />
-              </div>
-            )}
+          <StudyTemplateManager
+            templates={safeData.customBlockTemplates}
+            onChange={updateTemplates}
+            onClose={() => setViewMode('workspace')}
+          />
+        </main>
+      ) : (
+        <div className="study-workspace">
+          <StudyTreePanel
+            nodes={safeData.nodes}
+            materials={safeData.materials}
+            selectedNodeId={safeData.selectedNodeId}
+            query={query}
+            onQueryChange={setQuery}
+            onSelectNode={updateSelectedNode}
+            onCreateFolder={(parentId) => openCreateDialog('folder', parentId)}
+            onCreateMaterial={(parentId) => openCreateDialog('material', parentId)}
+            onRenameNode={openRenameDialog}
+            onDeleteNode={deleteNode}
+            onDuplicateMaterial={duplicateMaterial}
+            onMoveNode={moveNode}
+            tocItems={readTocItems}
+            showToc={editorMode === 'read' && !!selectedMaterial}
+            onTocItemClick={scrollToStudyReadBlock}
+            collapsed={sidebarCollapsed}
           />
 
-          {selectedPath.length > 0 ? (
-            <div className="study-breadcrumbs">
-              {selectedPath.map((node) => (
-                <button key={node.id} type="button" onClick={() => updateSelectedNode(node.id)}>
-                  {node.title}
-                </button>
-              ))}
-            </div>
-          ) : null}
+          <main className="study-main">
+            <PageHeader
+              title="Study"
+              subtitle="A tree of folders, learning materials, rich blocks, custom templates and read mode."
+              actions={(
+                <div className="study-header-actions">
+                  <Tooltip content="Undo">
+                    <button className="icon-button" type="button" onClick={undo} disabled={past.length === 0}>
+                      <Undo2 size={18} aria-hidden />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Redo">
+                    <button className="icon-button" type="button" onClick={redo} disabled={future.length === 0}>
+                      <Redo2 size={18} aria-hidden />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Manage templates">
+                    <button className="button ghost icon-text" type="button" onClick={() => setViewMode('templates')}>
+                      <Settings size={18} aria-hidden />
+                      Templates
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Create folder">
+                    <button className="button ghost icon-text" type="button" onClick={() => openCreateDialog('folder')}>
+                      <FolderPlus size={18} aria-hidden />
+                      Folder
+                    </button>
+                  </Tooltip>
+                  <AddButton label="Add material" onClick={() => openCreateDialog('material', selectedFolder?.id ?? null)} />
+                </div>
+              )}
+            />
 
-          {selectedMaterial ? (
-            <StudyMaterialEditor
-              material={selectedMaterial}
-              nodes={safeData.nodes}
-              allMaterials={safeData.materials}
-              templates={safeData.customBlockTemplates}
-              mode={editorMode}
-              onModeChange={setEditorMode}
-              onChange={updateMaterial}
-              onOpenMaterial={updateSelectedNode}
-              onOpenTemplateManager={() => setTemplateManagerOpen(true)}
-              focusBlockId={focusBlockId}
-              onFocusBlockConsumed={() => setFocusBlockId(null)}
-            />
-          ) : selectedFolder ? (
-            <FolderOverview
-              folder={selectedFolder}
-              nodes={safeData.nodes}
-              materials={safeData.materials}
-              onSelect={updateSelectedNode}
-              onCreateFolder={() => openCreateDialog('folder', selectedFolder.id)}
-              onCreateMaterial={() => openCreateDialog('material', selectedFolder.id)}
-            />
-          ) : rootFolders.length > 0 || safeData.nodes.length > 0 ? (
-            <FolderOverview
-              folder={null}
-              nodes={safeData.nodes}
-              materials={safeData.materials}
-              onSelect={updateSelectedNode}
-              onCreateFolder={() => openCreateDialog('folder', null)}
-              onCreateMaterial={() => openCreateDialog('material', null)}
-            />
-          ) : (
-            <div className="glass-panel study-empty-shell">
-              <EmptyState title="No study materials yet" message="Create a folder or a material to start building your learning workspace." />
-              <div className="study-empty-actions">
-                <button className="button ghost icon-text" type="button" onClick={() => openCreateDialog('folder')}>
-                  <FolderPlus size={18} aria-hidden />
-                  New folder
-                </button>
-                <AddButton label="New material" onClick={() => openCreateDialog('material', null)} />
+            {selectedPath.length > 0 ? (
+              <div className="study-breadcrumbs">
+                {selectedPath.map((node) => (
+                  <button key={node.id} type="button" onClick={() => updateSelectedNode(node.id)}>
+                    {node.title}
+                  </button>
+                ))}
               </div>
-            </div>
-          )}
-        </main>
-      </div>
+            ) : null}
+
+            {selectedMaterial ? (
+              <StudyMaterialEditor
+                material={selectedMaterial}
+                nodes={safeData.nodes}
+                allMaterials={safeData.materials}
+                templates={safeData.customBlockTemplates}
+                mode={editorMode}
+                onModeChange={setEditorMode}
+                onChange={updateMaterial}
+                onOpenMaterial={updateSelectedNode}
+                onOpenTemplateManager={() => setViewMode('templates')}
+                focusBlockId={focusBlockId}
+                onFocusBlockConsumed={() => setFocusBlockId(null)}
+              />
+            ) : selectedFolder ? (
+              <FolderOverview
+                folder={selectedFolder}
+                nodes={safeData.nodes}
+                materials={safeData.materials}
+                onSelect={updateSelectedNode}
+                onCreateFolder={() => openCreateDialog('folder', selectedFolder.id)}
+                onCreateMaterial={() => openCreateDialog('material', selectedFolder.id)}
+              />
+            ) : rootFolders.length > 0 || safeData.nodes.length > 0 ? (
+              <FolderOverview
+                folder={null}
+                nodes={safeData.nodes}
+                materials={safeData.materials}
+                onSelect={updateSelectedNode}
+                onCreateFolder={() => openCreateDialog('folder', null)}
+                onCreateMaterial={() => openCreateDialog('material', null)}
+              />
+            ) : (
+              <div className="glass-panel study-empty-shell">
+                <EmptyState title="No study materials yet" message="Create a folder or a material to start building your learning workspace." />
+                <div className="study-empty-actions">
+                  <button className="button ghost icon-text" type="button" onClick={() => openCreateDialog('folder')}>
+                    <FolderPlus size={18} aria-hidden />
+                    New folder
+                  </button>
+                  <AddButton label="New material" onClick={() => openCreateDialog('material', null)} />
+                </div>
+              </div>
+            )}
+          </main>
+        </div>
+      )}
 
       {nodeDialog ? (
         <div className="study-modal-backdrop" role="presentation" onMouseDown={() => setNodeDialog(null)}>
@@ -358,14 +374,6 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
             </div>
           </form>
         </div>
-      ) : null}
-
-      {templateManagerOpen ? (
-        <StudyTemplateManager
-          templates={safeData.customBlockTemplates}
-          onChange={updateTemplates}
-          onClose={() => setTemplateManagerOpen(false)}
-        />
       ) : null}
 
       <StudyCommandPalette

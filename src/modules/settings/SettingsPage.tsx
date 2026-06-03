@@ -54,7 +54,7 @@ interface SettingsPageProps {
   onSettingsChange: (settings: AppSettings) => Promise<void>;
 }
 
-type SettingsSection = 'overview' | 'application' | 'modules' | 'data' | 'archive' | 'trash' | 'records';
+type SettingsSection = 'overview' | 'application' | 'modules' | 'data' | 'archive' | 'trash' | 'records' | 'study_hotkeys';
 type ModulesSettingsTab = 'visibility' | 'groups';
 type DataSettingsTab = 'general' | 'moduleTransfer';
 
@@ -155,6 +155,13 @@ export function SettingsPage({
         <section className="panel settings-page-panel">
           <SettingsPanelHeading icon={<Rows3 size={18} />} title="Record center" description="A compact stream of recent active records across modules." />
           <RecordCenter data={data} onNavigate={onNavigate} />
+        </section>
+      ) : null}
+
+      {activeSection === 'study_hotkeys' ? (
+        <section className="panel settings-page-panel">
+          <SettingsPanelHeading icon={<Monitor size={18} />} title="Study hotkeys" description="Keyboard shortcuts for the Study module editor and navigation." />
+          <StudyHotkeys />
         </section>
       ) : null}
     </section>
@@ -699,6 +706,73 @@ function InfoTile({ label, value, code = false }: { label: string; value: string
   );
 }
 
+function StudyHotkeys() {
+  const { t } = useI18n();
+  const groups = [
+    {
+      title: 'Navigation',
+      keys: [
+        { key: 'Ctrl + Shift + K', description: 'Open command palette' },
+        { key: 'Ctrl + Shift + S', description: 'Toggle sidebar' },
+      ],
+    },
+    {
+      title: 'Editor nesting',
+      keys: [
+        { key: 'Tab', description: 'Nest block (inside block card)' },
+        { key: 'Shift + Tab', description: 'Unnest block (inside block card)' },
+      ],
+    },
+    {
+      title: 'Editor manipulation',
+      keys: [
+        { key: 'Ctrl + Arrow Up', description: 'Move block up' },
+        { key: 'Ctrl + Arrow Down', description: 'Move block down' },
+        { key: 'Ctrl + D', description: 'Duplicate block' },
+        { key: 'Backspace', description: 'Delete selected block' },
+      ],
+    },
+    {
+      title: 'Rich text editing',
+      keys: [
+        { key: 'Ctrl + B', description: 'Bold text' },
+        { key: 'Ctrl + I', description: 'Italic text' },
+        { key: 'Ctrl + U', description: 'Underline text' },
+        { key: 'Ctrl + Shift + X', description: 'Strikethrough' },
+        { key: 'Ctrl + Shift + 7', description: 'Ordered list' },
+        { key: 'Ctrl + Shift + 8', description: 'Unordered list' },
+      ],
+    },
+    {
+      title: 'History',
+      keys: [
+        { key: 'Ctrl + Z', description: 'Undo' },
+        { key: 'Ctrl + Y / Ctrl + Shift + Z', description: 'Redo' },
+      ],
+    },
+  ];
+
+  return (
+    <div className="settings-hotkeys-grid">
+      {groups.map((group) => (
+        <section key={group.title} className="settings-choice-group">
+          <div className="settings-choice-heading">
+             <h3>{t(group.title)}</h3>
+          </div>
+          <div className="settings-info-grid">
+            {group.keys.map((item) => (
+              <div key={item.key} className="settings-info-tile">
+                <span>{t(item.description)}</span>
+                <code>{item.key}</code>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function RecordCenter({ data, onNavigate }: { data: AppData; onNavigate: (module: ModuleKey) => void }) {
   const { t } = useI18n();
   const rows = buildRecordCenterRows(data).slice(0, 18);
@@ -730,6 +804,7 @@ const sectionCards: Array<{ id: SettingsSection; label: string; description: str
   { id: 'archive', label: 'Archive', description: 'Review archived records and restore or move them to trash.', icon: <Archive size={18} /> },
   { id: 'trash', label: 'Trash', description: 'Review deleted records before permanent removal.', icon: <Trash2 size={18} /> },
   { id: 'records', label: 'Record center', description: 'A compact stream of active records across modules.', icon: <Rows3 size={18} /> },
+  { id: 'study_hotkeys', label: 'Study hotkeys', description: 'Keyboard shortcuts for the learning workspace.', icon: <Monitor size={18} /> },
 ];
 
 const themeOptions: Array<{ value: AppSettings['themeMode']; label: string; description: string }> = [

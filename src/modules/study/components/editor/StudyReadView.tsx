@@ -32,10 +32,10 @@ export function StudyReadView({
   onToggleCollapsed,
   onOpenNode,
 }: StudyReadViewProps) {
-  const [pageWidth, setPageWidth] = useState(1000);
+  const [pageWidth, setPageWidth] = useState(1200);
 
   return (
-    <div className="study-read-shell">
+    <div className="study-read-shell" style={{ '--study-read-width': `${pageWidth}px` } as React.CSSProperties}>
       <div className="study-read-toolbar glass-panel">
         <div className="study-inline-actions">
           <button className="button ghost icon-text" type="button" onClick={() => window.print()}>

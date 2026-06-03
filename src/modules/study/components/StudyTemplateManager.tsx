@@ -33,10 +33,11 @@ function createEmptyField(): StudyCustomBlockField {
 
 export function StudyTemplateManager({ templates, onChange, onClose }: StudyTemplateManagerProps) {
   const [activeId, setActiveId] = useState(templates[0]?.id ?? '');
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [accentColor, setAccentColor] = useState('#4bb7a8');
-  const [fields, setFields] = useState<StudyCustomBlockField[]>([]);
+  const [name, setName] = useState(templates[0]?.title ?? 'New Template');
+  const [icon, setIcon] = useState(templates[0]?.icon ?? 'B');
+  const [description, setDescription] = useState(templates[0]?.description ?? '');
+  const [accentColor, setAccentColor] = useState(templates[0]?.accentColor ?? '#4bb7a8');
+  const [fields, setFields] = useState<StudyCustomBlockField[]>(templates[0]?.fields ?? [createEmptyField()]);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const activeTemplate = useMemo(
@@ -47,6 +48,7 @@ export function StudyTemplateManager({ templates, onChange, onClose }: StudyTemp
   const startEdit = (template: StudyCustomBlockTemplate) => {
     setActiveId(template.id);
     setName(template.title);
+    setIcon(template.icon ?? 'B');
     setDescription(template.description ?? '');
     setAccentColor(template.accentColor || '#4bb7a8');
     setFields(template.fields);
@@ -54,7 +56,8 @@ export function StudyTemplateManager({ templates, onChange, onClose }: StudyTemp
 
   const resetForm = () => {
     setActiveId('');
-    setName('New template');
+    setName('New Template');
+    setIcon('B');
     setDescription('');
     setAccentColor('#4bb7a8');
     setFields([createEmptyField()]);
@@ -62,23 +65,38 @@ export function StudyTemplateManager({ templates, onChange, onClose }: StudyTemp
 
   const saveTemplate = () => {
     if (!name.trim()) return;
-    const cleanFields = fields.filter(f => f.label.trim());
+    const cleanFields = fields.filter((f) => f.label.trim());
     if (cleanFields.length === 0) return;
 
     if (activeId) {
-        onChange(templates.map(t => t.id === activeId ? { ...t, title: name, description, accentColor, fields: cleanFields, updatedAt: nowIso() } : t));
+      onChange(
+        templates.map((t) =>
+          t.id === activeId
+            ? {
+                ...t,
+                title: name,
+                icon: icon.trim() || 'B',
+                description,
+                accentColor,
+                fields: cleanFields,
+                updatedAt: nowIso(),
+              }
+            : t,
+        ),
+      );
     } else {
-        const newT: StudyCustomBlockTemplate = {
-            id: createId('template'),
-            title: name,
-            description,
-            accentColor,
-            fields: cleanFields,
-            createdAt: nowIso(),
-            updatedAt: nowIso()
-        };
-        onChange([newT, ...templates]);
-        setActiveId(newT.id);
+      const newT: StudyCustomBlockTemplate = {
+        id: createId('template'),
+        title: name,
+        icon: icon.trim() || 'B',
+        description,
+        accentColor,
+        fields: cleanFields,
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      };
+      onChange([newT, ...templates]);
+      setActiveId(newT.id);
     }
   };
 
@@ -92,9 +110,9 @@ export function StudyTemplateManager({ templates, onChange, onClose }: StudyTemp
   };
 
   return (
-    <div className="study-modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <div className="study-template-modal glass-panel" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="study-template-header">
+    <div className="study-template-workspace">
+      <div className="study-template-container">
+        <div className="study-template-header glass-panel">
           <div>
             <h2>Custom Block Templates</h2>
             <p>Design your own specialized blocks.</p>
@@ -119,18 +137,24 @@ export function StudyTemplateManager({ templates, onChange, onClose }: StudyTemp
 
           <main className="study-template-form">
             <div className="study-template-main-info glass-panel">
+              <div className="study-field-grid">
                 <label className="form-field">
                   <span>Name</span>
-                  <input value={name} onChange={e => setName(e.target.value)} />
+                  <input value={name} onChange={(e) => setName(e.target.value)} />
                 </label>
                 <label className="form-field">
-                   <span>Description</span>
-                   <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} />
+                  <span>Icon</span>
+                  <input value={icon} onChange={(e) => setIcon(e.target.value)} maxLength={3} />
                 </label>
-                <label className="form-field">
-                   <span>Accent Color</span>
-                   <input type="color" value={accentColor} onChange={e => setAccentColor(e.target.value)} />
-                </label>
+              </div>
+              <label className="form-field">
+                <span>Description</span>
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+              </label>
+              <label className="form-field">
+                <span>Accent Color</span>
+                <input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} />
+              </label>
             </div>
 
             <div className="study-section-heading">
@@ -176,8 +200,14 @@ export function StudyTemplateManager({ templates, onChange, onClose }: StudyTemp
             </div>
 
             <div className="study-modal-actions">
-                {activeId && <button className="button danger" onClick={() => setPendingDeleteId(activeId)}>Delete Template</button>}
-                <button className="button primary" onClick={saveTemplate}>Save Changes</button>
+              {activeId && (
+                <button className="button danger" onClick={() => setPendingDeleteId(activeId)}>
+                  Delete Template
+                </button>
+              )}
+              <button className="button primary" onClick={saveTemplate}>
+                Save Changes
+              </button>
             </div>
           </main>
         </div>
@@ -185,18 +215,27 @@ export function StudyTemplateManager({ templates, onChange, onClose }: StudyTemp
 
       {pendingDeleteId && (
         <div className="study-modal-backdrop" onMouseDown={() => setPendingDeleteId(null)}>
-            <div className="study-modal-panel glass-panel" onMouseDown={e => e.stopPropagation()}>
-                <h2>Delete Template?</h2>
-                <p>This will permanently remove this template. Existing blocks of this type will remain as generic blocks.</p>
-                <div className="study-modal-actions">
-                    <button className="button ghost" onClick={() => setPendingDeleteId(null)}>Cancel</button>
-                    <button className="button danger" onClick={() => {
-                        onChange(templates.filter(t => t.id !== pendingDeleteId));
-                        setPendingDeleteId(null);
-                        resetForm();
-                    }}>Delete Forever</button>
-                </div>
+          <div className="study-modal-panel glass-panel" onMouseDown={(e) => e.stopPropagation()}>
+            <h2>Delete Template?</h2>
+            <p>
+              This will permanently remove this template. Existing blocks of this type will remain as generic blocks.
+            </p>
+            <div className="study-modal-actions">
+              <button className="button ghost" onClick={() => setPendingDeleteId(null)}>
+                Cancel
+              </button>
+              <button
+                className="button danger"
+                onClick={() => {
+                  onChange(templates.filter((t) => t.id !== pendingDeleteId));
+                  setPendingDeleteId(null);
+                  resetForm();
+                }}
+              >
+                Delete Forever
+              </button>
             </div>
+          </div>
         </div>
       )}
     </div>
