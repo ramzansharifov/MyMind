@@ -41,6 +41,12 @@ contextBridge.exposeInMainWorld('mymind', {
     getCachedHtml: (noteId: string) => ipcRenderer.invoke('notes:getCachedHtml', noteId),
     invalidateHtmlCache: (noteId: string) => ipcRenderer.invoke('notes:invalidateHtmlCache', noteId),
   },
+  study: {
+    listIndex: () => ipcRenderer.invoke('study:listIndex'),
+    get: (materialId: string) => ipcRenderer.invoke('study:get', materialId),
+    save: (material: unknown) => ipcRenderer.invoke('study:save', material),
+    delete: (materialId: string) => ipcRenderer.invoke('study:delete', materialId),
+  },
   files: {
     getPathForFile: (file: unknown) => webUtils.getPathForFile(file as any),
     saveAsset: (payload: { name: string; data: ArrayBuffer }) => ipcRenderer.invoke('files:saveAsset', payload),

@@ -1,0 +1,1298 @@
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ChangeEvent, ReactNode } from 'react'
+import {
+  BlockNoteSchema,
+  defaultBlockSpecs,
+  type PartialBlock,
+} from '@blocknote/core'
+import '@blocknote/core/fonts/inter.css'
+import { createReactBlockSpec, useCreateBlockNote } from '@blocknote/react'
+import { BlockNoteView } from '@blocknote/mantine'
+import '@blocknote/mantine/style.css'
+import * as katex from 'katex'
+import 'katex/dist/katex.min.css'
+
+const WORKSPACE_STORAGE_KEY = 'multifunctional-board-notes-workspace-v1'
+
+type WorkspaceItemType = 'folder' | 'material'
+
+type WorkspaceItem = {
+  id: string
+  type: WorkspaceItemType
+  title: string
+  parentId: string | null
+  isOpen?: boolean
+  order: number
+  createdAt: string
+  updatedAt: string
+  document?: PartialBlock[]
+}
+
+type WorkspaceState = {
+  items: WorkspaceItem[]
+  selectedItemId: string | null
+  activeMaterialId: string | null
+}
+
+function createId(prefix = 'item') {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function nowIso() {
+  return new Date().toISOString()
+}
+
+function createMaterialDocument(title: string): PartialBlock[] {
+  return [
+    {
+      type: 'heading',
+      props: {
+        level: 1,
+      },
+      content: title,
+    },
+    {
+      type: 'paragraph',
+      content: 'Начни писать материал здесь. Используй / для меню BlockNote или верхнюю панель для быстрой вставки блоков.',
+    },
+  ]
+}
+
+const defaultMaterialDocument: PartialBlock[] = [
+  {
+    type: 'heading',
+    props: {
+      level: 1,
+    },
+    content: 'Тестовый материал',
+  },
+  {
+    type: 'paragraph',
+    content:
+      'Это материал внутри VS Code-like панели. Каждый материал хранит собственный документ BlockNote.',
+  },
+  {
+    type: 'latexBlock' as any,
+    content: '\\int_0^1 x^2\\,dx = \\frac{1}{3}',
+  } as any,
+  {
+    type: 'table',
+    content: {
+      type: 'tableContent',
+      rows: [
+        {
+          cells: ['Блок', 'Движок', 'Статус'],
+        },
+        {
+          cells: ['Текст', 'BlockNote paragraph', 'Готово'],
+        },
+        {
+          cells: ['LaTeX', 'Custom Block + KaTeX', 'Готово'],
+        },
+        {
+          cells: ['Доска', 'Custom Block', 'Готово'],
+        },
+      ],
+    },
+  } as any,
+  {
+    type: 'boardBlock' as any,
+    content: 'Связь с основной tldraw-доской.',
+  } as any,
+]
+
+function createDefaultWorkspace(): WorkspaceState {
+  const createdAt = nowIso()
+
+  return {
+    selectedItemId: 'material-demo',
+    activeMaterialId: 'material-demo',
+    items: [
+      {
+        id: 'folder-study',
+        type: 'folder',
+        title: 'Учёба',
+        parentId: null,
+        isOpen: true,
+        order: 1,
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: 'material-demo',
+        type: 'material',
+        title: 'Тестовый материал',
+        parentId: 'folder-study',
+        order: 2,
+        createdAt,
+        updatedAt: createdAt,
+        document: defaultMaterialDocument,
+      },
+      {
+        id: 'folder-projects',
+        type: 'folder',
+        title: 'Проекты',
+        parentId: null,
+        isOpen: true,
+        order: 3,
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: 'material-board-plan',
+        type: 'material',
+        title: 'План доски',
+        parentId: 'folder-projects',
+        order: 4,
+        createdAt,
+        updatedAt: createdAt,
+        document: createMaterialDocument('План доски'),
+      },
+    ],
+  }
+}
+
+function loadWorkspace(): WorkspaceState {
+  const saved = localStorage.getItem(WORKSPACE_STORAGE_KEY)
+
+  if (!saved) return createDefaultWorkspace()
+
+  try {
+    const parsed = JSON.parse(saved) as WorkspaceState
+
+    if (!Array.isArray(parsed.items)) {
+      return createDefaultWorkspace()
+    }
+
+    const activeStillExists = parsed.items.some(
+      (item) => item.id === parsed.activeMaterialId && item.type === 'material'
+    )
+
+    const firstMaterial = parsed.items.find((item) => item.type === 'material')
+
+    return {
+      items: parsed.items,
+      selectedItemId: parsed.selectedItemId ?? parsed.activeMaterialId ?? firstMaterial?.id ?? null,
+      activeMaterialId: activeStillExists
+        ? parsed.activeMaterialId
+        : firstMaterial?.id ?? null,
+    }
+  } catch {
+    return createDefaultWorkspace()
+  }
+}
+
+function getInlineText(content: unknown): string {
+  if (typeof content === 'string') return content
+
+  if (!Array.isArray(content)) return ''
+
+  return content
+    .map((item: any) => {
+      if (typeof item === 'string') return item
+      if (item?.type === 'text') return item.text ?? ''
+      if (item?.type === 'link' && Array.isArray(item.content)) {
+        return getInlineText(item.content)
+      }
+
+      return ''
+    })
+    .join('')
+}
+
+function LatexPreview({ formula }: { formula: string }) {
+  const html = useMemo(() => {
+    const source = formula.trim() || '\\text{Empty formula}'
+
+    try {
+      return katex.renderToString(source, {
+        throwOnError: false,
+        displayMode: true,
+        output: 'html',
+      })
+    } catch {
+      return katex.renderToString('\\text{Invalid LaTeX}', {
+        throwOnError: false,
+        displayMode: true,
+        output: 'html',
+      })
+    }
+  }, [formula])
+
+  return (
+    <div
+      className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-slate-950"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
+}
+
+const LatexBlock = createReactBlockSpec(
+  {
+    type: 'latexBlock',
+    propSchema: {
+      backgroundColor: {
+        default: 'default',
+      },
+      textColor: {
+        default: 'default',
+      },
+      textAlignment: {
+        default: 'left',
+        values: ['left', 'center', 'right', 'justify'],
+      },
+    },
+    content: 'inline',
+  },
+  {
+    render: ({ block, contentRef }) => {
+      const formula = getInlineText(block.content)
+
+      return (
+        <div className="bn-custom-cell bn-latex-cell">
+          <div className="bn-custom-cell-header" contentEditable={false}>
+            LaTeX
+          </div>
+
+          <div
+            ref={contentRef}
+            className="bn-latex-input"
+            data-placeholder="Введите LaTeX, например: \frac{a}{b} + \sqrt{x}"
+          />
+
+          <LatexPreview formula={formula} />
+        </div>
+      )
+    },
+  }
+)
+
+const BoardBlock = createReactBlockSpec(
+  {
+    type: 'boardBlock',
+    propSchema: {
+      backgroundColor: {
+        default: 'default',
+      },
+      textColor: {
+        default: 'default',
+      },
+      textAlignment: {
+        default: 'left',
+        values: ['left', 'center', 'right', 'justify'],
+      },
+    },
+    content: 'inline',
+  },
+  {
+    render: ({ contentRef }) => {
+      return (
+        <div className="bn-custom-cell bn-board-cell">
+          <div className="bn-custom-cell-header" contentEditable={false}>
+            Связанная доска
+          </div>
+
+          <div
+            ref={contentRef}
+            className="bn-custom-inline-area"
+            data-placeholder="Описание связанной доски..."
+          />
+
+          <button
+            type="button"
+            contentEditable={false}
+            onClick={() => {
+              window.location.hash = '/board'
+            }}
+            className="mt-3 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+          >
+            Открыть доску
+          </button>
+        </div>
+      )
+    },
+  }
+)
+
+const FileCardBlock = createReactBlockSpec(
+  {
+    type: 'fileCardBlock',
+    propSchema: {
+      backgroundColor: {
+        default: 'default',
+      },
+      textColor: {
+        default: 'default',
+      },
+      textAlignment: {
+        default: 'left',
+        values: ['left', 'center', 'right', 'justify'],
+      },
+    },
+    content: 'inline',
+  },
+  {
+    render: ({ contentRef }) => {
+      return (
+        <div className="bn-custom-cell bn-file-cell">
+          <div className="bn-custom-cell-header" contentEditable={false}>
+            Файл / материал
+          </div>
+
+          <div
+            ref={contentRef}
+            className="bn-custom-inline-area"
+            data-placeholder="Название файла и описание..."
+          />
+        </div>
+      )
+    },
+  }
+)
+
+const LineBlock = createReactBlockSpec(
+  {
+    type: 'lineBlock',
+    propSchema: {
+      backgroundColor: {
+        default: 'default',
+      },
+      textColor: {
+        default: 'default',
+      },
+      textAlignment: {
+        default: 'left',
+        values: ['left', 'center', 'right', 'justify'],
+      },
+    },
+    content: 'none',
+  },
+  {
+    render: () => {
+      return (
+        <div className="bn-line-block" contentEditable={false}>
+          <hr />
+        </div>
+      )
+    },
+  }
+)
+
+const schema = BlockNoteSchema.create({
+  blockSpecs: {
+    ...defaultBlockSpecs,
+    latexBlock: LatexBlock(),
+    boardBlock: BoardBlock(),
+    fileCardBlock: FileCardBlock(),
+    lineBlock: LineBlock(),
+  },
+})
+
+function downloadTextFile(fileName: string, content: string, mimeType: string) {
+  const blob = new Blob([content], {
+    type: mimeType,
+  })
+
+  const url = URL.createObjectURL(blob)
+
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+
+  URL.revokeObjectURL(url)
+}
+
+function createFileName(prefix: string, extension: string) {
+  const date = new Date()
+    .toISOString()
+    .replaceAll(':', '-')
+    .replaceAll('.', '-')
+
+  return `${prefix}-${date}.${extension}`
+}
+
+function ToolbarButton({
+  children,
+  onClick,
+  active = false,
+  disabled = false,
+}: {
+  children: ReactNode
+  onClick: () => void
+  active?: boolean
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={
+        active
+          ? 'rounded-none border border-slate-950 bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40'
+          : 'rounded-none border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40'
+      }
+    >
+      {children}
+    </button>
+  )
+}
+
+function ExplorerButton({
+  children,
+  onClick,
+  title,
+  disabled = false,
+}: {
+  children: ReactNode
+  onClick: () => void
+  title: string
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex h-7 w-7 items-center justify-center rounded text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+    >
+      {children}
+    </button>
+  )
+}
+
+function SideButton({
+  children,
+  onClick,
+  danger = false,
+  disabled = false,
+}: {
+  children: ReactNode
+  onClick: () => void
+  danger?: boolean
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={
+        danger
+          ? 'w-full border border-slate-950 bg-slate-950 px-3 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40'
+          : 'w-full border border-slate-400 bg-white px-3 py-2 text-sm font-bold text-slate-950 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40'
+      }
+    >
+      {children}
+    </button>
+  )
+}
+
+export function NotesPage() {
+  const [workspace, setWorkspace] = useState<WorkspaceState>(loadWorkspace)
+  const [mode, setMode] = useState<'edit' | 'read'>('edit')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [resetKey, setResetKey] = useState(0)
+
+  const workspaceInputRef = useRef<HTMLInputElement | null>(null)
+
+  const activeMaterial = useMemo(() => {
+    return (
+      workspace.items.find(
+        (item) =>
+          item.id === workspace.activeMaterialId && item.type === 'material'
+      ) ?? null
+    )
+  }, [workspace.items, workspace.activeMaterialId])
+
+  const selectedItem = useMemo(() => {
+    return (
+      workspace.items.find((item) => item.id === workspace.selectedItemId) ??
+      null
+    )
+  }, [workspace.items, workspace.selectedItemId])
+
+  const editor = useCreateBlockNote(
+    {
+      schema,
+      initialContent: (activeMaterial?.document ??
+        createMaterialDocument('Новый материал')) as any,
+    },
+    [workspace.activeMaterialId, resetKey]
+  )
+
+  useEffect(() => {
+    localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(workspace))
+  }, [workspace])
+
+  function saveEditorDocument() {
+    const activeId = workspace.activeMaterialId
+
+    if (!activeId) return
+
+    setWorkspace((currentWorkspace) => ({
+      ...currentWorkspace,
+      items: currentWorkspace.items.map((item) =>
+        item.id === activeId && item.type === 'material'
+          ? {
+              ...item,
+              document: editor.document as unknown as PartialBlock[],
+              updatedAt: nowIso(),
+            }
+          : item
+      ),
+    }))
+  }
+
+  function getChildren(parentId: string | null, items = workspace.items) {
+    return items
+      .filter((item) => item.parentId === parentId)
+      .sort((a, b) => a.order - b.order)
+  }
+
+  function getDescendantIds(parentId: string, items = workspace.items): string[] {
+    const children = items.filter((item) => item.parentId === parentId)
+
+    return children.flatMap((child) => [
+      child.id,
+      ...getDescendantIds(child.id, items),
+    ])
+  }
+
+  function getTargetParentId() {
+    if (!selectedItem) return null
+
+    if (selectedItem.type === 'folder') {
+      return selectedItem.id
+    }
+
+    return selectedItem.parentId
+  }
+
+  function createFolder() {
+    const title = window.prompt('Название папки:', 'Новая папка')?.trim()
+
+    if (!title) return
+
+    const id = createId('folder')
+    const createdAt = nowIso()
+
+    const folder: WorkspaceItem = {
+      id,
+      type: 'folder',
+      title,
+      parentId: getTargetParentId(),
+      isOpen: true,
+      order: Date.now(),
+      createdAt,
+      updatedAt: createdAt,
+    }
+
+    setWorkspace((currentWorkspace) => ({
+      ...currentWorkspace,
+      items: currentWorkspace.items
+        .map((item) =>
+          item.id === folder.parentId && item.type === 'folder'
+            ? { ...item, isOpen: true }
+            : item
+        )
+        .concat(folder),
+      selectedItemId: id,
+    }))
+  }
+
+  function createMaterial() {
+    const title = window.prompt('Название материала:', 'Новый материал')?.trim()
+
+    if (!title) return
+
+    const id = createId('material')
+    const createdAt = nowIso()
+    const parentId = getTargetParentId()
+
+    const material: WorkspaceItem = {
+      id,
+      type: 'material',
+      title,
+      parentId,
+      order: Date.now(),
+      createdAt,
+      updatedAt: createdAt,
+      document: createMaterialDocument(title),
+    }
+
+    setWorkspace((currentWorkspace) => ({
+      ...currentWorkspace,
+      items: currentWorkspace.items
+        .map((item) =>
+          item.id === parentId && item.type === 'folder'
+            ? { ...item, isOpen: true }
+            : item
+        )
+        .concat(material),
+      selectedItemId: id,
+      activeMaterialId: id,
+    }))
+  }
+
+  function toggleFolder(folderId: string) {
+    setWorkspace((currentWorkspace) => ({
+      ...currentWorkspace,
+      items: currentWorkspace.items.map((item) =>
+        item.id === folderId && item.type === 'folder'
+          ? { ...item, isOpen: !item.isOpen }
+          : item
+      ),
+    }))
+  }
+
+  function selectItem(item: WorkspaceItem) {
+    if (item.type === 'folder') {
+      setWorkspace((currentWorkspace) => ({
+        ...currentWorkspace,
+        selectedItemId: item.id,
+      }))
+      return
+    }
+
+    setWorkspace((currentWorkspace) => ({
+      ...currentWorkspace,
+      selectedItemId: item.id,
+      activeMaterialId: item.id,
+    }))
+  }
+
+  function renameSelectedItem() {
+    if (!selectedItem) return
+
+    const title = window.prompt('Новое название:', selectedItem.title)?.trim()
+
+    if (!title) return
+
+    setWorkspace((currentWorkspace) => ({
+      ...currentWorkspace,
+      items: currentWorkspace.items.map((item) =>
+        item.id === selectedItem.id
+          ? {
+              ...item,
+              title,
+              updatedAt: nowIso(),
+            }
+          : item
+      ),
+    }))
+  }
+
+  function deleteSelectedItem() {
+    if (!selectedItem) return
+
+    const confirmed = window.confirm(
+      selectedItem.type === 'folder'
+        ? `Удалить папку "${selectedItem.title}" и всё внутри?`
+        : `Удалить материал "${selectedItem.title}"?`
+    )
+
+    if (!confirmed) return
+
+    setWorkspace((currentWorkspace) => {
+      const idsToDelete =
+        selectedItem.type === 'folder'
+          ? [selectedItem.id, ...getDescendantIds(selectedItem.id, currentWorkspace.items)]
+          : [selectedItem.id]
+
+      const nextItems = currentWorkspace.items.filter(
+        (item) => !idsToDelete.includes(item.id)
+      )
+
+      const activeWasDeleted =
+        currentWorkspace.activeMaterialId !== null &&
+        idsToDelete.includes(currentWorkspace.activeMaterialId)
+
+      const nextActiveMaterialId = activeWasDeleted
+        ? nextItems.find((item) => item.type === 'material')?.id ?? null
+        : currentWorkspace.activeMaterialId
+
+      return {
+        items: nextItems,
+        activeMaterialId: nextActiveMaterialId,
+        selectedItemId: nextActiveMaterialId,
+      }
+    })
+  }
+
+  function exportWorkspace() {
+    const payload = {
+      app: 'multifunctional-board',
+      type: 'notes-workspace',
+      formatVersion: 1,
+      exportedAt: nowIso(),
+      workspace,
+    }
+
+    downloadTextFile(
+      createFileName('notes-workspace', 'json'),
+      JSON.stringify(payload, null, 2),
+      'application/json'
+    )
+  }
+
+  function openImportWorkspace() {
+    workspaceInputRef.current?.click()
+  }
+
+  async function importWorkspace(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      const importedWorkspace = parsed.workspace ?? parsed
+
+      if (!Array.isArray(importedWorkspace.items)) {
+        throw new Error('Wrong workspace format')
+      }
+
+      setWorkspace(importedWorkspace as WorkspaceState)
+      setResetKey((value) => value + 1)
+    } catch (error) {
+      console.error(error)
+      alert('Не получилось импортировать workspace JSON.')
+    }
+  }
+
+  function resetWorkspace() {
+    const confirmed = window.confirm('Сбросить всё дерево заметок?')
+
+    if (!confirmed) return
+
+    setWorkspace(createDefaultWorkspace())
+    setResetKey((value) => value + 1)
+  }
+
+  function getLastBlock() {
+    return editor.document[editor.document.length - 1]
+  }
+
+  function insertBlock(block: PartialBlock) {
+    if (!activeMaterial) {
+      alert('Сначала создай или выбери материал в левой панели.')
+      return
+    }
+
+    const referenceBlock = getLastBlock()
+
+    if (!referenceBlock) {
+      editor.replaceBlocks(editor.document, [block as any])
+      saveEditorDocument()
+      return
+    }
+
+    editor.insertBlocks([block as any], referenceBlock, 'after')
+    saveEditorDocument()
+  }
+
+  function insertHeading() {
+    insertBlock({
+      type: 'heading',
+      props: {
+        level: 2,
+      },
+      content: 'Новый заголовок',
+    })
+  }
+
+  function insertText() {
+    insertBlock({
+      type: 'paragraph',
+      content: 'Введите текст...',
+    })
+  }
+
+  function insertLatex() {
+    insertBlock({
+      type: 'latexBlock' as any,
+      content: 'x^2 + y^2 = r^2',
+    } as any)
+  }
+
+  function insertMarkdownCode() {
+    insertBlock({
+      type: 'codeBlock',
+      props: {
+        language: 'markdown',
+      },
+      content: '## Markdown блок\n\n- Первый пункт\n- Второй пункт',
+    })
+  }
+
+  function insertCode() {
+    insertBlock({
+      type: 'codeBlock',
+      props: {
+        language: 'typescript',
+      },
+      content: 'console.log("Hello");',
+    })
+  }
+
+  function insertTable() {
+    insertBlock({
+      type: 'table',
+      content: {
+        type: 'tableContent',
+        rows: [
+          {
+            cells: ['Заголовок 1', 'Заголовок 2', 'Заголовок 3'],
+          },
+          {
+            cells: ['Введите текст...', 'Введите текст...', 'Введите текст...'],
+          },
+          {
+            cells: ['Введите текст...', 'Введите текст...', 'Введите текст...'],
+          },
+        ],
+      },
+    } as any)
+  }
+
+  function insertBoardBlock() {
+    insertBlock({
+      type: 'boardBlock' as any,
+      content: 'Описание связанной доски...',
+    } as any)
+  }
+
+  function insertFileCard() {
+    insertBlock({
+      type: 'fileCardBlock' as any,
+      content: 'Название файла — описание материала...',
+    } as any)
+  }
+
+  function insertLineBlock() {
+    insertBlock({
+      type: 'lineBlock' as any,
+    } as any)
+  }
+
+  async function exportCurrentMaterialJson() {
+    if (!activeMaterial) return
+
+    const payload = {
+      app: 'multifunctional-board',
+      type: 'blocknote-material',
+      formatVersion: 1,
+      exportedAt: nowIso(),
+      title: activeMaterial.title,
+      blocks: editor.document,
+    }
+
+    downloadTextFile(
+      createFileName(activeMaterial.title.replaceAll(' ', '-'), 'json'),
+      JSON.stringify(payload, null, 2),
+      'application/json'
+    )
+  }
+
+  async function exportCurrentMaterialMarkdown() {
+    if (!activeMaterial) return
+
+    const markdown = await editor.blocksToMarkdownLossy(editor.document)
+
+    downloadTextFile(
+      createFileName(activeMaterial.title.replaceAll(' ', '-'), 'md'),
+      markdown,
+      'text/markdown'
+    )
+  }
+
+  async function exportCurrentMaterialHtml() {
+    if (!activeMaterial) return
+
+    const html = await editor.blocksToHTMLLossy(editor.document)
+
+    downloadTextFile(
+      createFileName(activeMaterial.title.replaceAll(' ', '-'), 'html'),
+      html,
+      'text/html'
+    )
+  }
+
+  function shouldShowItem(item: WorkspaceItem): boolean {
+    const query = searchQuery.trim().toLowerCase()
+
+    if (!query) return true
+
+    const titleMatches = item.title.toLowerCase().includes(query)
+
+    if (titleMatches) return true
+
+    if (item.type === 'folder') {
+      const descendantIds = getDescendantIds(item.id)
+
+      return descendantIds.some((id) => {
+        const descendant = workspace.items.find((workspaceItem) => workspaceItem.id === id)
+
+        return descendant?.title.toLowerCase().includes(query)
+      })
+    }
+
+    return false
+  }
+
+  function renderExplorerItems(parentId: string | null, depth = 0) {
+    const children = getChildren(parentId).filter(shouldShowItem)
+
+    return children.map((item) => {
+      const isSelected = item.id === workspace.selectedItemId
+      const isActive = item.id === workspace.activeMaterialId
+      const hasChildren = getChildren(item.id).length > 0
+      const forcedOpenBySearch = searchQuery.trim().length > 0
+      const isOpen = item.type === 'folder' && (item.isOpen || forcedOpenBySearch)
+
+      return (
+        <div key={item.id}>
+          <button
+            type="button"
+            onClick={() => selectItem(item)}
+            onDoubleClick={() => {
+              if (item.type === 'folder') {
+                toggleFolder(item.id)
+              } else {
+                setMode('edit')
+              }
+            }}
+            className={
+              isSelected
+                ? 'explorer-row explorer-row-selected'
+                : isActive
+                  ? 'explorer-row explorer-row-active'
+                  : 'explorer-row'
+            }
+            style={{
+              paddingLeft: 8 + depth * 14,
+            }}
+          >
+            <span
+              className="explorer-twist"
+              onClick={(event) => {
+                event.stopPropagation()
+
+                if (item.type === 'folder') {
+                  toggleFolder(item.id)
+                }
+              }}
+            >
+              {item.type === 'folder' ? (isOpen ? '▾' : '▸') : ''}
+            </span>
+
+            <span className="explorer-icon">
+              {item.type === 'folder' ? (isOpen ? '📂' : '📁') : '📄'}
+            </span>
+
+            <span className="truncate">
+              {item.title}
+            </span>
+          </button>
+
+          {item.type === 'folder' && isOpen && (
+            <div>
+              {hasChildren ? (
+                renderExplorerItems(item.id, depth + 1)
+              ) : (
+                <div
+                  className="px-3 py-1 text-xs text-slate-500"
+                  style={{
+                    paddingLeft: 28 + (depth + 1) * 14,
+                  }}
+                >
+                  empty
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )
+    })
+  }
+
+  return (
+    <section className="grid h-[calc(100vh-56px)] grid-cols-[300px_minmax(0,1fr)_280px] overflow-hidden bg-white text-slate-950">
+      <aside className="flex min-h-0 flex-col border-r border-slate-800 bg-[#181818] text-slate-200">
+        <div className="flex h-11 items-center justify-between border-b border-white/10 px-3">
+          <div>
+            <h2 className="text-xs font-black uppercase tracking-wide text-slate-300">
+              Explorer
+            </h2>
+            <p className="text-[11px] text-slate-500">
+              Notes workspace
+            </p>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <ExplorerButton title="New material" onClick={createMaterial}>
+              +
+            </ExplorerButton>
+
+            <ExplorerButton title="New folder" onClick={createFolder}>
+              📁
+            </ExplorerButton>
+
+            <ExplorerButton
+              title="Rename"
+              onClick={renameSelectedItem}
+              disabled={!selectedItem}
+            >
+              ✎
+            </ExplorerButton>
+
+            <ExplorerButton
+              title="Delete"
+              onClick={deleteSelectedItem}
+              disabled={!selectedItem}
+            >
+              🗑
+            </ExplorerButton>
+          </div>
+        </div>
+
+        <div className="border-b border-white/10 p-3">
+          <input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            className="w-full rounded border border-white/10 bg-[#242424] px-3 py-2 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-violet-500"
+            placeholder="Search notes..."
+          />
+        </div>
+
+        <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+          <span className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+            Materials
+          </span>
+
+          <span className="text-[11px] text-slate-500">
+            {workspace.items.filter((item) => item.type === 'material').length} files
+          </span>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-auto py-2">
+          {renderExplorerItems(null)}
+        </div>
+
+        <div className="border-t border-white/10 p-3">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={exportWorkspace}
+              className="rounded border border-white/10 bg-[#242424] px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10"
+            >
+              Export
+            </button>
+
+            <button
+              type="button"
+              onClick={openImportWorkspace}
+              className="rounded border border-white/10 bg-[#242424] px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10"
+            >
+              Import
+            </button>
+
+            <button
+              type="button"
+              onClick={resetWorkspace}
+              className="col-span-2 rounded border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/20"
+            >
+              Reset Workspace
+            </button>
+          </div>
+
+          <input
+            ref={workspaceInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={importWorkspace}
+            className="hidden"
+          />
+        </div>
+      </aside>
+
+      <main className="flex min-w-0 flex-col overflow-hidden">
+        <div className="flex items-center justify-between border-b border-slate-400 bg-white px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-black text-slate-950">
+                {activeMaterial?.title ?? 'Материал не выбран'}
+              </h1>
+              <p className="text-xs text-slate-500">
+                {activeMaterial
+                  ? `Updated: ${new Date(activeMaterial.updatedAt).toLocaleString()}`
+                  : 'Создай или выбери материал в Explorer'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <ToolbarButton
+              active={mode === 'edit'}
+              onClick={() => setMode('edit')}
+            >
+              Edit
+            </ToolbarButton>
+
+            <ToolbarButton
+              active={mode === 'read'}
+              onClick={() => setMode('read')}
+            >
+              Read
+            </ToolbarButton>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 border-b border-slate-300 bg-white px-4 py-3">
+          <ToolbarButton onClick={insertHeading} disabled={!activeMaterial}>
+            + Заголовок
+          </ToolbarButton>
+
+          <ToolbarButton onClick={insertText} disabled={!activeMaterial}>
+            + Текст
+          </ToolbarButton>
+
+          <ToolbarButton onClick={insertLatex} disabled={!activeMaterial}>
+            + LaTeX
+          </ToolbarButton>
+
+          <ToolbarButton onClick={insertMarkdownCode} disabled={!activeMaterial}>
+            + Markdown
+          </ToolbarButton>
+
+          <ToolbarButton onClick={insertCode} disabled={!activeMaterial}>
+            + Код
+          </ToolbarButton>
+
+          <ToolbarButton onClick={insertTable} disabled={!activeMaterial}>
+            + Таблица
+          </ToolbarButton>
+
+          <ToolbarButton onClick={insertBoardBlock} disabled={!activeMaterial}>
+            + Доска
+          </ToolbarButton>
+
+          <ToolbarButton onClick={insertFileCard} disabled={!activeMaterial}>
+            + Файл
+          </ToolbarButton>
+
+          <ToolbarButton onClick={insertLineBlock} disabled={!activeMaterial}>
+            + Линия
+          </ToolbarButton>
+        </div>
+
+        <div
+          className={
+            mode === 'edit'
+              ? 'blocknote-notebook-edit notebook-grid-bg min-h-0 flex-1 overflow-auto p-5'
+              : 'blocknote-notebook-read min-h-0 flex-1 overflow-auto bg-slate-100 p-8'
+          }
+        >
+          {activeMaterial ? (
+            <div
+              className={
+                mode === 'edit'
+                  ? 'mx-auto max-w-5xl'
+                  : 'mx-auto min-h-full max-w-4xl bg-white px-12 py-10 shadow-sm'
+              }
+            >
+              <BlockNoteView
+                editor={editor}
+                editable={mode === 'edit'}
+                theme="light"
+                onChange={saveEditorDocument}
+              />
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <div className="max-w-md rounded-2xl border border-slate-300 bg-white p-8 text-center shadow-sm">
+                <h2 className="text-xl font-black text-slate-950">
+                  Материал не выбран
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Создай новый материал или выбери существующий в панели Explorer слева.
+                </p>
+                <button
+                  type="button"
+                  onClick={createMaterial}
+                  className="mt-5 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white"
+                >
+                  Создать материал
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+
+      <aside className="border-l border-slate-400 bg-white p-4">
+        <div className="mb-4 flex justify-end">
+          <button className="bg-slate-950 px-4 py-2 text-sm font-bold text-white">
+            Шаблоны
+          </button>
+        </div>
+
+        <h2 className="text-base font-black">Свойства</h2>
+
+        <div className="mt-3 rounded-xl border border-slate-300 bg-slate-50 p-3">
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+            Selected
+          </p>
+          <p className="mt-1 text-sm font-bold text-slate-950">
+            {selectedItem?.title ?? 'Nothing selected'}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            {selectedItem?.type ?? '—'}
+          </p>
+        </div>
+
+        <div className="mt-4 grid gap-2 border border-slate-400 p-3">
+          <SideButton
+            onClick={exportCurrentMaterialJson}
+            disabled={!activeMaterial}
+          >
+            Export Material JSON
+          </SideButton>
+
+          <SideButton
+            onClick={exportCurrentMaterialMarkdown}
+            disabled={!activeMaterial}
+          >
+            Export Material MD
+          </SideButton>
+
+          <SideButton
+            onClick={exportCurrentMaterialHtml}
+            disabled={!activeMaterial}
+          >
+            Export Material HTML
+          </SideButton>
+
+          <SideButton onClick={exportWorkspace}>
+            Export Workspace
+          </SideButton>
+        </div>
+
+        <div className="mt-4 border border-slate-400 p-3 text-xs leading-5 text-slate-500">
+          Левая панель теперь работает как мини-Explorer: папки, материалы,
+          поиск, создание, переименование, удаление и отдельное сохранение
+          документа для каждого материала.
+        </div>
+
+        <div className="mt-4 border border-slate-400 p-3 text-xs leading-5 text-slate-500">
+          Внутри редактора можно писать <b>/</b>, чтобы открыть стандартное меню BlockNote.
+        </div>
+      </aside>
+    </section>
+  )
+}

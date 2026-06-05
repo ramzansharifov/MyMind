@@ -711,6 +711,15 @@
   min-height: 180px;
 }
 
+.study-board-preview {
+  position: relative;
+  min-height: 320px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
 .study-file-editor,
 .study-file-preview,
 .study-custom-block,
@@ -2300,4 +2309,357 @@
   min-height: 36px;
   padding: 8px 11px;
   border-radius: 10px;
+}
+
+/* Current study module layout alignment */
+.app-shell.study-shell .study-page {
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+.app-shell.study-shell .study-workspace {
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 0;
+  min-height: 100vh;
+}
+
+.app-shell.study-shell .study-tree-panel {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  width: 300px;
+  height: 100vh;
+  min-height: 100vh;
+  margin: 0;
+  border-top: 0;
+  border-right: 1px solid color-mix(in srgb, var(--border) 88%, var(--accent) 12%);
+  border-bottom: 0;
+  border-left: 0;
+  border-radius: 0;
+  padding: 18px 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 38%),
+    color-mix(in srgb, var(--surface) 96%, black 4%);
+  box-shadow: inset -1px 0 0 color-mix(in srgb, white 4%, transparent);
+}
+
+.app-shell.study-shell .study-main {
+  height: 100vh;
+  padding: 34px 36px;
+}
+
+.study-tree-head {
+  min-height: 42px;
+}
+
+.study-tree-head > div:first-child {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.study-tree-head strong {
+  white-space: nowrap;
+}
+
+.study-tree-head span {
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+.study-tree-head .icon-button,
+.study-header-actions .icon-button {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-soft) 84%, transparent);
+}
+
+.study-tree-search {
+  min-height: 52px;
+  border-radius: 12px;
+  padding: 0 13px;
+  background: color-mix(in srgb, var(--surface-soft) 78%, transparent);
+}
+
+.study-tree-root {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  padding: 0 2px 8px 0;
+}
+
+.study-tree-item {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.study-tree-children {
+  display: grid;
+  gap: 7px;
+  margin-left: 12px;
+  padding-left: 10px;
+}
+
+.study-tree-row {
+  min-height: 54px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  border-radius: 12px;
+  padding: 7px;
+}
+
+.study-tree-main-button {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  grid-template-columns: 18px 32px minmax(0, 1fr);
+  gap: 9px;
+  text-align: left;
+}
+
+.study-tree-caret {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-strong);
+}
+
+.study-tree-main-button > svg {
+  width: 32px;
+  height: 32px;
+  padding: 7px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-soft));
+  color: var(--accent-strong);
+}
+
+.study-tree-main-button > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.study-tree-main-button strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.study-tree-main-button small {
+  color: color-mix(in srgb, var(--muted) 90%, var(--text));
+  font-size: 0.78rem;
+}
+
+.study-tree-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.study-tree-row:hover .study-tree-actions,
+.study-tree-row.active .study-tree-actions,
+.study-tree-actions:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.study-tree-actions .icon-button,
+.study-tree-action-btn {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, var(--accent) 22%);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface-soft) 88%, transparent);
+  color: var(--text);
+  font-size: 0;
+}
+
+.study-tree-actions .icon-button:hover,
+.study-tree-action-btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface-soft));
+  color: var(--accent-strong);
+}
+
+.study-tree-actions .icon-button.danger,
+.study-tree-action-btn.danger {
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--border));
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface-soft));
+  color: var(--danger);
+}
+
+.study-tree-menu {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 5%, transparent), transparent 48%),
+    color-mix(in srgb, var(--surface-strong) 96%, black 4%);
+  backdrop-filter: var(--glass-blur);
+}
+
+.study-tree-toc {
+  display: grid;
+  gap: 6px;
+  margin-top: auto;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--surface-soft) 76%, transparent);
+}
+
+.study-tree-toc strong {
+  color: var(--text);
+}
+
+.study-tree-toc button {
+  min-height: 30px;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.study-tree-toc button:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent-strong);
+}
+
+.study-folder-view {
+  width: min(1060px, 100%);
+  margin: 0 auto;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.study-folder-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 24px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 48%),
+    color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: var(--shadow-soft);
+}
+
+.study-folder-hero h2 {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.study-folder-grid {
+  margin-top: 18px;
+}
+
+.study-folder-card {
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 4%, transparent), transparent 50%),
+    color-mix(in srgb, var(--surface-soft) 88%, transparent);
+}
+
+.study-material-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.study-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 18px;
+  align-items: start;
+}
+
+.study-editor-column {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+}
+
+.study-blocknote-shell {
+  min-height: 360px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  padding: 10px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 3%, transparent), transparent 44%),
+    color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: var(--shadow-soft);
+}
+
+.study-side-panel {
+  top: 18px;
+  border-radius: 15px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 4%, transparent), transparent 48%),
+    color-mix(in srgb, var(--surface) 94%, transparent);
+}
+
+.study-setting-group,
+.study-setting-field {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--surface-soft) 78%, transparent);
+}
+
+.study-color-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.study-color-dot {
+  background: var(--dot-color, var(--surface-soft));
+}
+
+.study-side-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+@media (max-width: 1180px) {
+  .app-shell.study-shell .study-workspace {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .app-shell.study-shell .study-tree-panel {
+    width: 280px;
+  }
+
+  .study-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .study-side-panel {
+    position: static;
+  }
 }

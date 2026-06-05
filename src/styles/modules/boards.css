@@ -1,0 +1,138 @@
+.boards-page {
+  display: grid;
+  gap: 22px;
+}
+
+.boards-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 18px;
+  min-height: min(760px, calc(100vh - 190px));
+}
+
+.boards-sidebar,
+.boards-main,
+.boards-toolbar,
+.boards-empty-state {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.boards-sidebar {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 14px;
+  min-height: 0;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.boards-sidebar-head,
+.boards-folder-label,
+.boards-toolbar,
+.boards-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.boards-sidebar-head,
+.boards-toolbar {
+  justify-content: space-between;
+}
+
+.boards-sidebar-head strong,
+.boards-toolbar h2 {
+  display: block;
+  margin: 0;
+}
+
+.boards-folder-label {
+  min-height: 38px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  font-weight: 800;
+}
+
+.boards-list {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.boards-list-item {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  text-align: left;
+  background: var(--surface-soft);
+  cursor: pointer;
+}
+
+.boards-list-item:hover,
+.boards-list-item.active {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-soft));
+}
+
+.boards-list-item span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 800;
+}
+
+.boards-list-item small,
+.boards-empty span {
+  color: var(--muted);
+}
+
+.boards-main {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.boards-toolbar {
+  border-width: 0 0 1px;
+  box-shadow: none;
+  padding: 14px 16px;
+}
+
+.boards-canvas {
+  min-height: 0;
+  overflow: hidden;
+  background: var(--surface-soft);
+}
+
+.boards-empty,
+.boards-empty-state {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.boards-empty {
+  min-height: 160px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.boards-empty-state {
+  min-height: 420px;
+  border-radius: 10px;
+  padding: 24px;
+}

@@ -75,6 +75,7 @@ export type ModuleKey =
   | 'notes'
   | 'templates'
   | 'study'
+  | 'boards'
   | 'projects'
   | 'contacts'
   | 'health'

@@ -1,0 +1,22 @@
+﻿#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+.tl-container {
+  --color-background: #f8fafc;
+}
+
+.coordinate-plane-svg {
+  display: block;
+  user-select: none;
+}
+
+.bn-container {
+  min-height: 100%;
+}
+
+.bn-editor {
+  min-height: calc(100vh - 280px);
+  padding: 24px;
+}

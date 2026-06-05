@@ -1,4 +1,6 @@
 import type { CalendarEvent } from '../../modules/calendar/types';
+import type { BoardsData } from '../../modules/boards/types';
+import { emptyBoardsData, normalizeBoardsData } from '../../modules/boards/boardsUtils';
 import type { Contact, ContactsData } from '../../modules/contacts/types';
 import type { FinanceAccount, FinanceData, FinanceTransaction } from '../../modules/finance/types';
 import type { Goal } from '../../modules/goals/types';
@@ -32,6 +34,7 @@ export interface AppData {
   notes: NotesData;
   templates: TemplatesData;
   study: StudyData;
+  boards: BoardsData;
   projects: Project[];
   contacts: ContactsData;
   health: HealthData;
@@ -60,6 +63,7 @@ export const emptyData: AppData = {
   notes: { items: [], groups: [] },
   templates: { items: [], groups: [] },
   study: emptyStudyData,
+  boards: emptyBoardsData,
   projects: [],
   contacts: { items: [], groups: [] },
   health: { entries: [], metrics: [] },
@@ -137,6 +141,7 @@ export const dataCollections: AppCollectionName[] = [
   'notes',
   'templates',
   'study',
+  'boards',
   'projects',
   'contacts',
   'health',
@@ -158,6 +163,7 @@ export const moduleCollections: Record<ModuleKey, AppCollectionName[]> = {
   notes: ['notes'],
   templates: ['templates'],
   study: ['study'],
+  boards: ['boards'],
   projects: ['projects'],
   contacts: ['contacts'],
   health: ['health'],
@@ -196,6 +202,7 @@ export function normalizeData(data: AppData): AppData {
     notes: normalizeGroupedContentData<Note>(data.notes, (note) => migrateNote(note)),
     templates: normalizeGroupedContentData<TextTemplate>(data.templates),
     study: normalizeStudyData(data.study),
+    boards: normalizeBoardsData(data.boards),
     calendarEvents: (data.calendarEvents ?? []).map((event) => ({
       ...event,
       tags: event.tags ?? (event.category ? [event.category] : []),
@@ -254,6 +261,8 @@ export function getDataCollection(data: AppData, collectionName: AppCollectionNa
       return data.templates;
     case 'study':
       return data.study;
+    case 'boards':
+      return data.boards;
     case 'projects':
       return data.projects;
     case 'contacts':
@@ -289,6 +298,8 @@ export function setDataCollection(data: AppData, collectionName: AppCollectionNa
       return { ...data, templates: normalizeGroupedContentData<TextTemplate>(value) };
     case 'study':
       return { ...data, study: normalizeStudyData(value) };
+    case 'boards':
+      return { ...data, boards: normalizeBoardsData(value) };
     case 'projects':
       return { ...data, projects: Array.isArray(value) ? value as Project[] : [] };
     case 'contacts':

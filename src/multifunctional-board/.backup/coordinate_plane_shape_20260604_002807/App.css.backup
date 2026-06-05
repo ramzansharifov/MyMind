@@ -1,0 +1,8 @@
+﻿#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+.tl-container {
+  --color-background: #f8fafc;
+}

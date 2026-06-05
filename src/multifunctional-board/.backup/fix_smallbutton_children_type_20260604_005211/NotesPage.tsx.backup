@@ -1,0 +1,1283 @@
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ChangeEvent } from 'react'
+
+const STORAGE_KEY = 'multifunctional-board-notebook-notes'
+
+type NotesMode = 'edit' | 'read'
+
+type BlockType =
+  | 'heading'
+  | 'text'
+  | 'latex'
+  | 'markdown'
+  | 'code'
+  | 'table'
+  | 'canvas'
+  | 'file'
+  | 'line'
+
+type BaseBlock = {
+  id: string
+  type: BlockType
+  background: string
+  padding: number
+}
+
+type HeadingBlock = BaseBlock & {
+  type: 'heading'
+  level: 1 | 2 | 3
+  text: string
+}
+
+type TextBlock = BaseBlock & {
+  type: 'text'
+  text: string
+}
+
+type LatexBlock = BaseBlock & {
+  type: 'latex'
+  formula: string
+  note: string
+}
+
+type MarkdownBlock = BaseBlock & {
+  type: 'markdown'
+  markdown: string
+}
+
+type CodeBlock = BaseBlock & {
+  type: 'code'
+  language: string
+  code: string
+}
+
+type TableBlock = BaseBlock & {
+  type: 'table'
+  header: boolean
+  rows: string[][]
+}
+
+type CanvasBlock = BaseBlock & {
+  type: 'canvas'
+  title: string
+  description: string
+}
+
+type FileBlock = BaseBlock & {
+  type: 'file'
+  name: string
+  description: string
+}
+
+type LineBlock = BaseBlock & {
+  type: 'line'
+}
+
+type NotebookBlock =
+  | HeadingBlock
+  | TextBlock
+  | LatexBlock
+  | MarkdownBlock
+  | CodeBlock
+  | TableBlock
+  | CanvasBlock
+  | FileBlock
+  | LineBlock
+
+function createId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function createBase(type: BlockType): BaseBlock {
+  return {
+    id: createId(),
+    type,
+    background: '#ffffff',
+    padding: 16,
+  }
+}
+
+function createBlock(type: BlockType): NotebookBlock {
+  const base = createBase(type)
+
+  if (type === 'heading') {
+    return {
+      ...base,
+      type,
+      level: 2,
+      text: 'Новый заголовок',
+    }
+  }
+
+  if (type === 'text') {
+    return {
+      ...base,
+      type,
+      text: 'Введите текст заметки...',
+    }
+  }
+
+  if (type === 'latex') {
+    return {
+      ...base,
+      type,
+      formula: 'E = mc^2',
+      note: 'Пояснение к формуле...',
+    }
+  }
+
+  if (type === 'markdown') {
+    return {
+      ...base,
+      type,
+      markdown: '## Markdown блок\n\n- Первый пункт\n- Второй пункт\n- Третий пункт',
+    }
+  }
+
+  if (type === 'code') {
+    return {
+      ...base,
+      type,
+      language: 'typescript',
+      code: 'console.log("Hello, notebook notes!")',
+    }
+  }
+
+  if (type === 'table') {
+    return {
+      ...base,
+      type,
+      header: true,
+      rows: [
+        ['Заголовок 1', 'Заголовок 2', 'Заголовок 3'],
+        ['Введите текст...', 'Введите текст...', 'Введите текст...'],
+        ['Введите текст...', 'Введите текст...', 'Введите текст...'],
+      ],
+    }
+  }
+
+  if (type === 'canvas') {
+    return {
+      ...base,
+      type,
+      title: 'Связанная доска',
+      description: 'Здесь можно оставить ссылку или описание связанной доски.',
+    }
+  }
+
+  if (type === 'file') {
+    return {
+      ...base,
+      type,
+      name: 'Название файла',
+      description: 'Описание файла или материала...',
+    }
+  }
+
+  return {
+    ...base,
+    type: 'line',
+  }
+}
+
+const initialBlocks: NotebookBlock[] = [
+  {
+    ...createBase('heading'),
+    type: 'heading',
+    level: 1,
+    text: 'Notebook Notes',
+  },
+  {
+    ...createBase('text'),
+    type: 'text',
+    text: 'Теперь заметки устроены как набор отдельных блоков. В режиме редактирования каждый блок можно настраивать отдельно, а в режиме чтения всё собирается в полноценный лист.',
+  },
+  {
+    ...createBase('table'),
+    type: 'table',
+    header: true,
+    rows: [
+      ['Блок', 'Назначение', 'Статус'],
+      ['Текст', 'Обычные объяснения и конспект', 'Готово'],
+      ['Код', 'Фрагменты программ', 'Готово'],
+      ['LaTeX', 'Формулы и математические записи', 'Готово'],
+    ],
+  },
+]
+
+function loadBlocks(): NotebookBlock[] {
+  const saved = localStorage.getItem(STORAGE_KEY)
+
+  if (!saved) return initialBlocks
+
+  try {
+    const parsed = JSON.parse(saved)
+
+    if (Array.isArray(parsed)) {
+      return parsed as NotebookBlock[]
+    }
+
+    if (Array.isArray(parsed.blocks)) {
+      return parsed.blocks as NotebookBlock[]
+    }
+
+    return initialBlocks
+  } catch {
+    return initialBlocks
+  }
+}
+
+function downloadTextFile(fileName: string, content: string, mimeType: string) {
+  const blob = new Blob([content], {
+    type: mimeType,
+  })
+
+  const url = URL.createObjectURL(blob)
+
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+
+  URL.revokeObjectURL(url)
+}
+
+function createFileName(prefix: string, extension: string) {
+  const date = new Date()
+    .toISOString()
+    .replaceAll(':', '-')
+    .replaceAll('.', '-')
+
+  return `${prefix}-${date}.${extension}`
+}
+
+function getBlockName(type: BlockType) {
+  if (type === 'heading') return 'Заголовок'
+  if (type === 'text') return 'Текст'
+  if (type === 'latex') return 'LaTeX'
+  if (type === 'markdown') return 'Markdown'
+  if (type === 'code') return 'Код'
+  if (type === 'table') return 'Таблица'
+  if (type === 'canvas') return 'Доска'
+  if (type === 'file') return 'Файл'
+  return 'Линия'
+}
+
+function renderMarkdownLite(markdown: string) {
+  const lines = markdown.split('\n')
+
+  return (
+    <div className="space-y-2">
+      {lines.map((line, index) => {
+        const key = `${index}-${line}`
+
+        if (!line.trim()) {
+          return <div key={key} className="h-2" />
+        }
+
+        if (line.startsWith('### ')) {
+          return (
+            <h3 key={key} className="text-xl font-bold text-slate-950">
+              {line.replace('### ', '')}
+            </h3>
+          )
+        }
+
+        if (line.startsWith('## ')) {
+          return (
+            <h2 key={key} className="text-2xl font-bold text-slate-950">
+              {line.replace('## ', '')}
+            </h2>
+          )
+        }
+
+        if (line.startsWith('# ')) {
+          return (
+            <h1 key={key} className="text-3xl font-black text-slate-950">
+              {line.replace('# ', '')}
+            </h1>
+          )
+        }
+
+        if (line.startsWith('- ')) {
+          return (
+            <div key={key} className="flex gap-3 text-slate-700">
+              <span>•</span>
+              <span>{line.replace('- ', '')}</span>
+            </div>
+          )
+        }
+
+        if (/^\d+\.\s/.test(line)) {
+          return (
+            <p key={key} className="text-slate-700">
+              {line}
+            </p>
+          )
+        }
+
+        return (
+          <p key={key} className="text-slate-700">
+            {line}
+          </p>
+        )
+      })}
+    </div>
+  )
+}
+
+function ToolbarButton({
+  children,
+  onClick,
+  active = false,
+}: {
+  children: string
+  onClick: () => void
+  active?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        active
+          ? 'rounded-none border border-slate-950 bg-slate-950 px-4 py-2 text-sm font-semibold text-white'
+          : 'rounded-none border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-slate-100'
+      }
+    >
+      {children}
+    </button>
+  )
+}
+
+function SmallButton({
+  children,
+  onClick,
+  danger = false,
+}: {
+  children: string
+  onClick: () => void
+  danger?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        danger
+          ? 'border border-slate-950 bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700'
+          : 'border border-slate-400 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 transition hover:bg-slate-100'
+      }
+    >
+      {children}
+    </button>
+  )
+}
+
+function BlockShell({
+  block,
+  selected,
+  children,
+  onSelect,
+  onMoveUp,
+  onMoveDown,
+  onCopy,
+  onDelete,
+}: {
+  block: NotebookBlock
+  selected: boolean
+  children: React.ReactNode
+  onSelect: () => void
+  onMoveUp: () => void
+  onMoveDown: () => void
+  onCopy: () => void
+  onDelete: () => void
+}) {
+  return (
+    <article
+      onClick={onSelect}
+      className={
+        selected
+          ? 'notebook-cell border-2 border-slate-950 bg-white shadow-sm'
+          : 'notebook-cell border border-slate-400 bg-white'
+      }
+    >
+      <div className="flex items-center justify-between border-b border-slate-300 bg-slate-50 px-4 py-2">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-black uppercase tracking-wide text-slate-500">
+            [{block.type}]
+          </span>
+          <span className="text-sm font-bold text-slate-950">
+            {getBlockName(block.type)}
+          </span>
+          {selected && (
+            <span className="text-xs font-bold text-slate-500">
+              SELECTED
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1">
+          <SmallButton onClick={onMoveUp}>Up</SmallButton>
+          <SmallButton onClick={onMoveDown}>Down</SmallButton>
+          <SmallButton onClick={onCopy}>Copy</SmallButton>
+          <SmallButton onClick={onDelete} danger>
+            Delete
+          </SmallButton>
+        </div>
+      </div>
+
+      <div style={{ background: block.background, padding: block.padding }}>
+        {children}
+      </div>
+    </article>
+  )
+}
+
+function ReadBlock({ block }: { block: NotebookBlock }) {
+  if (block.type === 'heading') {
+    if (block.level === 1) {
+      return (
+        <h1 className="mb-5 mt-8 text-5xl font-black tracking-tight text-slate-950">
+          {block.text}
+        </h1>
+      )
+    }
+
+    if (block.level === 2) {
+      return (
+        <h2 className="mb-4 mt-7 text-3xl font-bold tracking-tight text-slate-950">
+          {block.text}
+        </h2>
+      )
+    }
+
+    return (
+      <h3 className="mb-3 mt-6 text-2xl font-bold tracking-tight text-slate-950">
+        {block.text}
+      </h3>
+    )
+  }
+
+  if (block.type === 'text') {
+    return (
+      <div className="my-4 space-y-3 text-lg leading-8 text-slate-700">
+        {block.text.split('\n').map((paragraph, index) => (
+          <p key={`${index}-${paragraph}`}>
+            {paragraph || ' '}
+          </p>
+        ))}
+      </div>
+    )
+  }
+
+  if (block.type === 'latex') {
+    return (
+      <div className="my-6 rounded-2xl border border-slate-200 bg-slate-50 px-6 py-5">
+        <div className="mb-3 text-center font-mono text-2xl font-bold text-slate-950">
+          {block.formula}
+        </div>
+        {block.note && (
+          <p className="text-base leading-7 text-slate-600">
+            {block.note}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  if (block.type === 'markdown') {
+    return (
+      <div className="my-5 rounded-2xl border border-slate-200 bg-white px-6 py-5">
+        {renderMarkdownLite(block.markdown)}
+      </div>
+    )
+  }
+
+  if (block.type === 'code') {
+    return (
+      <div className="my-6 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950">
+        <div className="border-b border-white/10 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+          {block.language}
+        </div>
+        <pre className="overflow-auto px-5 py-4 text-sm leading-7 text-slate-100">
+          <code>{block.code}</code>
+        </pre>
+      </div>
+    )
+  }
+
+  if (block.type === 'table') {
+    return (
+      <div className="my-6 overflow-x-auto">
+        <table className="w-full border-collapse text-left text-sm">
+          <tbody>
+            {block.rows.map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                {row.map((cell, cellIndex) => {
+                  const isHeader = block.header && rowIndex === 0
+
+                  return isHeader ? (
+                    <th
+                      key={`${rowIndex}-${cellIndex}`}
+                      className="border border-slate-300 bg-slate-100 px-4 py-3 font-bold text-slate-950"
+                    >
+                      {cell}
+                    </th>
+                  ) : (
+                    <td
+                      key={`${rowIndex}-${cellIndex}`}
+                      className="border border-slate-300 px-4 py-3 text-slate-700"
+                    >
+                      {cell}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
+  if (block.type === 'canvas') {
+    return (
+      <div className="my-6 rounded-2xl border border-dashed border-slate-400 bg-slate-50 px-6 py-5">
+        <h3 className="text-xl font-bold text-slate-950">
+          {block.title}
+        </h3>
+        <p className="mt-2 text-slate-600">
+          {block.description}
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            window.location.hash = '/board'
+          }}
+          className="mt-4 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+        >
+          Открыть доску
+        </button>
+      </div>
+    )
+  }
+
+  if (block.type === 'file') {
+    return (
+      <div className="my-6 rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
+        <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+          File
+        </p>
+        <h3 className="mt-1 text-xl font-bold text-slate-950">
+          {block.name}
+        </h3>
+        <p className="mt-2 text-slate-600">
+          {block.description}
+        </p>
+      </div>
+    )
+  }
+
+  return <hr className="my-8 border-slate-300" />
+}
+
+export function NotesPage() {
+  const [blocks, setBlocks] = useState<NotebookBlock[]>(loadBlocks)
+  const [mode, setMode] = useState<NotesMode>('edit')
+  const [selectedId, setSelectedId] = useState<string | null>(
+    blocks[0]?.id ?? null
+  )
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const selectedBlock = useMemo(
+    () => blocks.find((block) => block.id === selectedId) ?? null,
+    [blocks, selectedId]
+  )
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(blocks))
+  }, [blocks])
+
+  function updateBlock(
+    id: string,
+    updater: (block: NotebookBlock) => NotebookBlock
+  ) {
+    setBlocks((currentBlocks) =>
+      currentBlocks.map((block) => (block.id === id ? updater(block) : block))
+    )
+  }
+
+  function addBlock(type: BlockType) {
+    const newBlock = createBlock(type)
+
+    setBlocks((currentBlocks) => {
+      if (!selectedId) {
+        return [...currentBlocks, newBlock]
+      }
+
+      const selectedIndex = currentBlocks.findIndex(
+        (block) => block.id === selectedId
+      )
+
+      if (selectedIndex === -1) {
+        return [...currentBlocks, newBlock]
+      }
+
+      return [
+        ...currentBlocks.slice(0, selectedIndex + 1),
+        newBlock,
+        ...currentBlocks.slice(selectedIndex + 1),
+      ]
+    })
+
+    setSelectedId(newBlock.id)
+  }
+
+  function deleteBlock(id: string) {
+    setBlocks((currentBlocks) => {
+      const nextBlocks = currentBlocks.filter((block) => block.id !== id)
+
+      if (selectedId === id) {
+        setSelectedId(nextBlocks[0]?.id ?? null)
+      }
+
+      return nextBlocks
+    })
+  }
+
+  function duplicateBlock(id: string) {
+    const block = blocks.find((item) => item.id === id)
+
+    if (!block) return
+
+    const copy = {
+      ...JSON.parse(JSON.stringify(block)),
+      id: createId(),
+    } as NotebookBlock
+
+    setBlocks((currentBlocks) => {
+      const index = currentBlocks.findIndex((item) => item.id === id)
+
+      return [
+        ...currentBlocks.slice(0, index + 1),
+        copy,
+        ...currentBlocks.slice(index + 1),
+      ]
+    })
+
+    setSelectedId(copy.id)
+  }
+
+  function moveBlock(id: string, direction: -1 | 1) {
+    setBlocks((currentBlocks) => {
+      const index = currentBlocks.findIndex((block) => block.id === id)
+      const targetIndex = index + direction
+
+      if (index === -1 || targetIndex < 0 || targetIndex >= currentBlocks.length) {
+        return currentBlocks
+      }
+
+      const nextBlocks = [...currentBlocks]
+      const [movedBlock] = nextBlocks.splice(index, 1)
+      nextBlocks.splice(targetIndex, 0, movedBlock)
+
+      return nextBlocks
+    })
+  }
+
+  function updateTableCell(
+    blockId: string,
+    rowIndex: number,
+    cellIndex: number,
+    value: string
+  ) {
+    updateBlock(blockId, (block) => {
+      if (block.type !== 'table') return block
+
+      return {
+        ...block,
+        rows: block.rows.map((row, currentRowIndex) =>
+          row.map((cell, currentCellIndex) =>
+            currentRowIndex === rowIndex && currentCellIndex === cellIndex
+              ? value
+              : cell
+          )
+        ),
+      }
+    })
+  }
+
+  function addTableRow(blockId: string) {
+    updateBlock(blockId, (block) => {
+      if (block.type !== 'table') return block
+
+      const columnsCount = block.rows[0]?.length ?? 3
+
+      return {
+        ...block,
+        rows: [
+          ...block.rows,
+          Array.from({ length: columnsCount }, () => 'Введите текст...'),
+        ],
+      }
+    })
+  }
+
+  function addTableColumn(blockId: string) {
+    updateBlock(blockId, (block) => {
+      if (block.type !== 'table') return block
+
+      return {
+        ...block,
+        rows: block.rows.map((row, index) => [
+          ...row,
+          index === 0 ? `Заголовок ${row.length + 1}` : 'Введите текст...',
+        ]),
+      }
+    })
+  }
+
+  function removeTableRow(blockId: string) {
+    updateBlock(blockId, (block) => {
+      if (block.type !== 'table') return block
+      if (block.rows.length <= 1) return block
+
+      return {
+        ...block,
+        rows: block.rows.slice(0, -1),
+      }
+    })
+  }
+
+  function removeTableColumn(blockId: string) {
+    updateBlock(blockId, (block) => {
+      if (block.type !== 'table') return block
+      if ((block.rows[0]?.length ?? 0) <= 1) return block
+
+      return {
+        ...block,
+        rows: block.rows.map((row) => row.slice(0, -1)),
+      }
+    })
+  }
+
+  function exportJson() {
+    const payload = {
+      app: 'multifunctional-board',
+      type: 'notebook-notes',
+      formatVersion: 1,
+      exportedAt: new Date().toISOString(),
+      blocks,
+    }
+
+    downloadTextFile(
+      createFileName('notebook-notes', 'json'),
+      JSON.stringify(payload, null, 2),
+      'application/json'
+    )
+  }
+
+  function openImportJson() {
+    fileInputRef.current?.click()
+  }
+
+  async function importJson(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      const importedBlocks = Array.isArray(parsed) ? parsed : parsed.blocks
+
+      if (!Array.isArray(importedBlocks)) {
+        throw new Error('Wrong JSON format')
+      }
+
+      setBlocks(importedBlocks as NotebookBlock[])
+      setSelectedId(importedBlocks[0]?.id ?? null)
+    } catch (error) {
+      console.error(error)
+      alert('Не получилось импортировать JSON. Проверь формат файла.')
+    }
+  }
+
+  function resetNotes() {
+    setBlocks(initialBlocks)
+    setSelectedId(initialBlocks[0]?.id ?? null)
+  }
+
+  function renderBlockEditor(block: NotebookBlock) {
+    if (block.type === 'heading') {
+      return (
+        <div className="grid gap-3">
+          <select
+            value={block.level}
+            onChange={(event) => {
+              const level = Number(event.target.value) as 1 | 2 | 3
+
+              updateBlock(block.id, (currentBlock) =>
+                currentBlock.type === 'heading'
+                  ? { ...currentBlock, level }
+                  : currentBlock
+              )
+            }}
+            className="w-40 border border-slate-400 bg-white px-3 py-2 text-sm font-semibold"
+          >
+            <option value={1}>H1</option>
+            <option value={2}>H2</option>
+            <option value={3}>H3</option>
+          </select>
+
+          <input
+            value={block.text}
+            onChange={(event) => {
+              updateBlock(block.id, (currentBlock) =>
+                currentBlock.type === 'heading'
+                  ? { ...currentBlock, text: event.target.value }
+                  : currentBlock
+              )
+            }}
+            className="w-full border border-slate-400 px-4 py-3 text-2xl font-black outline-none focus:border-slate-950"
+          />
+        </div>
+      )
+    }
+
+    if (block.type === 'text') {
+      return (
+        <textarea
+          value={block.text}
+          onChange={(event) => {
+            updateBlock(block.id, (currentBlock) =>
+              currentBlock.type === 'text'
+                ? { ...currentBlock, text: event.target.value }
+                : currentBlock
+            )
+          }}
+          className="min-h-36 w-full resize-y border border-slate-400 px-4 py-3 text-base leading-7 outline-none focus:border-slate-950"
+        />
+      )
+    }
+
+    if (block.type === 'latex') {
+      return (
+        <div className="grid gap-3">
+          <input
+            value={block.formula}
+            onChange={(event) => {
+              updateBlock(block.id, (currentBlock) =>
+                currentBlock.type === 'latex'
+                  ? { ...currentBlock, formula: event.target.value }
+                  : currentBlock
+              )
+            }}
+            className="w-full border border-slate-400 px-4 py-3 font-mono text-lg outline-none focus:border-slate-950"
+            placeholder="Например: x^2 + y^2 = r^2"
+          />
+
+          <textarea
+            value={block.note}
+            onChange={(event) => {
+              updateBlock(block.id, (currentBlock) =>
+                currentBlock.type === 'latex'
+                  ? { ...currentBlock, note: event.target.value }
+                  : currentBlock
+              )
+            }}
+            className="min-h-24 w-full resize-y border border-slate-400 px-4 py-3 text-base leading-7 outline-none focus:border-slate-950"
+            placeholder="Пояснение к формуле..."
+          />
+        </div>
+      )
+    }
+
+    if (block.type === 'markdown') {
+      return (
+        <textarea
+          value={block.markdown}
+          onChange={(event) => {
+            updateBlock(block.id, (currentBlock) =>
+              currentBlock.type === 'markdown'
+                ? { ...currentBlock, markdown: event.target.value }
+                : currentBlock
+            )
+          }}
+          className="min-h-44 w-full resize-y border border-slate-400 px-4 py-3 font-mono text-sm leading-7 outline-none focus:border-slate-950"
+        />
+      )
+    }
+
+    if (block.type === 'code') {
+      return (
+        <div className="grid gap-3">
+          <input
+            value={block.language}
+            onChange={(event) => {
+              updateBlock(block.id, (currentBlock) =>
+                currentBlock.type === 'code'
+                  ? { ...currentBlock, language: event.target.value }
+                  : currentBlock
+              )
+            }}
+            className="w-52 border border-slate-400 px-4 py-2 font-mono text-sm outline-none focus:border-slate-950"
+            placeholder="language"
+          />
+
+          <textarea
+            value={block.code}
+            onChange={(event) => {
+              updateBlock(block.id, (currentBlock) =>
+                currentBlock.type === 'code'
+                  ? { ...currentBlock, code: event.target.value }
+                  : currentBlock
+              )
+            }}
+            className="min-h-52 w-full resize-y border border-slate-950 bg-slate-950 px-4 py-3 font-mono text-sm leading-7 text-slate-100 outline-none"
+          />
+        </div>
+      )
+    }
+
+    if (block.type === 'table') {
+      return (
+        <div className="grid gap-3">
+          <div className="flex flex-wrap gap-2">
+            <SmallButton onClick={() => addTableRow(block.id)}>
+              + Row end
+            </SmallButton>
+            <SmallButton onClick={() => addTableColumn(block.id)}>
+              + Column end
+            </SmallButton>
+            <SmallButton onClick={() => removeTableRow(block.id)}>
+              Delete last row
+            </SmallButton>
+            <SmallButton onClick={() => removeTableColumn(block.id)}>
+              Delete last column
+            </SmallButton>
+            <SmallButton
+              onClick={() => {
+                updateBlock(block.id, (currentBlock) =>
+                  currentBlock.type === 'table'
+                    ? { ...currentBlock, header: !currentBlock.header }
+                    : currentBlock
+                )
+              }}
+            >
+              Header: {block.header ? 'On' : 'Off'}
+            </SmallButton>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <tbody>
+                {block.rows.map((row, rowIndex) => (
+                  <tr key={rowIndex}>
+                    {row.map((cell, cellIndex) => (
+                      <td key={`${rowIndex}-${cellIndex}`} className="border border-slate-400">
+                        <input
+                          value={cell}
+                          onChange={(event) =>
+                            updateTableCell(
+                              block.id,
+                              rowIndex,
+                              cellIndex,
+                              event.target.value
+                            )
+                          }
+                          className={
+                            block.header && rowIndex === 0
+                              ? 'w-full bg-slate-100 px-3 py-3 font-bold outline-none'
+                              : 'w-full px-3 py-3 outline-none'
+                          }
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )
+    }
+
+    if (block.type === 'canvas') {
+      return (
+        <div className="grid gap-3">
+          <input
+            value={block.title}
+            onChange={(event) => {
+              updateBlock(block.id, (currentBlock) =>
+                currentBlock.type === 'canvas'
+                  ? { ...currentBlock, title: event.target.value }
+                  : currentBlock
+              )
+            }}
+            className="w-full border border-slate-400 px-4 py-3 text-xl font-bold outline-none focus:border-slate-950"
+          />
+
+          <textarea
+            value={block.description}
+            onChange={(event) => {
+              updateBlock(block.id, (currentBlock) =>
+                currentBlock.type === 'canvas'
+                  ? { ...currentBlock, description: event.target.value }
+                  : currentBlock
+              )
+            }}
+            className="min-h-24 w-full resize-y border border-slate-400 px-4 py-3 outline-none focus:border-slate-950"
+          />
+        </div>
+      )
+    }
+
+    if (block.type === 'file') {
+      return (
+        <div className="grid gap-3">
+          <input
+            value={block.name}
+            onChange={(event) => {
+              updateBlock(block.id, (currentBlock) =>
+                currentBlock.type === 'file'
+                  ? { ...currentBlock, name: event.target.value }
+                  : currentBlock
+              )
+            }}
+            className="w-full border border-slate-400 px-4 py-3 text-xl font-bold outline-none focus:border-slate-950"
+          />
+
+          <textarea
+            value={block.description}
+            onChange={(event) => {
+              updateBlock(block.id, (currentBlock) =>
+                currentBlock.type === 'file'
+                  ? { ...currentBlock, description: event.target.value }
+                  : currentBlock
+              )
+            }}
+            className="min-h-24 w-full resize-y border border-slate-400 px-4 py-3 outline-none focus:border-slate-950"
+          />
+        </div>
+      )
+    }
+
+    return <hr className="border-slate-400" />
+  }
+
+  return (
+    <section className="grid h-[calc(100vh-56px)] grid-cols-[280px_minmax(0,1fr)_280px] overflow-hidden bg-white text-slate-950">
+      <aside className="border-r border-slate-400 bg-white p-4">
+        <h2 className="text-lg font-black">Study Tree</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          Папки и материалы
+        </p>
+
+        <div className="mb-3 grid grid-cols-2 gap-2">
+          <button className="border border-slate-950 bg-slate-950 px-3 py-2 text-sm font-bold text-white">
+            Папка
+          </button>
+          <button className="border border-slate-400 bg-white px-3 py-2 text-sm font-bold">
+            Материал
+          </button>
+        </div>
+
+        <input
+          className="mb-4 w-full border border-slate-400 px-3 py-2 text-sm outline-none focus:border-slate-950"
+          placeholder="Поиск"
+        />
+
+        <div className="border-t border-slate-300 pt-3">
+          <button className="w-full bg-slate-950 px-3 py-2 text-left text-sm font-bold text-white">
+            [M] Тестовый материал
+          </button>
+          <p className="mt-4 border border-dashed border-slate-400 px-3 py-3 text-center text-xs text-slate-500">
+            Перетащи сюда, чтобы перенести в корень
+          </p>
+        </div>
+      </aside>
+
+      <main className="flex min-w-0 flex-col overflow-hidden">
+        <div className="flex items-center justify-between border-b border-slate-400 bg-white px-4 py-3">
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ['heading', '+ Заголовок'],
+                ['text', '+ Текст'],
+                ['latex', '+ LaTeX'],
+                ['markdown', '+ Markdown'],
+                ['code', '+ Код'],
+                ['table', '+ Таблица'],
+                ['canvas', '+ Доска'],
+                ['file', '+ Файл'],
+                ['line', '+ Линия'],
+              ] as const
+            ).map(([type, label]) => (
+              <ToolbarButton
+                key={type}
+                onClick={() => addBlock(type)}
+              >
+                {label}
+              </ToolbarButton>
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            <ToolbarButton
+              active={mode === 'edit'}
+              onClick={() => setMode('edit')}
+            >
+              Edit
+            </ToolbarButton>
+            <ToolbarButton
+              active={mode === 'read'}
+              onClick={() => setMode('read')}
+            >
+              Read
+            </ToolbarButton>
+          </div>
+        </div>
+
+        {mode === 'edit' ? (
+          <div className="notebook-grid-bg min-h-0 flex-1 overflow-auto p-5">
+            <div className="mx-auto grid max-w-5xl gap-4">
+              {blocks.map((block) => (
+                <BlockShell
+                  key={block.id}
+                  block={block}
+                  selected={block.id === selectedId}
+                  onSelect={() => setSelectedId(block.id)}
+                  onMoveUp={() => moveBlock(block.id, -1)}
+                  onMoveDown={() => moveBlock(block.id, 1)}
+                  onCopy={() => duplicateBlock(block.id)}
+                  onDelete={() => deleteBlock(block.id)}
+                >
+                  {renderBlockEditor(block)}
+                </BlockShell>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-8">
+            <article className="mx-auto min-h-full max-w-4xl bg-white px-12 py-10 shadow-sm">
+              {blocks.map((block) => (
+                <ReadBlock key={block.id} block={block} />
+              ))}
+            </article>
+          </div>
+        )}
+      </main>
+
+      <aside className="border-l border-slate-400 bg-white p-4">
+        <div className="mb-4 flex justify-end">
+          <button className="bg-slate-950 px-4 py-2 text-sm font-bold text-white">
+            Шаблоны
+          </button>
+        </div>
+
+        <h2 className="text-base font-black">Настройки блока</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          {selectedBlock ? getBlockName(selectedBlock.type) : 'Блок не выбран'}
+        </p>
+
+        {selectedBlock ? (
+          <div className="grid gap-4">
+            <div className="border border-slate-400 p-3">
+              <p className="mb-2 text-sm font-bold">
+                Цвет фона блока
+              </p>
+
+              <div className="flex gap-2">
+                <input
+                  type="color"
+                  value={selectedBlock.background}
+                  onChange={(event) => {
+                    const background = event.target.value
+
+                    updateBlock(selectedBlock.id, (block) => ({
+                      ...block,
+                      background,
+                    }))
+                  }}
+                  className="h-10 w-14 border border-slate-400"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateBlock(selectedBlock.id, (block) => ({
+                      ...block,
+                      background: '#ffffff',
+                    }))
+                  }}
+                  className="flex-1 border border-slate-400 px-3 py-2 text-sm font-bold"
+                >
+                  Сбросить
+                </button>
+              </div>
+            </div>
+
+            <div className="border border-slate-400 p-3">
+              <p className="mb-2 text-sm font-bold">
+                Внутренний отступ
+              </p>
+
+              <input
+                type="range"
+                min={0}
+                max={48}
+                value={selectedBlock.padding}
+                onChange={(event) => {
+                  const padding = Number(event.target.value)
+
+                  updateBlock(selectedBlock.id, (block) => ({
+                    ...block,
+                    padding,
+                  }))
+                }}
+                className="w-full"
+              />
+
+              <p className="mt-2 text-xs text-slate-500">
+                {selectedBlock.padding}px
+              </p>
+            </div>
+
+            <div className="grid gap-2 border border-slate-400 p-3">
+              <SmallButton onClick={exportJson}>
+                Export JSON
+              </SmallButton>
+              <SmallButton onClick={openImportJson}>
+                Import JSON
+              </SmallButton>
+              <SmallButton onClick={resetNotes} danger>
+                Reset notes
+              </SmallButton>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json,.json"
+                onChange={importJson}
+                className="hidden"
+              />
+            </div>
+
+            <div className="border border-slate-400 p-3 text-xs leading-5 text-slate-500">
+              Новый блок из верхней панели будет добавлен ниже выбранного блока.
+              Чтобы добавить блок в конец материала, сними выделение с блока.
+            </div>
+          </div>
+        ) : (
+          <p className="border border-dashed border-slate-400 p-4 text-sm text-slate-500">
+            Выбери блок в режиме редактирования.
+          </p>
+        )}
+      </aside>
+    </section>
+  )
+}

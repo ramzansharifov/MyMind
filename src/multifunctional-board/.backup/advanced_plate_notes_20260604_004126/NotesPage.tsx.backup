@@ -1,0 +1,725 @@
+﻿import { useRef, useState } from 'react'
+import type { ChangeEvent, ReactNode } from 'react'
+import type { Value } from 'platejs'
+import {
+  BlockquoteRules,
+  BoldRules,
+  CodeRules,
+  HighlightRules,
+  HorizontalRuleRules,
+  ItalicRules,
+  StrikethroughRules,
+  SubscriptRules,
+  SuperscriptRules,
+  UnderlineRules,
+} from '@platejs/basic-nodes'
+import {
+  BlockquotePlugin,
+  BoldPlugin,
+  CodePlugin,
+  H1Plugin,
+  H2Plugin,
+  H3Plugin,
+  H4Plugin,
+  H5Plugin,
+  H6Plugin,
+  HighlightPlugin,
+  HorizontalRulePlugin,
+  ItalicPlugin,
+  KbdPlugin,
+  StrikethroughPlugin,
+  SubscriptPlugin,
+  SuperscriptPlugin,
+  UnderlinePlugin,
+} from '@platejs/basic-nodes/react'
+import { CodeBlockRules } from '@platejs/code-block'
+import {
+  CodeBlockPlugin,
+  CodeLinePlugin,
+  CodeSyntaxPlugin,
+} from '@platejs/code-block/react'
+import { IndentPlugin } from '@platejs/indent/react'
+import { LinkRules } from '@platejs/link'
+import { LinkPlugin } from '@platejs/link/react'
+import {
+  BulletedListRules,
+  OrderedListRules,
+  TaskListRules,
+} from '@platejs/list'
+import { ListPlugin } from '@platejs/list/react'
+import { MathRules } from '@platejs/math'
+import {
+  EquationPlugin,
+  InlineEquationPlugin,
+} from '@platejs/math/react'
+import { MarkdownPlugin } from '@platejs/markdown'
+import {
+  Plate,
+  PlateContent,
+  PlateElement,
+  usePlateEditor,
+  type PlateElementProps,
+} from 'platejs/react'
+import { TablePlugin } from '@platejs/table/react'
+import remarkGfm from 'remark-gfm'
+
+const NOTES_STORAGE_KEY = 'multifunctional-board-advanced-plate-note'
+
+const initialValue: Value = [
+  {
+    type: 'h1',
+    children: [{ text: 'Advanced Plate Notes' }],
+  },
+  {
+    type: 'p',
+    children: [
+      {
+        text: 'Это расширенная страница заметок: форматирование, списки, таблицы, код, ссылки, формулы, JSON и Markdown.',
+      },
+    ],
+  },
+  {
+    type: 'blockquote',
+    children: [
+      {
+        text: 'Подсказка: можно использовать Markdown-сокращения: **bold**, *italic*, ~~strike~~, `code`, - list, 1. list, [text](https://example.com), $x^2$ и ---',
+      },
+    ],
+  },
+]
+
+function getSavedOrInitialValue() {
+  const savedValue = localStorage.getItem(NOTES_STORAGE_KEY)
+
+  if (!savedValue) return initialValue
+
+  try {
+    return JSON.parse(savedValue) as Value
+  } catch {
+    return initialValue
+  }
+}
+
+function H1Element(props: PlateElementProps) {
+  return (
+    <PlateElement
+      as="h1"
+      className="mb-4 mt-6 text-5xl font-black tracking-tight text-slate-950"
+      {...props}
+    />
+  )
+}
+
+function H2Element(props: PlateElementProps) {
+  return (
+    <PlateElement
+      as="h2"
+      className="mb-3 mt-5 text-4xl font-bold tracking-tight text-slate-950"
+      {...props}
+    />
+  )
+}
+
+function H3Element(props: PlateElementProps) {
+  return (
+    <PlateElement
+      as="h3"
+      className="mb-2 mt-4 text-3xl font-bold tracking-tight text-slate-950"
+      {...props}
+    />
+  )
+}
+
+function H4Element(props: PlateElementProps) {
+  return (
+    <PlateElement
+      as="h4"
+      className="mb-2 mt-4 text-2xl font-semibold tracking-tight text-slate-950"
+      {...props}
+    />
+  )
+}
+
+function H5Element(props: PlateElementProps) {
+  return (
+    <PlateElement
+      as="h5"
+      className="mb-2 mt-3 text-xl font-semibold tracking-tight text-slate-950"
+      {...props}
+    />
+  )
+}
+
+function H6Element(props: PlateElementProps) {
+  return (
+    <PlateElement
+      as="h6"
+      className="mb-2 mt-3 text-lg font-semibold uppercase tracking-wide text-slate-600"
+      {...props}
+    />
+  )
+}
+
+function BlockquoteElement(props: PlateElementProps) {
+  return (
+    <PlateElement
+      as="blockquote"
+      className="my-4 rounded-r-2xl border-l-4 border-violet-500 bg-violet-50 px-5 py-4 text-slate-700"
+      {...props}
+    />
+  )
+}
+
+function HorizontalRuleElement(props: PlateElementProps) {
+  return (
+    <PlateElement as="div" className="my-6" {...props}>
+      <hr className="border-slate-300" />
+      {props.children}
+    </PlateElement>
+  )
+}
+
+function CodeBlockElement(props: PlateElementProps) {
+  return (
+    <PlateElement
+      as="pre"
+      className="my-5 overflow-auto rounded-2xl bg-slate-950 px-5 py-4 text-sm leading-7 text-slate-100"
+      {...props}
+    />
+  )
+}
+
+function CodeLineElement(props: PlateElementProps) {
+  return (
+    <PlateElement
+      as="div"
+      className="min-h-6 font-mono"
+      {...props}
+    />
+  )
+}
+
+function LinkElement(props: PlateElementProps) {
+  const element = props.element as any
+  const url = typeof element.url === 'string' ? element.url : '#'
+
+  return (
+    <PlateElement
+      as="a"
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="font-medium text-violet-700 underline underline-offset-4"
+      {...props}
+    />
+  )
+}
+
+function EquationElement(props: PlateElementProps) {
+  const element = props.element as any
+  const tex = typeof element.tex === 'string' ? element.tex : 'E = mc^2'
+
+  return (
+    <PlateElement
+      as="div"
+      className="my-5 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 font-mono text-slate-900"
+      {...props}
+    >
+      <div contentEditable={false} className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Equation
+      </div>
+      <div contentEditable={false}>{tex}</div>
+      {props.children}
+    </PlateElement>
+  )
+}
+
+function InlineEquationElement(props: PlateElementProps) {
+  const element = props.element as any
+  const tex = typeof element.tex === 'string' ? element.tex : 'x^2'
+
+  return (
+    <PlateElement
+      as="span"
+      className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-violet-700"
+      {...props}
+    >
+      <span contentEditable={false}>{tex}</span>
+      {props.children}
+    </PlateElement>
+  )
+}
+
+function TableElement(props: PlateElementProps) {
+  return (
+    <PlateElement
+      as="table"
+      className="my-5 w-full border-collapse overflow-hidden rounded-2xl border border-slate-300 text-sm"
+      {...props}
+    />
+  )
+}
+
+function ToolbarButton({
+  children,
+  onClick,
+  title,
+}: {
+  children: ReactNode
+  onClick: () => void
+  title?: string
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onMouseDown={(event) => {
+        event.preventDefault()
+        onClick()
+      }}
+      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+    >
+      {children}
+    </button>
+  )
+}
+
+function ToolbarGroup({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2">
+      {children}
+    </div>
+  )
+}
+
+function NotesEditor({ resetKey }: { resetKey: number }) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const markdownInputRef = useRef<HTMLInputElement | null>(null)
+  const currentValueRef = useRef<Value>(getSavedOrInitialValue())
+
+  const editor = usePlateEditor(
+    {
+      plugins: [
+        H1Plugin.withComponent(H1Element),
+        H2Plugin.withComponent(H2Element),
+        H3Plugin.withComponent(H3Element),
+        H4Plugin.withComponent(H4Element),
+        H5Plugin.withComponent(H5Element),
+        H6Plugin.withComponent(H6Element),
+
+        BlockquotePlugin.withComponent(BlockquoteElement).configure({
+          inputRules: [BlockquoteRules.markdown()],
+        }),
+
+        HorizontalRulePlugin.withComponent(HorizontalRuleElement).configure({
+          inputRules: [
+            HorizontalRuleRules.markdown({ variant: '-' }),
+            HorizontalRuleRules.markdown({ variant: '_' }),
+          ],
+        }),
+
+        BoldPlugin.configure({
+          inputRules: [
+            BoldRules.markdown({ variant: '*' }),
+            BoldRules.markdown({ variant: '_' }),
+          ],
+        }),
+
+        ItalicPlugin.configure({
+          inputRules: [
+            ItalicRules.markdown({ variant: '*' }),
+            ItalicRules.markdown({ variant: '_' }),
+          ],
+        }),
+
+        UnderlinePlugin.configure({
+          inputRules: [UnderlineRules.markdown()],
+        }),
+
+        StrikethroughPlugin.configure({
+          inputRules: [StrikethroughRules.markdown()],
+        }),
+
+        CodePlugin.configure({
+          inputRules: [CodeRules.markdown()],
+        }),
+
+        HighlightPlugin.configure({
+          inputRules: [
+            HighlightRules.markdown({ variant: '==' }),
+            HighlightRules.markdown({ variant: '≡' }),
+          ],
+        }),
+
+        SubscriptPlugin.configure({
+          inputRules: [SubscriptRules.markdown()],
+        }),
+
+        SuperscriptPlugin.configure({
+          inputRules: [SuperscriptRules.markdown()],
+        }),
+
+        KbdPlugin,
+
+        CodeBlockPlugin.withComponent(CodeBlockElement).configure({
+          inputRules: [CodeBlockRules.markdown()],
+        }),
+        CodeLinePlugin.withComponent(CodeLineElement),
+        CodeSyntaxPlugin,
+
+        IndentPlugin,
+
+        ListPlugin.configure({
+          inputRules: [
+            BulletedListRules.markdown({ variant: '-' }),
+            BulletedListRules.markdown({ variant: '*' }),
+            OrderedListRules.markdown({ variant: '.' }),
+            OrderedListRules.markdown({ variant: ')' }),
+            TaskListRules.markdown({ checked: false }),
+            TaskListRules.markdown({ checked: true }),
+          ],
+        }),
+
+        LinkPlugin.withComponent(LinkElement).configure({
+          inputRules: [
+            LinkRules.markdown(),
+            LinkRules.autolink({ variant: 'paste' }),
+            LinkRules.autolink({ variant: 'space' }),
+            LinkRules.autolink({ variant: 'break' }),
+          ],
+        }),
+
+        InlineEquationPlugin.withComponent(InlineEquationElement).configure({
+          inputRules: [MathRules.markdown({ variant: '$' })],
+        }),
+
+        EquationPlugin.withComponent(EquationElement).configure({
+          inputRules: [MathRules.markdown({ variant: '$$', on: 'break' })],
+        }),
+
+        TablePlugin.withComponent(TableElement),
+
+        MarkdownPlugin.configure({
+          options: {
+            remarkPlugins: [remarkGfm],
+          },
+        }),
+      ],
+      value: currentValueRef.current,
+    },
+    [resetKey]
+  )
+
+  function saveValue(value: Value) {
+    currentValueRef.current = value
+    localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(value))
+  }
+
+  function toggleMark(mark: string) {
+    ;(editor.tf as any).toggleMark(mark)
+  }
+
+  function setBlock(type: string) {
+    ;(editor.tf as any).setNodes({ type })
+  }
+
+  function insertNodes(node: any) {
+    ;(editor.tf as any).insertNodes(node)
+  }
+
+  function insertHorizontalRule() {
+    insertNodes({
+      type: 'hr',
+      children: [{ text: '' }],
+    })
+  }
+
+  function insertCodeBlock() {
+    insertNodes({
+      type: 'code_block',
+      lang: 'typescript',
+      children: [
+        {
+          type: 'code_line',
+          children: [{ text: 'console.log("Hello, Plate!")' }],
+        },
+      ],
+    })
+  }
+
+  function insertLink() {
+    const text = window.prompt('Текст ссылки:', 'Open link')
+    const url = window.prompt('URL:', 'https://example.com')
+
+    if (!text || !url) return
+
+    insertNodes({
+      type: 'a',
+      url,
+      children: [{ text }],
+    })
+  }
+
+  function insertEquation() {
+    const tex = window.prompt('LaTeX формула:', 'E = mc^2')
+
+    if (!tex) return
+
+    insertNodes({
+      type: 'equation',
+      tex,
+      children: [{ text: '' }],
+    })
+  }
+
+  function insertInlineEquation() {
+    const tex = window.prompt('Inline LaTeX:', 'x^2 + y^2')
+
+    if (!tex) return
+
+    insertNodes({
+      type: 'inline_equation',
+      tex,
+      children: [{ text: '' }],
+    })
+  }
+
+  function insertSimpleTable() {
+    insertNodes({
+      type: 'table',
+      children: [
+        {
+          type: 'tr',
+          children: [
+            {
+              type: 'td',
+              children: [{ type: 'p', children: [{ text: 'A1' }] }],
+            },
+            {
+              type: 'td',
+              children: [{ type: 'p', children: [{ text: 'B1' }] }],
+            },
+            {
+              type: 'td',
+              children: [{ type: 'p', children: [{ text: 'C1' }] }],
+            },
+          ],
+        },
+        {
+          type: 'tr',
+          children: [
+            {
+              type: 'td',
+              children: [{ type: 'p', children: [{ text: 'A2' }] }],
+            },
+            {
+              type: 'td',
+              children: [{ type: 'p', children: [{ text: 'B2' }] }],
+            },
+            {
+              type: 'td',
+              children: [{ type: 'p', children: [{ text: 'C2' }] }],
+            },
+          ],
+        },
+      ],
+    })
+  }
+
+  function exportJson() {
+    const exportData = {
+      app: 'multifunctional-board',
+      type: 'advanced-plate-note',
+      formatVersion: 1,
+      exportedAt: new Date().toISOString(),
+      value: currentValueRef.current,
+    }
+
+    const json = JSON.stringify(exportData, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `advanced-note-${new Date()
+      .toISOString()
+      .replaceAll(':', '-')
+      .replaceAll('.', '-')}.json`
+    link.click()
+
+    URL.revokeObjectURL(url)
+  }
+
+  function exportMarkdown() {
+    try {
+      const markdown = (editor.api as any).markdown.serialize()
+      const blob = new Blob([markdown], { type: 'text/markdown' })
+      const url = URL.createObjectURL(blob)
+
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `advanced-note-${new Date()
+        .toISOString()
+        .replaceAll(':', '-')
+        .replaceAll('.', '-')}.md`
+      link.click()
+
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error(error)
+      alert('Не получилось экспортировать Markdown. Часть сложных блоков может не поддерживаться сериализатором.')
+    }
+  }
+
+  function openJsonFilePicker() {
+    fileInputRef.current?.click()
+  }
+
+  function openMarkdownFilePicker() {
+    markdownInputRef.current?.click()
+  }
+
+  async function importJson(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+      const value = data.value ?? data
+
+      ;(editor.tf as any).setValue(value)
+      saveValue(value)
+    } catch (error) {
+      console.error(error)
+      alert('Не получилось импортировать JSON.')
+    }
+  }
+
+  async function importMarkdown(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) return
+
+    try {
+      const markdown = await file.text()
+      const value = (editor.api as any).markdown.deserialize(markdown)
+
+      ;(editor.tf as any).setValue(value)
+      saveValue(value)
+    } catch (error) {
+      console.error(error)
+      alert('Не получилось импортировать Markdown.')
+    }
+  }
+
+  return (
+    <Plate
+      editor={editor}
+      onChange={({ value }) => {
+        saveValue(value)
+      }}
+    >
+      <div className="grid gap-3 border-b border-slate-200 bg-white px-6 py-4">
+        <ToolbarGroup>
+          <ToolbarButton onClick={() => setBlock('p')}>P</ToolbarButton>
+          <ToolbarButton onClick={() => setBlock('h1')}>H1</ToolbarButton>
+          <ToolbarButton onClick={() => setBlock('h2')}>H2</ToolbarButton>
+          <ToolbarButton onClick={() => setBlock('h3')}>H3</ToolbarButton>
+          <ToolbarButton onClick={() => setBlock('h4')}>H4</ToolbarButton>
+          <ToolbarButton onClick={() => setBlock('h5')}>H5</ToolbarButton>
+          <ToolbarButton onClick={() => setBlock('h6')}>H6</ToolbarButton>
+          <ToolbarButton onClick={() => setBlock('blockquote')}>Quote</ToolbarButton>
+          <ToolbarButton onClick={insertHorizontalRule}>HR</ToolbarButton>
+        </ToolbarGroup>
+
+        <ToolbarGroup>
+          <ToolbarButton onClick={() => toggleMark('bold')}>Bold</ToolbarButton>
+          <ToolbarButton onClick={() => toggleMark('italic')}>Italic</ToolbarButton>
+          <ToolbarButton onClick={() => toggleMark('underline')}>Underline</ToolbarButton>
+          <ToolbarButton onClick={() => toggleMark('strikethrough')}>Strike</ToolbarButton>
+          <ToolbarButton onClick={() => toggleMark('code')}>Code</ToolbarButton>
+          <ToolbarButton onClick={() => toggleMark('highlight')}>Highlight</ToolbarButton>
+          <ToolbarButton onClick={() => toggleMark('subscript')}>Sub</ToolbarButton>
+          <ToolbarButton onClick={() => toggleMark('superscript')}>Sup</ToolbarButton>
+          <ToolbarButton onClick={() => toggleMark('kbd')}>Kbd</ToolbarButton>
+        </ToolbarGroup>
+
+        <ToolbarGroup>
+          <ToolbarButton onClick={insertSimpleTable}>Table</ToolbarButton>
+          <ToolbarButton onClick={insertCodeBlock}>Code Block</ToolbarButton>
+          <ToolbarButton onClick={insertLink}>Link</ToolbarButton>
+          <ToolbarButton onClick={insertEquation}>Equation</ToolbarButton>
+          <ToolbarButton onClick={insertInlineEquation}>Inline Eq</ToolbarButton>
+        </ToolbarGroup>
+
+        <ToolbarGroup>
+          <ToolbarButton onClick={exportJson}>Export JSON</ToolbarButton>
+          <ToolbarButton onClick={openJsonFilePicker}>Import JSON</ToolbarButton>
+          <ToolbarButton onClick={exportMarkdown}>Export MD</ToolbarButton>
+          <ToolbarButton onClick={openMarkdownFilePicker}>Import MD</ToolbarButton>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={importJson}
+            className="hidden"
+          />
+
+          <input
+            ref={markdownInputRef}
+            type="file"
+            accept="text/markdown,.md,.markdown"
+            onChange={importMarkdown}
+            className="hidden"
+          />
+        </ToolbarGroup>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto bg-slate-100">
+        <PlateContent
+          className="mx-auto min-h-full max-w-5xl bg-white px-10 py-10 text-lg leading-8 text-slate-800 shadow-sm outline-none"
+          placeholder="Пиши заметку..."
+        />
+      </div>
+    </Plate>
+  )
+}
+
+export function NotesPage() {
+  const [resetKey, setResetKey] = useState(0)
+
+  function resetNote() {
+    localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(initialValue))
+    setResetKey((value) => value + 1)
+  }
+
+  return (
+    <section className="flex h-[calc(100vh-56px)] flex-col overflow-hidden bg-slate-100">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+        <div>
+          <h1 className="text-xl font-bold text-slate-950">
+            Advanced Notes
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Расширенная страница заметок на Plate: rich-text, tables, links, code, equations, JSON и Markdown.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={resetNote}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+        >
+          Reset Note
+        </button>
+      </div>
+
+      <NotesEditor resetKey={resetKey} />
+    </section>
+  )
+}

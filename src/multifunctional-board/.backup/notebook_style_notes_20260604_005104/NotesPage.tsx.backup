@@ -1,0 +1,422 @@
+﻿import { useRef, useState } from 'react'
+import type { ChangeEvent } from 'react'
+import type { Block, PartialBlock } from '@blocknote/core'
+import '@blocknote/core/fonts/inter.css'
+import { useCreateBlockNote, useEditorChange } from '@blocknote/react'
+import { BlockNoteView } from '@blocknote/mantine'
+import '@blocknote/mantine/style.css'
+
+const NOTES_STORAGE_KEY = 'multifunctional-board-blocknote-document'
+
+const initialContent: PartialBlock[] = [
+  {
+    type: 'heading',
+    props: {
+      level: 1,
+    },
+    content: 'BlockNote Notes',
+  },
+  {
+    type: 'paragraph',
+    content:
+      'Это новая страница заметок на BlockNote. Здесь уже есть slash-menu через /, блочная структура, drag-and-drop, форматирование и сохранение в JSON.',
+  },
+  {
+    type: 'paragraph',
+    content:
+      'Дальше мы сможем добавлять свои блоки: формулы, карточки задач, учебные шаблоны, блоки кода, вложения и даже связку с доской tldraw.',
+  },
+]
+
+function loadInitialContent(): PartialBlock[] {
+  const saved = localStorage.getItem(NOTES_STORAGE_KEY)
+
+  if (!saved) return initialContent
+
+  try {
+    const parsed = JSON.parse(saved)
+
+    if (Array.isArray(parsed)) {
+      return parsed as PartialBlock[]
+    }
+
+    return initialContent
+  } catch {
+    return initialContent
+  }
+}
+
+function downloadTextFile(fileName: string, content: string, mimeType: string) {
+  const blob = new Blob([content], {
+    type: mimeType,
+  })
+
+  const url = URL.createObjectURL(blob)
+
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+
+  URL.revokeObjectURL(url)
+}
+
+function createDateFileName(prefix: string, extension: string) {
+  const date = new Date()
+    .toISOString()
+    .replaceAll(':', '-')
+    .replaceAll('.', '-')
+
+  return `${prefix}-${date}.${extension}`
+}
+
+function NotesEditor() {
+  const [statusMessage, setStatusMessage] = useState('Документ готов')
+  const jsonInputRef = useRef<HTMLInputElement | null>(null)
+  const markdownInputRef = useRef<HTMLInputElement | null>(null)
+  const htmlInputRef = useRef<HTMLInputElement | null>(null)
+
+  const editor = useCreateBlockNote({
+    initialContent: loadInitialContent(),
+  })
+
+  useEditorChange((editorInstance) => {
+    localStorage.setItem(
+      NOTES_STORAGE_KEY,
+      JSON.stringify(editorInstance.document)
+    )
+
+    setStatusMessage('Автосохранение выполнено')
+  }, editor)
+
+  function saveBlocksToStorage(blocks: Block[] | PartialBlock[]) {
+    localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(blocks))
+  }
+
+  function replaceDocument(blocks: PartialBlock[] | Block[]) {
+    editor.replaceBlocks(editor.document, blocks as PartialBlock[])
+    saveBlocksToStorage(blocks)
+    setStatusMessage('Документ обновлён')
+  }
+
+  function resetDocument() {
+    replaceDocument(initialContent)
+  }
+
+  function insertStudyTemplate() {
+    const template: PartialBlock[] = [
+      {
+        type: 'heading',
+        props: {
+          level: 2,
+        },
+        content: 'Учебный блок',
+      },
+      {
+        type: 'paragraph',
+        content: 'Тема:',
+      },
+      {
+        type: 'bulletListItem',
+        content: 'Основная идея',
+      },
+      {
+        type: 'bulletListItem',
+        content: 'Ключевые термины',
+      },
+      {
+        type: 'bulletListItem',
+        content: 'Пример / задача',
+      },
+      {
+        type: 'paragraph',
+        content: 'Краткий вывод:',
+      },
+    ]
+
+    replaceDocument([...editor.document, ...template])
+  }
+
+  function insertProjectTemplate() {
+    const template: PartialBlock[] = [
+      {
+        type: 'heading',
+        props: {
+          level: 2,
+        },
+        content: 'Проектная заметка',
+      },
+      {
+        type: 'paragraph',
+        content: 'Цель проекта:',
+      },
+      {
+        type: 'checkListItem',
+        content: 'Сформулировать идею',
+      },
+      {
+        type: 'checkListItem',
+        content: 'Собрать материалы',
+      },
+      {
+        type: 'checkListItem',
+        content: 'Сделать первый прототип',
+      },
+      {
+        type: 'paragraph',
+        content: 'Следующий шаг:',
+      },
+    ]
+
+    replaceDocument([...editor.document, ...template])
+  }
+
+  function exportJson() {
+    const json = JSON.stringify(editor.document, null, 2)
+
+    downloadTextFile(
+      createDateFileName('blocknote-document', 'json'),
+      json,
+      'application/json'
+    )
+
+    setStatusMessage('JSON экспортирован')
+  }
+
+  async function exportMarkdown() {
+    const markdown = await editor.blocksToMarkdownLossy(editor.document)
+
+    downloadTextFile(
+      createDateFileName('blocknote-document', 'md'),
+      markdown,
+      'text/markdown'
+    )
+
+    setStatusMessage('Markdown экспортирован')
+  }
+
+  async function exportHtml() {
+    const html = await editor.blocksToHTMLLossy(editor.document)
+
+    downloadTextFile(
+      createDateFileName('blocknote-document', 'html'),
+      html,
+      'text/html'
+    )
+
+    setStatusMessage('HTML экспортирован')
+  }
+
+  function openJsonImport() {
+    jsonInputRef.current?.click()
+  }
+
+  function openMarkdownImport() {
+    markdownInputRef.current?.click()
+  }
+
+  function openHtmlImport() {
+    htmlInputRef.current?.click()
+  }
+
+  async function importJson(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+
+      if (!Array.isArray(parsed)) {
+        throw new Error('JSON must be an array of BlockNote blocks')
+      }
+
+      replaceDocument(parsed as PartialBlock[])
+      setStatusMessage('JSON импортирован')
+    } catch (error) {
+      console.error(error)
+      alert('Не получилось импортировать JSON. Проверь формат файла.')
+    }
+  }
+
+  async function importMarkdown(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) return
+
+    try {
+      const markdown = await file.text()
+      const blocks = await editor.tryParseMarkdownToBlocks(markdown)
+
+      replaceDocument(blocks)
+      setStatusMessage('Markdown импортирован')
+    } catch (error) {
+      console.error(error)
+      alert('Не получилось импортировать Markdown.')
+    }
+  }
+
+  async function importHtml(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) return
+
+    try {
+      const html = await file.text()
+      const blocks = await editor.tryParseHTMLToBlocks(html)
+
+      replaceDocument(blocks)
+      setStatusMessage('HTML импортирован')
+    } catch (error) {
+      console.error(error)
+      alert('Не получилось импортировать HTML.')
+    }
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="grid gap-3 border-b border-slate-200 bg-white px-6 py-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={insertStudyTemplate}
+            className="rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-violet-700"
+          >
+            Add Study Template
+          </button>
+
+          <button
+            type="button"
+            onClick={insertProjectTemplate}
+            className="rounded-xl bg-sky-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-sky-700"
+          >
+            Add Project Template
+          </button>
+
+          <button
+            type="button"
+            onClick={resetDocument}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Reset
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={exportJson}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Export JSON
+          </button>
+
+          <button
+            type="button"
+            onClick={openJsonImport}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Import JSON
+          </button>
+
+          <button
+            type="button"
+            onClick={exportMarkdown}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Export MD
+          </button>
+
+          <button
+            type="button"
+            onClick={openMarkdownImport}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Import MD
+          </button>
+
+          <button
+            type="button"
+            onClick={exportHtml}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Export HTML
+          </button>
+
+          <button
+            type="button"
+            onClick={openHtmlImport}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Import HTML
+          </button>
+
+          <input
+            ref={jsonInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={importJson}
+            className="hidden"
+          />
+
+          <input
+            ref={markdownInputRef}
+            type="file"
+            accept="text/markdown,.md,.markdown"
+            onChange={importMarkdown}
+            className="hidden"
+          />
+
+          <input
+            ref={htmlInputRef}
+            type="file"
+            accept="text/html,.html,.htm"
+            onChange={importHtml}
+            className="hidden"
+          />
+        </div>
+
+        <p className="text-xs text-slate-500">
+          {statusMessage}. Для встроенного меню напиши <span className="font-semibold">/</span> внутри редактора.
+        </p>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto bg-slate-100 px-6 py-6">
+        <div className="mx-auto min-h-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <BlockNoteView
+            editor={editor}
+            theme="light"
+            className="min-h-[calc(100vh-260px)]"
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function NotesPage() {
+  return (
+    <section className="flex h-[calc(100vh-56px)] flex-col overflow-hidden bg-slate-100">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+        <div>
+          <h1 className="text-xl font-bold text-slate-950">
+            BlockNote Notes
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Notion-like редактор заметок: блоки, slash-menu, drag-and-drop, JSON, Markdown и HTML.
+          </p>
+        </div>
+
+        <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-600">
+          BlockNote
+        </div>
+      </div>
+
+      <NotesEditor />
+    </section>
+  )
+}

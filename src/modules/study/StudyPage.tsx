@@ -1,469 +1,381 @@
-import { FolderPlus, Plus, Redo2, Undo2, Folder, FileText, Settings } from 'lucide-react';
-import { useMemo, useState, useEffect } from 'react';
-import { AddButton } from '../../shared/components/ActionButtons';
-import { EmptyState } from '../../shared/components/EmptyState';
-import { PageHeader } from '../../shared/components/PageHeader';
-import { Tooltip } from '../../shared/components/Tooltip';
-import { StudyMaterialEditor, type StudyMode } from './components/StudyMaterialEditor';
-import { StudyTemplateManager } from './components/StudyTemplateManager';
-import { StudyTreePanel } from './components/StudyTreePanel';
-import { StudyCommandPalette } from './components/editor/StudyCommandPalette';
-import { StudyAppNoticeViewport } from './components/editor/StudyAppNoticeViewport';
-import {
-  collectStudyTocItems,
-  scrollToStudyReadBlock,
-} from './utils/readToc';
-import {
-  collectNodeDescendants,
-  createStudyMaterial,
-  createStudyNode,
-  getNodeChildren,
-  getNodePath,
-  normalizeStudyData,
-  nowIso,
-} from './studyUtils';
-import type { StudyCustomBlockTemplate, StudyData, StudyMaterial, StudyNode, StudyNodeType } from './types';
-import { clearInternalLinkReturnTarget, getInternalLinkReturnTarget } from './utils/internalNavigationHistory';
+import { useEffect, useMemo, useState } from 'react';
+import { BlockNoteView } from '@blocknote/mantine';
+import '@blocknote/mantine/style.css';
+import { useCreateBlockNote } from '@blocknote/react';
+import type { PartialBlock } from '@blocknote/core';
+import { BookOpen, ChevronDown, ChevronRight, Edit3, ExternalLink, FileText, Folder, FolderPlus, Plus, Save, Trash2 } from 'lucide-react';
+import { Tldraw, loadSnapshot, type Editor } from 'tldraw';
+import 'tldraw/tldraw.css';
+import { createBoard, upsertBoard } from '../boards/boardsUtils';
+import type { BoardItem, BoardsData } from '../boards/types';
+import type { StudyData, StudyMaterial, StudyNode } from './types';
+import { collectDescendantIds, createStudyMaterial, createStudyNode, editorContentToPlainText, normalizeStudyData, nowIso } from './studyUtils';
+import { studyStorageClient } from './storage/studyStorageClient';
 
 interface StudyPageProps {
   data: StudyData;
+  boards: BoardsData;
   onChange: (data: StudyData) => void;
+  onBoardsChange: (data: BoardsData) => void;
+  onOpenBoards: (boardId: string) => void;
 }
 
-type NodeDialog =
-  | { type: 'folder' | 'material'; parentId: string | null }
-  | { type: 'rename'; node: StudyNode }
-  | null;
+type StudyMode = 'edit' | 'read';
 
-export function StudyPage({ data, onChange }: StudyPageProps) {
+export function StudyPage({ data, boards, onChange, onBoardsChange, onOpenBoards }: StudyPageProps) {
   const safeData = useMemo(() => normalizeStudyData(data), [data]);
-  const [query, setQuery] = useState('');
-  const [nodeDialog, setNodeDialog] = useState<NodeDialog>(null);
-  const [dialogTitle, setDialogTitle] = useState('');
-  const [viewMode, setViewMode] = useState<'workspace' | 'templates'>('workspace');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
-  const [editorMode, setEditorMode] = useState<StudyMode>('edit');
-  const [past, setPast] = useState<StudyData[]>([]);
-  const [future, setFuture] = useState<StudyData[]>([]);
+  const [mode, setMode] = useState<StudyMode>('edit');
+  const [search, setSearch] = useState('');
+  const [activeMaterial, setActiveMaterial] = useState<StudyMaterial | null>(null);
+  const [dragNodeId, setDragNodeId] = useState<string | null>(null);
+  const selectedNode = safeData.nodes.find((node) => node.id === safeData.selectedNodeId) ?? null;
+  const activeBoardMap = useMemo(() => new Map(boards.boards.map((board) => [board.id, board])), [boards.boards]);
+
+  const editor = useCreateBlockNote({
+    initialContent: (activeMaterial?.editorContent as PartialBlock[] | undefined) ?? undefined,
+  }, [activeMaterial?.id]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setCommandPaletteOpen(prev => !prev);
-      }
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        setSidebarCollapsed(prev => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  const selectedNode = safeData.nodes.find((node) => node.id === safeData.selectedNodeId) ?? null;
-  const selectedMaterial = selectedNode?.type === 'material'
-    ? safeData.materials.find((material) => material.nodeId === selectedNode.id) ?? null
-    : null;
-  const selectedFolder = selectedNode?.type === 'folder' ? selectedNode : null;
-  const rootFolders = getNodeChildren(safeData.nodes, null).filter((node) => node.type === 'folder');
-  const selectedPath = getNodePath(safeData.nodes, safeData.selectedNodeId);
-
-  const readTocItems = useMemo(
-    () => (selectedMaterial && editorMode === 'read' ? collectStudyTocItems(selectedMaterial.blocks) : []),
-    [editorMode, selectedMaterial],
-  );
-
-  function commit(next: StudyData, options: { remember?: boolean } = {}) {
-    const normalized = normalizeStudyData(next);
-    if (options.remember !== false) {
-      setPast((items) => [...items.slice(-40), safeData]);
-      setFuture([]);
-    }
-    onChange(normalized);
-  }
-
-  function updateSelectedNode(nodeId: string | null) {
-    commit({ ...safeData, selectedNodeId: nodeId }, { remember: false });
-  }
-
-  function createNode(type: StudyNodeType, parentId: string | null, title: string) {
-    const order = getNodeChildren(safeData.nodes, parentId).length;
-    const node = createStudyNode(type, title, parentId, order);
-    const nextMaterials = type === 'material' ? [createStudyMaterial(node.id, title), ...safeData.materials] : safeData.materials;
-    commit({
-      ...safeData,
-      selectedNodeId: node.id,
-      nodes: [...safeData.nodes, node],
-      materials: nextMaterials,
-    });
-  }
-
-  function openCreateDialog(type: 'folder' | 'material', parentId: string | null = null) {
-    setNodeDialog({ type, parentId });
-    setDialogTitle(type === 'folder' ? 'New folder' : 'New material');
-  }
-
-  function openRenameDialog(node: StudyNode) {
-    setNodeDialog({ type: 'rename', node });
-    setDialogTitle(node.title);
-  }
-
-  function submitNodeDialog() {
-    const title = dialogTitle.trim();
-    if (!nodeDialog || !title) {
+    if (selectedNode?.type !== 'material' || !selectedNode.materialId) {
+      setActiveMaterial(null);
       return;
     }
-
-    if (nodeDialog.type === 'rename') {
-      const timestamp = nowIso();
-      const node = nodeDialog.node;
-      commit({
-        ...safeData,
-        nodes: safeData.nodes.map((item) => (item.id === node.id ? { ...item, title, updatedAt: timestamp } : item)),
-        materials: safeData.materials.map((material) =>
-          material.nodeId === node.id ? { ...material, title, updatedAt: timestamp } : material,
-        ),
+    let isAlive = true;
+    studyStorageClient.getMaterial(selectedNode.materialId)
+      .then((material) => {
+        if (!isAlive) return;
+        setActiveMaterial(material ?? createStudyMaterial(selectedNode.materialId!, selectedNode.title));
+      })
+      .catch(() => {
+        if (isAlive) setActiveMaterial(createStudyMaterial(selectedNode.materialId!, selectedNode.title));
       });
-    } else {
-      createNode(nodeDialog.type, nodeDialog.parentId, title);
-    }
-
-    setNodeDialog(null);
-    setDialogTitle('');
-  }
-
-  function deleteNode(nodeId: string) {
-    const ids = new Set([nodeId, ...collectNodeDescendants(safeData.nodes, nodeId)]);
-    const remainingNodes = safeData.nodes.filter((node) => !ids.has(node.id));
-    const remainingMaterials = safeData.materials.filter((material) => !ids.has(material.nodeId));
-    const selectedNodeId = ids.has(safeData.selectedNodeId ?? '') ? remainingNodes[0]?.id ?? null : safeData.selectedNodeId;
-    commit({
-      ...safeData,
-      selectedNodeId,
-      nodes: remainingNodes,
-      materials: remainingMaterials,
-    });
-  }
-
-  function duplicateMaterial(nodeId: string) {
-    const node = safeData.nodes.find((item) => item.id === nodeId);
-    const material = safeData.materials.find((item) => item.nodeId === nodeId);
-    if (!node || node.type !== 'material' || !material) {
-      return;
-    }
-
-    const timestamp = nowIso();
-    const newNode = createStudyNode('material', `${node.title} copy`, node.parentId, getNodeChildren(safeData.nodes, node.parentId).length);
-    const nextMaterial: StudyMaterial = {
-      ...structuredClone(material),
-      id: newNode.id,
-      nodeId: newNode.id,
-      title: newNode.title,
-      createdAt: timestamp,
-      updatedAt: timestamp,
+    return () => {
+      isAlive = false;
     };
-    commit({
+  }, [selectedNode?.id, selectedNode?.materialId, selectedNode?.title, selectedNode?.type]);
+
+  function updateStudy(next: StudyData) {
+    onChange(normalizeStudyData(next));
+  }
+
+  async function saveMaterial(nextMaterial = activeMaterial) {
+    if (!nextMaterial || !selectedNode || selectedNode.type !== 'material') return;
+    const content = editor.document;
+    const saved = await studyStorageClient.saveMaterial({
+      ...nextMaterial,
+      title: selectedNode.title,
+      editorContent: content,
+      plainText: editorContentToPlainText(content),
+      updatedAt: nowIso(),
+    });
+    setActiveMaterial(saved);
+  }
+
+  function createNode(type: 'folder' | 'material') {
+    const parentId = selectedNode?.type === 'folder' ? selectedNode.id : selectedNode?.parentId ?? null;
+    const node = createStudyNode(type, parentId);
+    updateStudy({ selectedNodeId: node.id, nodes: [...safeData.nodes, node] });
+    if (type === 'material' && node.materialId) {
+      void studyStorageClient.saveMaterial(createStudyMaterial(node.materialId, node.title));
+    }
+  }
+
+  function renameNode(node: StudyNode) {
+    const title = window.prompt('Название', node.title)?.trim();
+    if (!title) return;
+    updateStudy({
       ...safeData,
-      selectedNodeId: newNode.id,
-      nodes: [...safeData.nodes, newNode],
-      materials: [nextMaterial, ...safeData.materials],
+      nodes: safeData.nodes.map((item) => (item.id === node.id ? { ...item, title, updatedAt: nowIso() } : item)),
+    });
+    if (node.type === 'material' && activeMaterial?.id === node.materialId) {
+      void saveMaterial({ ...activeMaterial, title });
+    }
+  }
+
+  function deleteNode(node: StudyNode) {
+    if (!window.confirm(`Удалить "${node.title}"?`)) return;
+    const ids = collectDescendantIds(safeData.nodes, node.id);
+    const materialIds = safeData.nodes.filter((item) => ids.has(item.id) && item.materialId).map((item) => item.materialId!);
+    materialIds.forEach((id) => void studyStorageClient.deleteMaterial(id));
+    const nodes = safeData.nodes.filter((item) => !ids.has(item.id));
+    updateStudy({ selectedNodeId: nodes[0]?.id ?? null, nodes });
+  }
+
+  function toggleNode(node: StudyNode) {
+    updateStudy({
+      ...safeData,
+      nodes: safeData.nodes.map((item) => (item.id === node.id ? { ...item, isExpanded: !item.isExpanded } : item)),
     });
   }
 
   function moveNode(nodeId: string, parentId: string | null) {
-    if (nodeId === parentId) {
-      return;
-    }
-    const descendants = new Set(collectNodeDescendants(safeData.nodes, nodeId));
-    if (parentId && descendants.has(parentId)) {
-      return;
-    }
-    const order = getNodeChildren(safeData.nodes, parentId).length;
-    commit({
+    if (nodeId === parentId) return;
+    const descendants = collectDescendantIds(safeData.nodes, nodeId);
+    if (parentId && descendants.has(parentId)) return;
+    updateStudy({
       ...safeData,
-      nodes: safeData.nodes.map((node) => (node.id === nodeId ? { ...node, parentId, order, updatedAt: nowIso() } : node)),
+      nodes: safeData.nodes.map((node) => (node.id === nodeId ? { ...node, parentId, updatedAt: nowIso() } : node)),
     });
   }
 
-  function updateMaterial(material: StudyMaterial) {
-    const timestamp = nowIso();
-    commit({
-      ...safeData,
-      materials: safeData.materials.map((item) => (item.id === material.id ? { ...material, updatedAt: timestamp } : item)),
-      nodes: safeData.nodes.map((node) => (node.id === material.nodeId ? { ...node, title: material.title, updatedAt: timestamp } : node)),
-    });
+  async function addBoard() {
+    if (!activeMaterial) return;
+    await saveMaterial();
+    const title = `${activeMaterial.title || 'Материал'} - доска ${activeMaterial.boardLinks.length + 1}`;
+    const board = createBoard(title);
+    const nextBoards = upsertBoard(boards, board);
+    onBoardsChange(nextBoards);
+    const nextMaterial = {
+      ...activeMaterial,
+      boardLinks: [{ id: `${board.id}-link`, boardId: board.id, title: board.title, createdAt: nowIso() }, ...activeMaterial.boardLinks],
+    };
+    setActiveMaterial(await studyStorageClient.saveMaterial(nextMaterial));
+    onOpenBoards(board.id);
   }
 
-  function updateTemplates(customBlockTemplates: StudyCustomBlockTemplate[]) {
-    commit({ ...safeData, customBlockTemplates });
-  }
-
-  function handleOpenBlock(nodeId: string, blockId: string) {
-    updateSelectedNode(nodeId);
-    setFocusBlockId(blockId);
-    setEditorMode('edit');
-  }
-
-  function undo() {
-    const previous = past[past.length - 1];
-    if (!previous) {
-      return;
-    }
-    setPast((items) => items.slice(0, -1));
-    setFuture((items) => [safeData, ...items]);
-    onChange(previous);
-  }
-
-  function redo() {
-    const next = future[0];
-    if (!next) {
-      return;
-    }
-    setFuture((items) => items.slice(1));
-    setPast((items) => [...items, safeData]);
-    onChange(next);
-  }
+  const visibleNodes = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return query ? safeData.nodes.filter((node) => node.title.toLowerCase().includes(query)) : safeData.nodes;
+  }, [safeData.nodes, search]);
 
   return (
-    <section className="study-page">
-      {viewMode === 'templates' ? (
-        <main className="study-main">
-          <StudyTemplateManager
-            templates={safeData.customBlockTemplates}
-            onChange={updateTemplates}
-            onClose={() => setViewMode('workspace')}
-          />
-        </main>
-      ) : (
-        <div className="study-workspace">
-          <StudyTreePanel
-            nodes={safeData.nodes}
-            materials={safeData.materials}
-            selectedNodeId={safeData.selectedNodeId}
-            query={query}
-            onQueryChange={setQuery}
-            onSelectNode={updateSelectedNode}
-            onCreateFolder={(parentId) => openCreateDialog('folder', parentId)}
-            onCreateMaterial={(parentId) => openCreateDialog('material', parentId)}
-            onRenameNode={openRenameDialog}
-            onDeleteNode={deleteNode}
-            onDuplicateMaterial={duplicateMaterial}
-            onMoveNode={moveNode}
-            tocItems={readTocItems}
-            showToc={editorMode === 'read' && !!selectedMaterial}
-            onTocItemClick={scrollToStudyReadBlock}
-            collapsed={sidebarCollapsed}
-          />
-
-          <main className="study-main">
-            <PageHeader
-              title="Study"
-              subtitle="A tree of folders, learning materials, rich blocks, custom templates and read mode."
-              actions={(
-                <div className="study-header-actions">
-                  <Tooltip content="Undo">
-                    <button className="icon-button" type="button" onClick={undo} disabled={past.length === 0}>
-                      <Undo2 size={18} aria-hidden />
-                    </button>
-                  </Tooltip>
-                  <Tooltip content="Redo">
-                    <button className="icon-button" type="button" onClick={redo} disabled={future.length === 0}>
-                      <Redo2 size={18} aria-hidden />
-                    </button>
-                  </Tooltip>
-                  <Tooltip content="Manage templates">
-                    <button className="button ghost icon-text" type="button" onClick={() => setViewMode('templates')}>
-                      <Settings size={18} aria-hidden />
-                      Templates
-                    </button>
-                  </Tooltip>
-                  <Tooltip content="Create folder">
-                    <button className="button ghost icon-text" type="button" onClick={() => openCreateDialog('folder')}>
-                      <FolderPlus size={18} aria-hidden />
-                      Folder
-                    </button>
-                  </Tooltip>
-                  <AddButton label="Add material" onClick={() => openCreateDialog('material', selectedFolder?.id ?? null)} />
-                </div>
-              )}
-            />
-
-            {selectedPath.length > 0 ? (
-              <div className="study-breadcrumbs">
-                {selectedPath.map((node) => (
-                  <button key={node.id} type="button" onClick={() => updateSelectedNode(node.id)}>
-                    {node.title}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            {selectedMaterial ? (
-              <StudyMaterialEditor
-                material={selectedMaterial}
-                nodes={safeData.nodes}
-                allMaterials={safeData.materials}
-                templates={safeData.customBlockTemplates}
-                mode={editorMode}
-                onModeChange={setEditorMode}
-                onChange={updateMaterial}
-                onOpenMaterial={updateSelectedNode}
-                onOpenTemplateManager={() => setViewMode('templates')}
-                focusBlockId={focusBlockId}
-                onFocusBlockConsumed={() => setFocusBlockId(null)}
-              />
-            ) : selectedFolder ? (
-              <FolderOverview
-                folder={selectedFolder}
-                nodes={safeData.nodes}
-                materials={safeData.materials}
-                onSelect={updateSelectedNode}
-                onCreateFolder={() => openCreateDialog('folder', selectedFolder.id)}
-                onCreateMaterial={() => openCreateDialog('material', selectedFolder.id)}
-              />
-            ) : rootFolders.length > 0 || safeData.nodes.length > 0 ? (
-              <FolderOverview
-                folder={null}
-                nodes={safeData.nodes}
-                materials={safeData.materials}
-                onSelect={updateSelectedNode}
-                onCreateFolder={() => openCreateDialog('folder', null)}
-                onCreateMaterial={() => openCreateDialog('material', null)}
-              />
-            ) : (
-              <div className="glass-panel study-empty-shell">
-                <EmptyState title="No study materials yet" message="Create a folder or a material to start building your learning workspace." />
-                <div className="study-empty-actions">
-                  <button className="button ghost icon-text" type="button" onClick={() => openCreateDialog('folder')}>
-                    <FolderPlus size={18} aria-hidden />
-                    New folder
-                  </button>
-                  <AddButton label="New material" onClick={() => openCreateDialog('material', null)} />
-                </div>
-              </div>
-            )}
-          </main>
-        </div>
-      )}
-
-      {nodeDialog ? (
-        <div className="study-modal-backdrop" role="presentation" onMouseDown={() => setNodeDialog(null)}>
-          <form
-            className="study-modal-panel glass-panel"
-            onSubmit={(event) => {
-              event.preventDefault();
-              submitNodeDialog();
-            }}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <h2>{nodeDialog.type === 'rename' ? 'Rename' : nodeDialog.type === 'folder' ? 'Create folder' : 'Create material'}</h2>
-            <label className="form-field">
-              <span>Title</span>
-              <input value={dialogTitle} autoFocus onChange={(event) => setDialogTitle(event.target.value)} />
-            </label>
-            <div className="study-modal-actions">
-              <button className="button ghost" type="button" onClick={() => setNodeDialog(null)}>
-                Cancel
-              </button>
-              <button className="button primary" type="submit">
-                Save
-              </button>
+    <section className="study-page page">
+      <div className="study-workspace">
+        <aside className="study-tree-panel">
+          <div className="study-tree-head">
+            <div>
+              <strong>Обучение</strong>
+              <span>{safeData.nodes.length}</span>
             </div>
-          </form>
-        </div>
-      ) : null}
+            <div className="study-header-actions">
+              <button className="icon-button" type="button" title="Новая папка" onClick={() => createNode('folder')}><FolderPlus size={17} /></button>
+              <button className="icon-button" type="button" title="Новый материал" onClick={() => createNode('material')}><Plus size={17} /></button>
+            </div>
+          </div>
+          <label className="study-tree-search">
+            <BookOpen size={16} />
+            <input value={search} placeholder="Поиск" onChange={(event) => setSearch(event.target.value)} />
+          </label>
+          <div
+            className="study-tree-root"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={() => {
+              if (dragNodeId) moveNode(dragNodeId, null);
+              setDragNodeId(null);
+            }}
+          >
+            {renderTree(null, visibleNodes, safeData.selectedNodeId, {
+              onSelect: (id) => updateStudy({ ...safeData, selectedNodeId: id }),
+              onToggle: toggleNode,
+              onRename: renameNode,
+              onDelete: deleteNode,
+              onDragStart: setDragNodeId,
+              onDrop: moveNode,
+            })}
+          </div>
+        </aside>
 
-      <StudyCommandPalette
-        open={commandPaletteOpen}
-        nodes={safeData.nodes}
-        materials={safeData.materials}
-        templates={safeData.customBlockTemplates}
-        onClose={() => setCommandPaletteOpen(false)}
-        onOpenNode={updateSelectedNode}
-        onOpenBlock={handleOpenBlock}
-        onCreateFolder={() => openCreateDialog('folder', selectedFolder?.id ?? null)}
-        onCreateMaterial={() => openCreateDialog('material', selectedFolder?.id ?? null)}
-      />
+        <main className="study-main">
+          {!selectedNode ? (
+            <div className="study-empty-shell">
+              <h2>Создай первую папку или материал</h2>
+              <div className="study-empty-actions">
+                <button className="button primary" type="button" onClick={() => createNode('material')}>Новый материал</button>
+                <button className="button ghost" type="button" onClick={() => createNode('folder')}>Новая папка</button>
+              </div>
+            </div>
+          ) : selectedNode.type === 'folder' ? (
+            <FolderView node={selectedNode} nodes={safeData.nodes} onSelect={(id) => updateStudy({ ...safeData, selectedNodeId: id })} />
+          ) : (
+            <div className="study-material-shell">
+              <div className="study-material-top">
+                <div className="study-material-title-block">
+                  <span className="eyebrow">Материал</span>
+                  <input
+                    className="study-material-title-input"
+                    value={selectedNode.title}
+                    onChange={(event) => updateStudy({
+                      ...safeData,
+                      nodes: safeData.nodes.map((node) => (node.id === selectedNode.id ? { ...node, title: event.target.value, updatedAt: nowIso() } : node)),
+                    })}
+                  />
+                </div>
+                <div className="study-inline-actions">
+                  <div className="study-mode-tabs">
+                    <button className={mode === 'edit' ? 'active' : ''} type="button" onClick={() => setMode('edit')}><Edit3 size={15} />Edit</button>
+                    <button className={mode === 'read' ? 'active' : ''} type="button" onClick={() => { void saveMaterial(); setMode('read'); }}><BookOpen size={15} />Read</button>
+                  </div>
+                  <button className="button ghost icon-text" type="button" onClick={() => void saveMaterial()}><Save size={16} />Сохранить</button>
+                </div>
+              </div>
 
-      <StudyAppNoticeViewport />
+              {mode === 'edit' ? (
+                <div className="study-editor-grid">
+                  <div className="study-editor-column">
+                    <div className="study-block-toolbar">
+                      <button className="button ghost icon-text" type="button" onClick={() => void addBoard()} disabled={!activeMaterial}>
+                        <ExternalLink size={16} />Добавить доску
+                      </button>
+                    </div>
+                    <div className="study-blocknote-shell">
+                      <BlockNoteView editor={editor} onChange={() => void saveMaterial()} />
+                    </div>
+                  </div>
+                  <aside className="study-side-panel">
+                    <h3>Связанные доски</h3>
+                    <BoardLinks material={activeMaterial} boards={activeBoardMap} onOpenBoards={onOpenBoards} />
+                  </aside>
+                </div>
+              ) : (
+                <ReadMaterial material={activeMaterial} boards={activeBoardMap} onOpenBoards={onOpenBoards} />
+              )}
+            </div>
+          )}
+        </main>
+      </div>
     </section>
   );
 }
 
-interface FolderOverviewProps {
-  folder: StudyNode | null;
-  nodes: StudyNode[];
-  materials: StudyMaterial[];
-  onSelect: (nodeId: string) => void;
-  onCreateFolder: () => void;
-  onCreateMaterial: () => void;
+function renderTree(
+  parentId: string | null,
+  nodes: StudyNode[],
+  selectedNodeId: string | null,
+  actions: {
+    onSelect: (id: string) => void;
+    onToggle: (node: StudyNode) => void;
+    onRename: (node: StudyNode) => void;
+    onDelete: (node: StudyNode) => void;
+    onDragStart: (id: string) => void;
+    onDrop: (nodeId: string, parentId: string | null) => void;
+  },
+) {
+  return nodes.filter((node) => node.parentId === parentId).map((node) => {
+    const children = nodes.filter((item) => item.parentId === node.id);
+    const isFolder = node.type === 'folder';
+    return (
+      <div className="study-tree-item" key={node.id}>
+        <div
+          className={`study-tree-row ${selectedNodeId === node.id ? 'active' : ''}`}
+          draggable
+          onDragStart={(event) => {
+            event.dataTransfer.setData('text/plain', node.id);
+            actions.onDragStart(node.id);
+          }}
+          onDragOver={(event) => {
+            if (isFolder) event.preventDefault();
+          }}
+          onDrop={(event) => {
+            event.stopPropagation();
+            actions.onDrop((event.dataTransfer.getData('text/plain') || node.id), isFolder ? node.id : node.parentId);
+          }}
+        >
+          <button className="study-tree-main-button" type="button" onClick={() => actions.onSelect(node.id)}>
+            <span className="study-tree-caret" onClick={(event) => { event.stopPropagation(); if (isFolder) actions.onToggle(node); }}>
+              {isFolder ? (node.isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />) : null}
+            </span>
+            {isFolder ? <Folder size={17} /> : <FileText size={17} />}
+            <span><strong>{node.title}</strong><small>{isFolder ? `${children.length} элементов` : 'Материал'}</small></span>
+          </button>
+          <div className="study-tree-actions">
+            <button className="study-tree-action-btn" type="button" title="Переименовать" onClick={() => actions.onRename(node)}><Edit3 size={14} /></button>
+            <button className="study-tree-action-btn danger" type="button" title="Удалить" onClick={() => actions.onDelete(node)}><Trash2 size={14} /></button>
+          </div>
+        </div>
+        {isFolder && node.isExpanded ? <div className="study-tree-children">{renderTree(node.id, nodes, selectedNodeId, actions)}</div> : null}
+      </div>
+    );
+  });
 }
 
-function FolderOverview({ folder, nodes, materials, onSelect, onCreateFolder, onCreateMaterial }: FolderOverviewProps) {
-  const children = getNodeChildren(nodes, folder?.id ?? null);
-
+function FolderView({ node, nodes, onSelect }: { node: StudyNode; nodes: StudyNode[]; onSelect: (id: string) => void }) {
+  const children = nodes.filter((item) => item.parentId === node.id);
   return (
-    <div className="study-folder-container">
-      <section className="study-folder-header glass-panel">
-        <div className="study-folder-title-block">
-          <span className="study-muted">Folder</span>
-          <h2>{folder?.title ?? 'Root Library'}</h2>
-        </div>
-
-        <div className="study-inline-actions">
-          <button className="button primary icon-text" type="button" onClick={onCreateMaterial}>
-            <Plus size={18} />
-            New Material
+    <div className="study-folder-view">
+      <div className="study-folder-hero">
+        <div><span className="eyebrow">Папка</span><h2>{node.title}</h2></div>
+        <span className="study-muted">{children.length} элементов</span>
+      </div>
+      <div className="study-folder-grid">
+        {children.map((child) => (
+          <button className="study-folder-card" type="button" key={child.id} onClick={() => onSelect(child.id)}>
+            {child.type === 'folder' ? <Folder size={20} /> : <FileText size={20} />}
+            <strong>{child.title}</strong>
+            <small>{child.type === 'folder' ? 'Папка' : 'Материал'}</small>
           </button>
-          <button className="button ghost icon-text" type="button" onClick={onCreateFolder}>
-            <FolderPlus size={18} />
-            New Folder
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BoardLinks({ material, boards, onOpenBoards }: { material: StudyMaterial | null; boards: Map<string, BoardItem>; onOpenBoards: (boardId: string) => void }) {
+  if (!material?.boardLinks.length) return <p className="study-muted">Досок пока нет.</p>;
+  return (
+    <div className="study-block-list">
+      {material.boardLinks.map((link) => {
+        const board = boards.get(link.boardId);
+        return (
+          <button className="study-folder-card" type="button" key={link.id} onClick={() => board ? onOpenBoards(board.id) : undefined}>
+            <strong>{board?.title ?? link.title}</strong>
+            <small>{board ? 'Открыть в модуле досок' : 'Доска не найдена'}</small>
           </button>
-        </div>
-      </section>
+        );
+      })}
+    </div>
+  );
+}
 
-      <section className="study-folder-content glass-panel">
-        <div className="study-section-heading">
-          <h3>Contents</h3>
-          <span className="study-muted">{children.length} items</span>
-        </div>
-
-        {children.length === 0 ? (
-          <div className="study-folder-empty">
-             <p className="study-muted">This folder is empty.</p>
-          </div>
-        ) : (
-          <div className="study-folder-list">
-            {children.map((node) => {
-              const material = materials.find((item) => item.nodeId === node.id);
-              return (
-                <button
-                    key={node.id}
-                    className="study-folder-item"
-                    onClick={() => onSelect(node.id)}
-                >
-                  <div className="study-folder-item-main">
-                    <span className="study-folder-item-type-icon">
-                      {node.type === 'folder' ? <Folder size={16} aria-hidden /> : <FileText size={16} aria-hidden />}
-                    </span>
-                    <strong>{node.title}</strong>
-                  </div>
-                  <div className="study-folder-item-meta">
-                    {node.type === 'material' ? (
-                        <span>{material?.blocks.length ?? 0} blocks</span>
-                    ) : (
-                        <span>Folder</span>
-                    )}
-                  </div>
-                </button>
-              );
+function ReadMaterial({ material, boards, onOpenBoards }: { material: StudyMaterial | null; boards: Map<string, BoardItem>; onOpenBoards: (boardId: string) => void }) {
+  if (!material) return <div className="study-read-page">Загрузка...</div>;
+  return (
+    <div className="study-read-shell">
+      <article className="study-read-page">
+        <div className="study-read-page-header"><h1>{material.title}</h1></div>
+        <ReadOnlyDocument content={material.editorContent} />
+        {material.boardLinks.length ? (
+          <div className="study-links-view">
+            <h2>Доски</h2>
+            {material.boardLinks.map((link) => {
+              const board = boards.get(link.boardId);
+              return <BoardPreview key={link.id} board={board} title={link.title} onOpenBoards={onOpenBoards} />;
             })}
           </div>
-        )}
-      </section>
+        ) : null}
+      </article>
+    </div>
+  );
+}
+
+function ReadOnlyDocument({ content }: { content: unknown }) {
+  const editor = useCreateBlockNote({ initialContent: content as PartialBlock[] });
+  return <BlockNoteView editor={editor} editable={false} />;
+}
+
+function BoardPreview({ board, title, onOpenBoards }: { board: BoardItem | undefined; title: string; onOpenBoards: (boardId: string) => void }) {
+  if (!board) {
+    return <div className="study-board"><strong>{title}</strong><p className="study-muted">Доска не найдена. Можно создать новую связь в режиме редактирования.</p></div>;
+  }
+  return (
+    <div className="study-board">
+      <div className="study-board-toolbar">
+        <strong>{board.title}</strong>
+        <button className="button ghost icon-text" type="button" onClick={() => onOpenBoards(board.id)}><ExternalLink size={16} />Открыть</button>
+      </div>
+      <div className="study-board-preview">
+        {board.snapshot ? (
+          <Tldraw
+            hideUi
+            onMount={(editor: Editor) => {
+              try {
+                loadSnapshot(editor.store, board.snapshot as any);
+              } catch {
+                // Old or malformed snapshots should not break reading.
+              }
+            }}
+          />
+        ) : <p className="study-muted">Доска пока пустая.</p>}
+      </div>
     </div>
   );
 }

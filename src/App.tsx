@@ -9,6 +9,7 @@ import { I18nProvider, useI18n } from './shared/i18n/I18nProvider';
 import { moduleCollections } from './shared/app/appData';
 import { useAppData } from './shared/app/useAppData';
 import { useAppReminders, type AppReminder } from './shared/app/useAppReminders';
+import { normalizeBoardsData } from './modules/boards/boardsUtils';
 
 const DashboardPage = lazy(() => import('./modules/dashboard/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const MoviesPage = lazy(() => import('./modules/movies/MoviesPage').then((module) => ({ default: module.MoviesPage })));
@@ -21,6 +22,7 @@ const JournalPage = lazy(() => import('./modules/journal/JournalPage').then((mod
 const NotesPage = lazy(() => import('./modules/notes/NotesPage').then((module) => ({ default: module.NotesPage })));
 const TemplatesPage = lazy(() => import('./modules/templates/TemplatesPage').then((module) => ({ default: module.TemplatesPage })));
 const StudyPage = lazy(() => import('./modules/study/StudyPage').then((module) => ({ default: module.StudyPage })));
+const BoardsPage = lazy(() => import('./modules/boards/BoardsPage').then((module) => ({ default: module.BoardsPage })));
 const SettingsPage = lazy(() => import('./modules/settings/SettingsPage').then((module) => ({ default: module.SettingsPage })));
 const ProjectsPage = lazy(() => import('./modules/projects/ProjectsPage').then((module) => ({ default: module.ProjectsPage })));
 const ContactsPage = lazy(() => import('./modules/contacts/ContactsPage').then((module) => ({ default: module.ContactsPage })));
@@ -195,9 +197,20 @@ export function App() {
         return (
           <StudyPage
             data={data.study}
+            boards={data.boards}
             onChange={(study) => setData((current) => ({ ...current, study }))}
+            onBoardsChange={(boards) => setData((current) => ({ ...current, boards }))}
+            onOpenBoards={(boardId) => {
+              setData((current) => ({
+                ...current,
+                boards: normalizeBoardsData({ ...current.boards, activeBoardId: boardId }),
+              }));
+              requestNavigate('boards');
+            }}
           />
         );
+      case 'boards':
+        return <BoardsPage data={data.boards} onChange={(boards) => setData((current) => ({ ...current, boards }))} />;
       case 'projects':
         return <ProjectsPage projects={data.projects} onChange={(projects) => setData((current) => ({ ...current, projects }))} />;
       case 'contacts':

@@ -23,7 +23,8 @@
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "recharts": "^3.8.1",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "tldraw": "^5.1.0"
   },
   "overrides": {
     "@tiptap/core": "3.13.0",

@@ -1,0 +1,32 @@
+﻿#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+.tl-container {
+  --color-background: #f8fafc;
+}
+
+.coordinate-plane-svg {
+  display: block;
+  user-select: none;
+}
+
+.notebook-grid-bg {
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(#e5e7eb 1px, transparent 1px),
+    linear-gradient(90deg, #e5e7eb 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.notebook-cell {
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.notebook-cell:focus-within {
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.18);
+}

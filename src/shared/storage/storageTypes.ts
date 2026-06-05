@@ -1,4 +1,5 @@
 import type { CalendarEvent } from '../../modules/calendar/types';
+import type { BoardsData } from '../../modules/boards/types';
 import type { FinanceData } from '../../modules/finance/types';
 import type { HabitData } from '../../modules/habits/types';
 import type { JournalData } from '../../modules/journal/types';
@@ -11,7 +12,7 @@ import type { HealthData } from '../../modules/health/types';
 import type { InventoryItem } from '../../modules/inventory/types';
 import type { Project } from '../../modules/projects/types';
 import type { TemplatesData } from '../../modules/templates/types';
-import type { StudyData } from '../../modules/study/types';
+import type { StudyData, StudyMaterial, StudyMaterialIndexItem } from '../../modules/study/types';
 import type { TodoData } from '../../modules/todos/types';
 import type { WorkoutData } from '../../modules/workouts/types';
 import type { AppSettings } from '../types/common';
@@ -27,6 +28,7 @@ export type CollectionName =
   | 'notes'
   | 'templates'
   | 'study'
+  | 'boards'
   | 'projects'
   | 'contacts'
   | 'health'
@@ -45,6 +47,7 @@ export interface CollectionMap {
   notes: NotesData;
   templates: TemplatesData;
   study: StudyData;
+  boards: BoardsData;
   projects: Project[];
   contacts: ContactsData;
   health: HealthData;
@@ -99,12 +102,20 @@ export interface NotesStorageApi {
   invalidateHtmlCache(noteId: string): Promise<boolean>;
 }
 
+export interface StudyStorageApi {
+  listIndex(): Promise<StudyMaterialIndexItem[]>;
+  get(materialId: string): Promise<StudyMaterial | null>;
+  save(material: StudyMaterial): Promise<StudyMaterial>;
+  delete(materialId: string): Promise<boolean>;
+}
+
 declare global {
   interface Window {
     mymind: {
       storage: StorageApi;
       files?: FileSystemApi;
       notes?: NotesStorageApi;
+      study?: StudyStorageApi;
     };
   }
 }

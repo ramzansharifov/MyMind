@@ -71,6 +71,32 @@ type NoteSearchIndexItem = {
   updatedAt: string;
 };
 
+type StudyBoardLink = {
+  id: string;
+  boardId: string;
+  title: string;
+  createdAt: string;
+};
+
+type StudyMaterialFile = {
+  id: string;
+  title: string;
+  editorContent: unknown;
+  plainText: string;
+  boardLinks: StudyBoardLink[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+type StudyMaterialIndexItem = {
+  id: string;
+  title: string;
+  plainText: string;
+  boardCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 function getDocumentsDirectory() {
   return app.getPath('documents') || path.join(os.homedir(), 'Documents');
 }
@@ -93,6 +119,10 @@ function getNotesDirectory() {
   return path.join(getDataDirectory(), 'notes');
 }
 
+function getStudyMaterialsDirectory() {
+  return path.join(getDataDirectory(), 'study-materials');
+}
+
 function getDraftsDirectory() {
   return path.join(getDataDirectory(), 'drafts');
 }
@@ -101,12 +131,20 @@ function getNotesIndexPath() {
   return path.join(getDataDirectory(), 'notes.index.json');
 }
 
+function getStudyIndexPath() {
+  return path.join(getStudyMaterialsDirectory(), 'index.json');
+}
+
 function getSearchIndexPath() {
   return path.join(getDataDirectory(), 'search.index.json');
 }
 
 function getNoteFilePath(noteId: string) {
   return path.join(getNotesDirectory(), `${sanitizeNoteId(noteId)}.json`);
+}
+
+function getStudyMaterialFilePath(materialId: string) {
+  return path.join(getStudyMaterialsDirectory(), `${sanitizeNoteId(materialId)}.json`);
 }
 
 function getDraftFilePath(noteId: string) {
@@ -825,6 +863,81 @@ async function readNoteDraft(noteId: string) {
     : null;
 }
 
+async function ensureStudyStorageDirectory() {
+  await ensureDataDirectory();
+  await fs.mkdir(getStudyMaterialsDirectory(), { recursive: true });
+  await ensureJsonFile(getStudyIndexPath(), []);
+}
+
+function normalizeStudyMaterial(material: Partial<StudyMaterialFile> & { id: string }): StudyMaterialFile {
+  const timestamp = new Date().toISOString();
+  return {
+    id: sanitizeNoteId(material.id),
+    title: material.title || 'Новый материал',
+    editorContent: Array.isArray(material.editorContent) ? material.editorContent : [],
+    plainText: material.plainText ?? '',
+    boardLinks: Array.isArray(material.boardLinks)
+      ? material.boardLinks
+        .filter((link) => link?.boardId)
+        .map((link) => ({
+          id: link.id || `${link.boardId}-link`,
+          boardId: link.boardId,
+          title: link.title || 'Доска',
+          createdAt: link.createdAt ?? timestamp,
+        }))
+      : [],
+    createdAt: material.createdAt ?? timestamp,
+    updatedAt: material.updatedAt ?? material.createdAt ?? timestamp,
+  };
+}
+
+function studyIndexItemFromMaterial(material: StudyMaterialFile): StudyMaterialIndexItem {
+  return {
+    id: material.id,
+    title: material.title,
+    plainText: material.plainText,
+    boardCount: material.boardLinks.length,
+    createdAt: material.createdAt,
+    updatedAt: material.updatedAt,
+  };
+}
+
+async function readStudyIndex() {
+  await ensureStudyStorageDirectory();
+  const value = await readJsonFile<StudyMaterialIndexItem[]>(getStudyIndexPath(), []);
+  return Array.isArray(value) ? value : [];
+}
+
+async function writeStudyIndex(items: StudyMaterialIndexItem[]) {
+  await ensureStudyStorageDirectory();
+  await writeJsonFile(getStudyIndexPath(), items);
+}
+
+async function readStudyMaterial(materialId: string) {
+  await ensureStudyStorageDirectory();
+  const material = await readJsonFile<StudyMaterialFile | null>(getStudyMaterialFilePath(materialId), null);
+  return material ? normalizeStudyMaterial(material) : null;
+}
+
+async function saveStudyMaterial(material: Partial<StudyMaterialFile> & { id: string }) {
+  await ensureStudyStorageDirectory();
+  const normalized = normalizeStudyMaterial({ ...material, updatedAt: material.updatedAt ?? new Date().toISOString() });
+  await writeJsonFile(getStudyMaterialFilePath(normalized.id), normalized);
+  const index = await readStudyIndex();
+  await writeStudyIndex([studyIndexItemFromMaterial(normalized), ...index.filter((item) => item.id !== normalized.id)].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+  ));
+  return normalized;
+}
+
+async function deleteStudyMaterial(materialId: string) {
+  await ensureStudyStorageDirectory();
+  const safeId = sanitizeNoteId(materialId);
+  await fs.rm(getStudyMaterialFilePath(safeId), { force: true });
+  await writeStudyIndex((await readStudyIndex()).filter((item) => item.id !== safeId));
+  return true;
+}
+
 async function saveNoteAsset(payload: { noteId?: unknown; name?: unknown; mimeType?: unknown; data?: ArrayBuffer }) {
   if (!payload?.data || !(payload.data instanceof ArrayBuffer)) {
     throw new Error('Asset payload is empty.');
@@ -1185,6 +1298,22 @@ export function registerStorageIpc() {
     return true;
   });
 
+  ipcMain.handle('study:listIndex', async () => {
+    return readStudyIndex();
+  });
+
+  ipcMain.handle('study:get', async (_event, materialId: string) => {
+    return readStudyMaterial(materialId);
+  });
+
+  ipcMain.handle('study:save', async (_event, material: StudyMaterialFile) => {
+    return saveStudyMaterial(material);
+  });
+
+  ipcMain.handle('study:delete', async (_event, materialId: string) => {
+    return deleteStudyMaterial(materialId);
+  });
+
   ipcMain.handle('storage:exportBackup', async () => {
     await ensureDataDirectory();
     const backupDirectory = path.join(getDocumentsDirectory(), 'MyMind', 'backups', `backup-${Date.now()}`);
@@ -1201,7 +1330,7 @@ export function registerStorageIpc() {
     } catch {
       // Assets are optional and older backups may not have them.
     }
-    for (const noteStorageName of ['notes.index.json', 'search.index.json', 'notes', 'drafts', 'html-cache']) {
+    for (const noteStorageName of ['notes.index.json', 'search.index.json', 'notes', 'drafts', 'html-cache', 'study-materials']) {
       try {
         await fs.cp(path.join(getDataDirectory(), noteStorageName), path.join(backupDirectory, noteStorageName), { recursive: true });
       } catch {
@@ -1293,7 +1422,7 @@ export function registerStorageIpc() {
     } catch {
       // Import partial backups without crashing.
     }
-    for (const noteStorageName of ['notes.index.json', 'search.index.json', 'notes', 'drafts', 'html-cache']) {
+    for (const noteStorageName of ['notes.index.json', 'search.index.json', 'notes', 'drafts', 'html-cache', 'study-materials']) {
       try {
         await fs.cp(path.join(result.filePaths[0], noteStorageName), path.join(getDataDirectory(), noteStorageName), { recursive: true });
       } catch {

@@ -1,0 +1,115 @@
+﻿#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+.tl-container {
+  --color-background: #f8fafc;
+}
+
+.coordinate-plane-svg {
+  display: block;
+  user-select: none;
+}
+
+.notebook-grid-bg {
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(#e5e7eb 1px, transparent 1px),
+    linear-gradient(90deg, #e5e7eb 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.blocknote-notebook-edit .bn-editor {
+  background: transparent;
+  padding: 0;
+}
+
+.blocknote-notebook-edit .bn-block-outer {
+  margin-bottom: 14px;
+}
+
+.blocknote-notebook-edit .bn-block-content {
+  border: 1px solid #94a3b8;
+  background: #ffffff;
+  padding: 14px 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.blocknote-notebook-edit .bn-block-content:focus-within {
+  border-color: #0f172a;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.14);
+}
+
+.blocknote-notebook-read .bn-editor {
+  background: transparent;
+  padding: 0;
+}
+
+.blocknote-notebook-read .bn-block-outer {
+  margin-bottom: 0;
+}
+
+.blocknote-notebook-read .bn-block-content {
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}
+
+.bn-custom-cell {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #94a3b8;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.bn-custom-cell-header {
+  width: fit-content;
+  border: 1px solid #0f172a;
+  background: #0f172a;
+  padding: 4px 10px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bn-latex-input,
+.bn-custom-inline-area {
+  min-height: 36px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  padding: 10px 12px;
+  outline: none;
+}
+
+.bn-latex-input:empty::before,
+.bn-custom-inline-area:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+}
+
+.blocknote-notebook-read .bn-custom-cell {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+}
+
+.blocknote-notebook-read .bn-custom-cell-header {
+  border-radius: 999px;
+}
+
+.katex-display {
+  margin: 0;
+}
+
+.katex {
+  font-size: 1.08em;
+}
+
+.katex-html {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+}

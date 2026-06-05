@@ -1,0 +1,695 @@
+﻿import { useMemo, useRef, useState } from 'react'
+import type { ChangeEvent, ReactNode } from 'react'
+import {
+  BlockNoteSchema,
+  defaultBlockSpecs,
+  type PartialBlock,
+} from '@blocknote/core'
+import '@blocknote/core/fonts/inter.css'
+import { createReactBlockSpec, useCreateBlockNote } from '@blocknote/react'
+import { BlockNoteView } from '@blocknote/mantine'
+import '@blocknote/mantine/style.css'
+import * as katex from 'katex'
+import 'katex/dist/katex.min.css'
+
+const STORAGE_KEY = 'multifunctional-board-blocknote-notebook-document'
+
+function getInlineText(content: unknown): string {
+  if (typeof content === 'string') return content
+
+  if (!Array.isArray(content)) return ''
+
+  return content
+    .map((item: any) => {
+      if (typeof item === 'string') return item
+      if (item?.type === 'text') return item.text ?? ''
+      if (item?.type === 'link' && Array.isArray(item.content)) {
+        return getInlineText(item.content)
+      }
+
+      return ''
+    })
+    .join('')
+}
+
+function LatexPreview({ formula }: { formula: string }) {
+  const html = useMemo(() => {
+    const source = formula.trim() || '\\text{Empty formula}'
+
+    try {
+      return katex.renderToString(source, {
+        throwOnError: false,
+        displayMode: true,
+        output: 'html',
+      })
+    } catch {
+      return katex.renderToString('\\text{Invalid LaTeX}', {
+        throwOnError: false,
+        displayMode: true,
+        output: 'html',
+      })
+    }
+  }, [formula])
+
+  return (
+    <div
+      className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-slate-950"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
+}
+
+const LatexBlock = createReactBlockSpec(
+  {
+    type: 'latexBlock',
+    propSchema: {
+      backgroundColor: {
+        default: 'default',
+      },
+      textColor: {
+        default: 'default',
+      },
+      textAlignment: {
+        default: 'left',
+        values: ['left', 'center', 'right', 'justify'],
+      },
+    },
+    content: 'inline',
+  },
+  {
+    render: ({ block, contentRef }) => {
+      const formula = getInlineText(block.content)
+
+      return (
+        <div className="bn-custom-cell bn-latex-cell">
+          <div className="bn-custom-cell-header" contentEditable={false}>
+            LaTeX
+          </div>
+
+          <div
+            ref={contentRef}
+            className="bn-latex-input"
+            data-placeholder="Введите LaTeX, например: \frac{a}{b} + \sqrt{x}"
+          />
+
+          <LatexPreview formula={formula} />
+        </div>
+      )
+    },
+    toExternalHTML: ({ block }) => {
+      const formula = getInlineText(block.content)
+
+      return (
+        <div>
+          <p>LaTeX: {formula}</p>
+        </div>
+      )
+    },
+  }
+)
+
+const BoardBlock = createReactBlockSpec(
+  {
+    type: 'boardBlock',
+    propSchema: {
+      backgroundColor: {
+        default: 'default',
+      },
+      textColor: {
+        default: 'default',
+      },
+      textAlignment: {
+        default: 'left',
+        values: ['left', 'center', 'right', 'justify'],
+      },
+    },
+    content: 'inline',
+  },
+  {
+    render: ({ contentRef }) => {
+      return (
+        <div className="bn-custom-cell bn-board-cell">
+          <div className="bn-custom-cell-header" contentEditable={false}>
+            Связанная доска
+          </div>
+
+          <div
+            ref={contentRef}
+            className="bn-custom-inline-area"
+            data-placeholder="Описание связанной доски..."
+          />
+
+          <button
+            type="button"
+            contentEditable={false}
+            onClick={() => {
+              window.location.hash = '/board'
+            }}
+            className="mt-3 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
+          >
+            Открыть доску
+          </button>
+        </div>
+      )
+    },
+  }
+)
+
+const FileCardBlock = createReactBlockSpec(
+  {
+    type: 'fileCardBlock',
+    propSchema: {
+      backgroundColor: {
+        default: 'default',
+      },
+      textColor: {
+        default: 'default',
+      },
+      textAlignment: {
+        default: 'left',
+        values: ['left', 'center', 'right', 'justify'],
+      },
+    },
+    content: 'inline',
+  },
+  {
+    render: ({ contentRef }) => {
+      return (
+        <div className="bn-custom-cell bn-file-cell">
+          <div className="bn-custom-cell-header" contentEditable={false}>
+            Файл / материал
+          </div>
+
+          <div
+            ref={contentRef}
+            className="bn-custom-inline-area"
+            data-placeholder="Название файла и описание..."
+          />
+        </div>
+      )
+    },
+  }
+)
+
+const schema = BlockNoteSchema.create({
+  blockSpecs: {
+    ...defaultBlockSpecs,
+    latexBlock: LatexBlock(),
+    boardBlock: BoardBlock(),
+    fileCardBlock: FileCardBlock(),
+  },
+})
+
+const initialContent: PartialBlock[] = [
+  {
+    type: 'heading',
+    props: {
+      level: 1,
+    },
+    content: 'Notebook Notes на BlockNote',
+  },
+  {
+    type: 'paragraph',
+    content:
+      'Теперь все блоки работают под капотом через BlockNote. В режиме редактирования они выглядят как notebook-cells, а в режиме чтения собираются в чистый лист.',
+  },
+  {
+    type: 'latexBlock' as any,
+    content: '\\int_0^1 x^2\\,dx = \\frac{1}{3}',
+  } as any,
+  {
+    type: 'table',
+    content: {
+      type: 'tableContent',
+      rows: [
+        {
+          cells: ['Блок', 'Движок', 'Статус'],
+        },
+        {
+          cells: ['Текст', 'BlockNote paragraph', 'Готово'],
+        },
+        {
+          cells: ['LaTeX', 'BlockNote custom block + KaTeX', 'Готово'],
+        },
+        {
+          cells: ['Таблица', 'BlockNote table', 'Готово'],
+        },
+      ],
+    },
+  } as any,
+  {
+    type: 'codeBlock',
+    props: {
+      language: 'typescript',
+    },
+    content: 'console.log("BlockNote notebook mode");',
+  },
+  {
+    type: 'boardBlock' as any,
+    content: 'Эта заметка связана с основной tldraw-доской проекта.',
+  } as any,
+]
+
+function loadInitialContent(): PartialBlock[] {
+  const saved = localStorage.getItem(STORAGE_KEY)
+
+  if (!saved) return initialContent
+
+  try {
+    const parsed = JSON.parse(saved)
+
+    if (Array.isArray(parsed)) return parsed as PartialBlock[]
+    if (Array.isArray(parsed.blocks)) return parsed.blocks as PartialBlock[]
+
+    return initialContent
+  } catch {
+    return initialContent
+  }
+}
+
+function downloadTextFile(fileName: string, content: string, mimeType: string) {
+  const blob = new Blob([content], {
+    type: mimeType,
+  })
+
+  const url = URL.createObjectURL(blob)
+
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+
+  URL.revokeObjectURL(url)
+}
+
+function createFileName(prefix: string, extension: string) {
+  const date = new Date()
+    .toISOString()
+    .replaceAll(':', '-')
+    .replaceAll('.', '-')
+
+  return `${prefix}-${date}.${extension}`
+}
+
+function ToolbarButton({
+  children,
+  onClick,
+  active = false,
+}: {
+  children: ReactNode
+  onClick: () => void
+  active?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        active
+          ? 'rounded-none border border-slate-950 bg-slate-950 px-4 py-2 text-sm font-semibold text-white'
+          : 'rounded-none border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-slate-100'
+      }
+    >
+      {children}
+    </button>
+  )
+}
+
+function SideButton({
+  children,
+  onClick,
+  danger = false,
+}: {
+  children: ReactNode
+  onClick: () => void
+  danger?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        danger
+          ? 'w-full border border-slate-950 bg-slate-950 px-3 py-2 text-sm font-bold text-white transition hover:bg-red-700'
+          : 'w-full border border-slate-400 bg-white px-3 py-2 text-sm font-bold text-slate-950 transition hover:bg-slate-100'
+      }
+    >
+      {children}
+    </button>
+  )
+}
+
+export function NotesPage() {
+  const [mode, setMode] = useState<'edit' | 'read'>('edit')
+  const [resetKey, setResetKey] = useState(0)
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const editor = useCreateBlockNote(
+    {
+      schema,
+      initialContent: loadInitialContent() as any,
+    },
+    [resetKey]
+  )
+
+  function saveDocument() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(editor.document))
+  }
+
+  function getLastBlock() {
+    return editor.document[editor.document.length - 1]
+  }
+
+  function insertBlock(block: PartialBlock) {
+    const referenceBlock = getLastBlock()
+
+    if (!referenceBlock) {
+      editor.replaceBlocks(editor.document, [block as any])
+      saveDocument()
+      return
+    }
+
+    editor.insertBlocks([block as any], referenceBlock, 'after')
+    saveDocument()
+  }
+
+  function insertHeading() {
+    insertBlock({
+      type: 'heading',
+      props: {
+        level: 2,
+      },
+      content: 'Новый заголовок',
+    })
+  }
+
+  function insertText() {
+    insertBlock({
+      type: 'paragraph',
+      content: 'Введите текст...',
+    })
+  }
+
+  function insertLatex() {
+    insertBlock({
+      type: 'latexBlock' as any,
+      content: 'x^2 + y^2 = r^2',
+    } as any)
+  }
+
+  function insertMarkdownCode() {
+    insertBlock({
+      type: 'codeBlock',
+      props: {
+        language: 'markdown',
+      },
+      content: '## Markdown блок\n\n- Первый пункт\n- Второй пункт',
+    })
+  }
+
+  function insertCode() {
+    insertBlock({
+      type: 'codeBlock',
+      props: {
+        language: 'typescript',
+      },
+      content: 'console.log("Hello");',
+    })
+  }
+
+  function insertTable() {
+    insertBlock({
+      type: 'table',
+      content: {
+        type: 'tableContent',
+        rows: [
+          {
+            cells: ['Заголовок 1', 'Заголовок 2', 'Заголовок 3'],
+          },
+          {
+            cells: ['Введите текст...', 'Введите текст...', 'Введите текст...'],
+          },
+          {
+            cells: ['Введите текст...', 'Введите текст...', 'Введите текст...'],
+          },
+        ],
+      },
+    } as any)
+  }
+
+  function insertBoardBlock() {
+    insertBlock({
+      type: 'boardBlock' as any,
+      content: 'Описание связанной доски...',
+    } as any)
+  }
+
+  function insertFileCard() {
+    insertBlock({
+      type: 'fileCardBlock' as any,
+      content: 'Название файла — описание материала...',
+    } as any)
+  }
+
+  function insertDivider() {
+    insertBlock({
+      type: 'divider',
+    } as any)
+  }
+
+  function exportJson() {
+    const payload = {
+      app: 'multifunctional-board',
+      type: 'blocknote-notebook-notes',
+      formatVersion: 1,
+      exportedAt: new Date().toISOString(),
+      blocks: editor.document,
+    }
+
+    downloadTextFile(
+      createFileName('blocknote-notebook-notes', 'json'),
+      JSON.stringify(payload, null, 2),
+      'application/json'
+    )
+  }
+
+  async function exportMarkdown() {
+    const markdown = await editor.blocksToMarkdownLossy(editor.document)
+
+    downloadTextFile(
+      createFileName('blocknote-notebook-notes', 'md'),
+      markdown,
+      'text/markdown'
+    )
+  }
+
+  async function exportHtml() {
+    const html = await editor.blocksToHTMLLossy(editor.document)
+
+    downloadTextFile(
+      createFileName('blocknote-notebook-notes', 'html'),
+      html,
+      'text/html'
+    )
+  }
+
+  function openImportJson() {
+    fileInputRef.current?.click()
+  }
+
+  async function importJson(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      const blocks = Array.isArray(parsed) ? parsed : parsed.blocks
+
+      if (!Array.isArray(blocks)) {
+        throw new Error('Wrong JSON format')
+      }
+
+      editor.replaceBlocks(editor.document, blocks as any)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(blocks))
+    } catch (error) {
+      console.error(error)
+      alert('Не получилось импортировать JSON. Проверь формат файла.')
+    }
+  }
+
+  function resetDocument() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(initialContent))
+    setResetKey((value) => value + 1)
+  }
+
+  return (
+    <section className="grid h-[calc(100vh-56px)] grid-cols-[280px_minmax(0,1fr)_280px] overflow-hidden bg-white text-slate-950">
+      <aside className="border-r border-slate-400 bg-white p-4">
+        <h2 className="text-lg font-black">Study Tree</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          Папки и материалы
+        </p>
+
+        <div className="mb-3 grid grid-cols-2 gap-2">
+          <button className="border border-slate-950 bg-slate-950 px-3 py-2 text-sm font-bold text-white">
+            Папка
+          </button>
+          <button className="border border-slate-400 bg-white px-3 py-2 text-sm font-bold">
+            Материал
+          </button>
+        </div>
+
+        <input
+          className="mb-4 w-full border border-slate-400 px-3 py-2 text-sm outline-none focus:border-slate-950"
+          placeholder="Поиск"
+        />
+
+        <div className="border-t border-slate-300 pt-3">
+          <button className="w-full bg-slate-950 px-3 py-2 text-left text-sm font-bold text-white">
+            [M] Тестовый материал
+          </button>
+          <p className="mt-4 border border-dashed border-slate-400 px-3 py-3 text-center text-xs text-slate-500">
+            Здесь позже будет дерево папок и материалов.
+          </p>
+        </div>
+      </aside>
+
+      <main className="flex min-w-0 flex-col overflow-hidden">
+        <div className="flex items-center justify-between border-b border-slate-400 bg-white px-4 py-3">
+          <div className="flex flex-wrap gap-2">
+            <ToolbarButton onClick={insertHeading}>
+              + Заголовок
+            </ToolbarButton>
+
+            <ToolbarButton onClick={insertText}>
+              + Текст
+            </ToolbarButton>
+
+            <ToolbarButton onClick={insertLatex}>
+              + LaTeX
+            </ToolbarButton>
+
+            <ToolbarButton onClick={insertMarkdownCode}>
+              + Markdown
+            </ToolbarButton>
+
+            <ToolbarButton onClick={insertCode}>
+              + Код
+            </ToolbarButton>
+
+            <ToolbarButton onClick={insertTable}>
+              + Таблица
+            </ToolbarButton>
+
+            <ToolbarButton onClick={insertBoardBlock}>
+              + Доска
+            </ToolbarButton>
+
+            <ToolbarButton onClick={insertFileCard}>
+              + Файл
+            </ToolbarButton>
+
+            <ToolbarButton onClick={insertDivider}>
+              + Линия
+            </ToolbarButton>
+          </div>
+
+          <div className="flex gap-2">
+            <ToolbarButton
+              active={mode === 'edit'}
+              onClick={() => setMode('edit')}
+            >
+              Edit
+            </ToolbarButton>
+
+            <ToolbarButton
+              active={mode === 'read'}
+              onClick={() => setMode('read')}
+            >
+              Read
+            </ToolbarButton>
+          </div>
+        </div>
+
+        <div
+          className={
+            mode === 'edit'
+              ? 'blocknote-notebook-edit notebook-grid-bg min-h-0 flex-1 overflow-auto p-5'
+              : 'blocknote-notebook-read min-h-0 flex-1 overflow-auto bg-slate-100 p-8'
+          }
+        >
+          <div
+            className={
+              mode === 'edit'
+                ? 'mx-auto max-w-5xl'
+                : 'mx-auto min-h-full max-w-4xl bg-white px-12 py-10 shadow-sm'
+            }
+          >
+            <BlockNoteView
+              editor={editor}
+              editable={mode === 'edit'}
+              theme="light"
+              onChange={saveDocument}
+            />
+          </div>
+        </div>
+      </main>
+
+      <aside className="border-l border-slate-400 bg-white p-4">
+        <div className="mb-4 flex justify-end">
+          <button className="bg-slate-950 px-4 py-2 text-sm font-bold text-white">
+            Шаблоны
+          </button>
+        </div>
+
+        <h2 className="text-base font-black">Настройки материала</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          Документ работает через BlockNote Schema.
+        </p>
+
+        <div className="grid gap-2 border border-slate-400 p-3">
+          <SideButton onClick={exportJson}>
+            Export JSON
+          </SideButton>
+
+          <SideButton onClick={openImportJson}>
+            Import JSON
+          </SideButton>
+
+          <SideButton onClick={exportMarkdown}>
+            Export Markdown
+          </SideButton>
+
+          <SideButton onClick={exportHtml}>
+            Export HTML
+          </SideButton>
+
+          <SideButton onClick={resetDocument} danger>
+            Reset document
+          </SideButton>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={importJson}
+            className="hidden"
+          />
+        </div>
+
+        <div className="mt-4 border border-slate-400 p-3 text-xs leading-5 text-slate-500">
+          Внутри редактора можно также писать <b>/</b>, чтобы открыть стандартное меню BlockNote.
+          Верхние кнопки просто быстро вставляют нужные BlockNote-блоки.
+        </div>
+
+        <div className="mt-4 border border-slate-400 p-3 text-xs leading-5 text-slate-500">
+          В Read mode используется тот же документ, но редактор переводится в read-only режим через свойство <b>editable</b>.
+        </div>
+      </aside>
+    </section>
+  )
+}

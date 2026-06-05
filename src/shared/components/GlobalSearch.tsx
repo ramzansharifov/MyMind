@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { AppData } from '../app/appData';
 import { useI18n } from '../i18n/I18nProvider';
-import { getStudyBlockText } from '../../modules/study/studyUtils';
 import type { ModuleKey } from '../types/common';
 import { isHiddenFromRegularLists } from '../utils/archiveUtils';
 
@@ -54,7 +53,8 @@ const moduleLabels: Record<ModuleKey, string> = {
   journal: 'Diary',
   notes: 'Notes',
   templates: 'Templates',
-  study: 'Study',
+  study: 'Обучение',
+  boards: 'Boards',
   projects: 'Projects',
   contacts: 'Contacts',
   health: 'Health',
@@ -77,7 +77,8 @@ function buildResults(data: AppData, query: string): SearchResult[] {
   data.todos.items.filter((item) => !isHiddenFromRegularLists(item)).forEach((item) => add({ id: `todo-${item.id}`, module: 'todos', title: item.title, detail: item.description }, `${item.title} ${item.description} ${item.tags.join(' ')}`));
   data.notes.items.filter((item) => !isHiddenFromRegularLists(item)).forEach((item) => add({ id: `note-${item.id}`, module: 'notes', title: item.title, detail: item.category }, `${item.title} ${item.content} ${item.tags.join(' ')}`));
   data.templates.items.filter((item) => !isHiddenFromRegularLists(item)).forEach((item) => add({ id: `template-${item.id}`, module: 'templates', title: item.title, detail: item.category }, `${item.title} ${item.body} ${item.tags.join(' ')} ${item.variables.join(' ')}`));
-  data.study.materials.forEach((item) => add({ id: `study-${item.id}`, module: 'study', title: item.title, detail: 'Material' }, `${item.title} ${item.tags.join(' ')} ${item.blocks.map(getStudyBlockText).join(' ')}`));
+  data.study.nodes.forEach((item) => add({ id: `study-${item.id}`, module: 'study', title: item.title, detail: item.type === 'folder' ? 'Folder' : 'Material' }, item.title));
+  data.boards.boards.forEach((item) => add({ id: `board-${item.id}`, module: 'boards', title: item.title, detail: 'Board' }, item.title));
   data.journalEntries.items.filter((item) => !isHiddenFromRegularLists(item)).forEach((item) => add({ id: `journal-${item.id}`, module: 'journal', title: item.title, detail: item.mood }, `${item.title} ${item.content} ${item.tags.join(' ')}`));
   data.movies.filter((item) => !isHiddenFromRegularLists(item)).forEach((item) => add({ id: `movie-${item.id}`, module: 'movies', title: item.title, detail: item.status }, `${item.title} ${item.originalTitle} ${item.notes} ${item.genres.join(' ')}`));
   data.finance.transactions.forEach((item) => add({ id: `finance-${item.id}`, module: 'finance', title: item.title, detail: item.sourceOrCategory }, `${item.title} ${item.description} ${item.tags.join(' ')}`));
