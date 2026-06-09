@@ -1435,17 +1435,174 @@ async function ensureStudyStorageDirectory() {
   await migrateLegacyStudyStorageIfNeeded();
 }
 
+function isStudyRichTextDocument(value: unknown) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    (value as { format?: unknown }).format === "rich-html-v1" &&
+    typeof (value as { html?: unknown }).html === "string"
+  );
+}
+
+function isStudyBlockDocument(value: unknown) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    (value as { format?: unknown }).format === "study-blocks-v1" &&
+    Array.isArray((value as { blocks?: unknown }).blocks)
+  );
+}
+
+function normalizeStudyEditorContent(content: unknown) {
+  if (isStudyBlockDocument(content)) {
+    const source = content as {
+      format: "study-blocks-v1";
+      version?: unknown;
+      blocks: unknown[];
+      plainText?: unknown;
+    };
+
+    return {
+      format: source.format,
+      version: Number(source.version) || 1,
+      blocks: source.blocks,
+      plainText: typeof source.plainText === "string" ? source.plainText : "",
+    };
+  }
+
+  if (isStudyRichTextDocument(content)) {
+    const source = content as {
+      format: "rich-html-v1";
+      version?: unknown;
+      html: string;
+      plainText?: unknown;
+    };
+
+    return {
+      format: source.format,
+      version: Number(source.version) || 1,
+      html: source.html,
+      plainText: typeof source.plainText === "string" ? source.plainText : "",
+    };
+  }
+
+  if (typeof content === "string" || Array.isArray(content)) {
+    return content;
+  }
+
+  return "";
+}
+
+function stripStudyHtml(value: string) {
+  return value
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6]|blockquote|pre)>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/\u200b/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function studyEditorContentToPlainText(content: unknown): string {
+  if (isStudyBlockDocument(content)) {
+    const document = content as { blocks: unknown[]; plainText?: unknown };
+    const plainText =
+      typeof document.plainText === "string" ? document.plainText.trim() : "";
+
+    if (plainText) return plainText;
+
+    return document.blocks
+      .map((block) => {
+        const source = block as {
+          type?: unknown;
+          content?: unknown;
+          table?: { rows?: Array<{ cells?: Array<{ content?: unknown }> }> };
+        };
+
+        if (source.type === "text") {
+          return studyEditorContentToPlainText(source.content);
+        }
+
+        if (source.type === "table") {
+          return (
+            source.table?.rows
+              ?.map((row) =>
+                row.cells
+                  ?.map((cell) => studyEditorContentToPlainText(cell.content))
+                  .filter(Boolean)
+                  .join(" | "),
+              )
+              .filter(Boolean)
+              .join("\n") ?? ""
+          );
+        }
+
+        if (source.type === "markdown" || source.type === "latex" || source.type === "code") {
+          return typeof (source as { source?: unknown }).source === "string"
+            ? ((source as { source: string }).source.trim())
+            : "";
+        }
+
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n\n")
+      .trim();
+  }
+
+  if (isStudyRichTextDocument(content)) {
+    const document = content as { html: string; plainText?: unknown };
+    const plainText =
+      typeof document.plainText === "string" ? document.plainText.trim() : "";
+
+    return plainText || stripStudyHtml(document.html);
+  }
+
+  if (typeof content === "string") return stripStudyHtml(content);
+  if (!Array.isArray(content)) return "";
+
+  const parts: string[] = [];
+
+  const visit = (blocks: unknown[]) => {
+    blocks.forEach((block) => {
+      const item = block as { content?: unknown; children?: unknown };
+
+      if (Array.isArray(item.content)) {
+        const text = item.content
+          .map((leaf) => ((leaf as { text?: unknown }).text ?? "").toString())
+          .join("");
+
+        if (text.trim()) parts.push(text.trim());
+      }
+
+      if (Array.isArray(item.children)) visit(item.children);
+    });
+  };
+
+  visit(content);
+  return parts.join("\n\n").trim();
+}
+
 function normalizeStudyMaterial(
   material: Partial<StudyMaterialFile> & { id: string },
 ): StudyMaterialFile {
   const timestamp = new Date().toISOString();
+  const editorContent = normalizeStudyEditorContent(material.editorContent);
+  const plainText =
+    material.plainText?.trim() || studyEditorContentToPlainText(editorContent);
+
   return {
     id: sanitizeNoteId(material.id),
     title: material.title || "Новый материал",
-    editorContent: Array.isArray(material.editorContent)
-      ? material.editorContent
-      : [],
-    plainText: material.plainText ?? "",
+    editorContent,
+    plainText,
     boardLinks: Array.isArray(material.boardLinks)
       ? material.boardLinks
           .filter((link) => link?.boardId)

@@ -1,6 +1,10 @@
-import type { BaseEntity } from '../../shared/types/common';
+import type { BaseEntity } from "../../shared/types/common";
+import type { StudyBlockDocument } from "./blocks/blockCore";
+import type { RichTextDocument } from "./richText/richTextCore";
 
-export type StudyNodeType = 'folder' | 'material';
+export type StudyEditorContent = StudyBlockDocument | RichTextDocument | string | unknown[] | null;
+
+export type StudyNodeType = "folder" | "material";
 
 export interface StudyNode extends BaseEntity {
   type: StudyNodeType;
@@ -25,7 +29,7 @@ export interface StudyBoardLink {
 
 export interface StudyMaterial extends BaseEntity {
   title: string;
-  editorContent: unknown;
+  editorContent: StudyEditorContent;
   plainText: string;
   boardLinks: StudyBoardLink[];
 }
