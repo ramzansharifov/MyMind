@@ -96,7 +96,7 @@ export function SimpleEntityPage<T extends { id: string; createdAt: string; upda
                 <ArchiveButton
                   label="Archive"
                   confirmTitle="Archive item?"
-                  confirmMessage="The item will be hidden from regular lists but kept in local JSON storage."
+                  confirmMessage="The item will be hidden from regular lists but kept in local SQLite storage."
                   onConfirm={() => archiveItem(item)}
                 />
                 <DeleteButton

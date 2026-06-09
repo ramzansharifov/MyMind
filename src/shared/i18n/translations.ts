@@ -40,7 +40,7 @@ const ru: Record<string, string> = {
   'Search title': 'Искать по названию',
   'Search tasks': 'Искать задачи',
   'Search transactions': 'Искать транзакции',
-  'Loading local JSON workspace...': 'Загрузка локального JSON-пространства...',
+  'Loading local SQLite workspace...': 'Загрузка локального SQLite-пространства...',
 
   'A local personal operating system for plans, records, routines, and quiet review.':
     'Локальная личная операционная система для планов, записей, привычек и спокойного обзора.',
@@ -547,8 +547,8 @@ const ru: Record<string, string> = {
     'Резервные копии, перенос модулей, демо-данные, архив и локальные файлы.',
   'Interface, language, start section, and visual preferences.':
     'Интерфейс, язык, стартовый раздел и визуальные предпочтения.',
-  'Backups, imports, demo data, archive, and local JSON files.':
-    'Резервные копии, импорт, демо-данные, архив и локальные JSON-файлы.',
+  'Backups, imports, demo data, archive, and local SQLite files.':
+    'Резервные копии, импорт, демо-данные, архив и локальные SQLite-файлы.',
   Application: 'Приложение',
   Data: 'Данные',
   Module: 'Модуль',
@@ -588,13 +588,15 @@ const ru: Record<string, string> = {
   'EUR ledger': 'Учёт в EUR',
   'RUB ledger': 'Учёт в RUB',
   'TJS ledger': 'Учёт в TJS',
-  'Export JSON backup': 'Экспорт JSON-резервной копии',
-  'Import JSON backup': 'Импорт JSON-резервной копии',
+  'Export SQLite backup': 'Экспорт SQLite-резервной копии',
+  'Import SQLite backup': 'Импорт SQLite-резервной копии',
   'Export every module as a backup folder.': 'Экспортировать все модули в папку резервной копии.',
   'Import a backup folder into local storage.': 'Импортировать папку резервной копии в локальное хранилище.',
-  'Export all collections into one JSON file.': 'Экспортировать все коллекции в один JSON-файл.',
-  'Import one JSON file with preview.': 'Импортировать один JSON-файл с предпросмотром.',
-  'Open the local JSON storage folder.': 'Открыть папку локального JSON-хранилища.',
+  'Export the SQLite database and assets as a backup folder.': 'Экспортировать SQLite-базу и вложения в папку резервной копии.',
+  'Import a SQLite backup folder into local storage.': 'Импортировать папку SQLite-резервной копии в локальное хранилище.',
+  'Export the full SQLite database file.': 'Экспортировать полный файл SQLite-базы.',
+  'Import one SQLite database file with confirmation.': 'Импортировать один файл SQLite-базы с подтверждением.',
+  'Open the local SQLite storage folder.': 'Открыть папку локального SQLite-хранилища.',
   'Review archived and trashed records.': 'Просмотреть архивированные и удалённые записи.',
   'Single-file backup': 'Резервная копия одним файлом',
   'Export or import every collection as one JSON file with preview on import.':
@@ -639,10 +641,10 @@ const ru: Record<string, string> = {
     'Событие останется в корзине на 30 дней перед окончательным удалением.',
   'The journal entry will stay in trash for 30 days before permanent deletion.':
     'Запись журнала останется в корзине на 30 дней перед окончательным удалением.',
-  'This permanently removes the item from local JSON storage.':
-    'Это навсегда удалит запись из локального JSON-хранилища.',
-  'Archived items will be permanently removed from local JSON storage.':
-    'Архивированные записи будут окончательно удалены из локального JSON-хранилища.',
+  'This permanently removes the item from local SQLite storage.':
+    'Это навсегда удалит запись из локального SQLite-хранилища.',
+  'Archived items will be permanently removed from local SQLite storage.':
+    'Архивированные записи будут окончательно удалены из локального SQLite-хранилища.',
   'Clear demo data': 'Очистить демо-данные',
   'Resolving...': 'Определяется...',
 
@@ -659,12 +661,12 @@ const ru: Record<string, string> = {
   'Archive item?': 'Архивировать запись?',
   'Archive task?': 'Архивировать задачу?',
   'Archive note?': 'Архивировать заметку?',
-  'The item will be hidden from regular lists but kept in local JSON storage.':
-    'Запись будет скрыта из обычных списков, но останется в локальном JSON-хранилище.',
-  'The task will be hidden from regular lists but kept in local JSON storage.':
-    'Задача будет скрыта из обычных списков, но останется в локальном JSON-хранилище.',
-  'The note will be hidden from regular lists but kept in local JSON storage.':
-    'Заметка будет скрыта из обычных списков, но останется в локальном JSON-хранилище.',
+  'The item will be hidden from regular lists but kept in local SQLite storage.':
+    'Запись будет скрыта из обычных списков, но останется в локальном SQLite-хранилище.',
+  'The task will be hidden from regular lists but kept in local SQLite storage.':
+    'Задача будет скрыта из обычных списков, но останется в локальном SQLite-хранилище.',
+  'The note will be hidden from regular lists but kept in local SQLite storage.':
+    'Заметка будет скрыта из обычных списков, но останется в локальном SQLite-хранилище.',
   Add: 'Добавить',
   'Delete item?': 'Удалить запись?',
   'Delete movie?': 'Удалить фильм?',
@@ -684,7 +686,7 @@ const ru: Record<string, string> = {
   'This action cannot be undone.': 'Это действие нельзя отменить.',
   'This will also remove sessions linked to this plan.': 'Это также удалит тренировки, связанные с этим планом.',
   'This will also remove habit logs for this habit.': 'Это также удалит отметки этой привычки.',
-  'This will clear local demo collections from JSON storage.': 'Это очистит локальные демо-коллекции в JSON-хранилище.',
+  'This will clear local demo collections from SQLite storage.': 'Это очистит локальные демо-коллекции в SQLite-хранилище.',
   Close: 'Закрыть',
   'Weather Forecast': 'Прогноз погоды',
   'Search city...': 'Поиск города...',
@@ -948,7 +950,7 @@ Object.assign(ru, {
   Trash: '\u041a\u043e\u0440\u0437\u0438\u043d\u0430',
   'General data': '\u041e\u0431\u0449\u0438\u0435 \u0434\u0430\u043d\u043d\u044b\u0435',
   'Module import and export': '\u0418\u043c\u043f\u043e\u0440\u0442 \u0438 \u044d\u043a\u0441\u043f\u043e\u0440\u0442 \u043f\u043e \u043c\u043e\u0434\u0443\u043b\u044e',
-  'Backups, imports, demo data, and local JSON files.': '\u0420\u0435\u0437\u0435\u0440\u0432\u043d\u044b\u0435 \u043a\u043e\u043f\u0438\u0438, \u0438\u043c\u043f\u043e\u0440\u0442, \u0434\u0435\u043c\u043e-\u0434\u0430\u043d\u043d\u044b\u0435 \u0438 \u043b\u043e\u043a\u0430\u043b\u044c\u043d\u044b\u0435 JSON-\u0444\u0430\u0439\u043b\u044b.',
+  'Backups, imports, demo data, and the local SQLite database.': '\u0420\u0435\u0437\u0435\u0440\u0432\u043d\u044b\u0435 \u043a\u043e\u043f\u0438\u0438, \u0438\u043c\u043f\u043e\u0440\u0442, \u0434\u0435\u043c\u043e-\u0434\u0430\u043d\u043d\u044b\u0435 \u0438 \u043b\u043e\u043a\u0430\u043b\u044c\u043d\u0430\u044f SQLite-\u0431\u0430\u0437\u0430.',
   'Backups, module transfer, demo data, and local files.': '\u0420\u0435\u0437\u0435\u0440\u0432\u043d\u044b\u0435 \u043a\u043e\u043f\u0438\u0438, \u043f\u0435\u0440\u0435\u043d\u043e\u0441 \u043c\u043e\u0434\u0443\u043b\u0435\u0439, \u0434\u0435\u043c\u043e-\u0434\u0430\u043d\u043d\u044b\u0435 \u0438 \u043b\u043e\u043a\u0430\u043b\u044c\u043d\u044b\u0435 \u0444\u0430\u0439\u043b\u044b.',
   'Review archived records and restore or move them to trash.': '\u041f\u0440\u043e\u0441\u043c\u0430\u0442\u0440 \u0430\u0440\u0445\u0438\u0432\u043d\u044b\u0445 \u0437\u0430\u043f\u0438\u0441\u0435\u0439: \u0438\u0445 \u043c\u043e\u0436\u043d\u043e \u0432\u0435\u0440\u043d\u0443\u0442\u044c \u0438\u043b\u0438 \u043f\u0435\u0440\u0435\u043c\u0435\u0441\u0442\u0438\u0442\u044c \u0432 \u043a\u043e\u0440\u0437\u0438\u043d\u0443.',
   'Review deleted records before permanent removal.': '\u041f\u0440\u043e\u0441\u043c\u0430\u0442\u0440 \u0443\u0434\u0430\u043b\u0435\u043d\u043d\u044b\u0445 \u0437\u0430\u043f\u0438\u0441\u0435\u0439 \u043f\u0435\u0440\u0435\u0434 \u043e\u043a\u043e\u043d\u0447\u0430\u0442\u0435\u043b\u044c\u043d\u044b\u043c \u0443\u0434\u0430\u043b\u0435\u043d\u0438\u0435\u043c.',

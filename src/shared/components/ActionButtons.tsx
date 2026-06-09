@@ -140,7 +140,7 @@ interface ArchiveButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
 export function ArchiveButton({
   label = 'Archive',
   confirmTitle = 'Archive item?',
-  confirmMessage = 'The item will be hidden from regular lists but kept in local JSON storage.',
+  confirmMessage = 'The item will be hidden from regular lists but kept in local SQLite storage.',
   iconOnly = true,
   children,
   className,

@@ -86,7 +86,7 @@ export function getNoteEditorContent(note?: Note | null): MyMindEditorContent {
   if (!note) {
     return [];
   }
-  return contentToBlockNoteFallback(note);
+  return contentToEditorFallback(note);
 }
 
 export function noteEditorHtml(note?: Note | null) {
@@ -314,15 +314,15 @@ function normalizeNoteLayoutWidth(value: unknown): NoteLayoutWidth {
 function getMigratedEditorContent(note: Note): MyMindEditorContent {
   const legacyBlocks = readLegacyBlocks(note.content ?? '');
   if (legacyBlocks.length > 0) {
-    const migrated = legacyBlocksToBlockNote(legacyBlocks);
+    const migrated = legacyBlocksToEditorContent(legacyBlocks);
     if (migrated.length > 0) {
       return migrated;
     }
   }
-  return contentToBlockNoteFallback(note);
+  return contentToEditorFallback(note);
 }
 
-function contentToBlockNoteFallback(note: Note): MyMindEditorContent {
+function contentToEditorFallback(note: Note): MyMindEditorContent {
   const plainText = legacyContentToPlainText(note);
   if (!plainText) {
     return [];
@@ -374,7 +374,7 @@ function isTableContent(value: unknown): value is { rows: Array<{ cells: unknown
   );
 }
 
-function legacyBlocksToBlockNote(blocks: MyMindEditorBlock[]): MyMindEditorContent {
+function legacyBlocksToEditorContent(blocks: MyMindEditorBlock[]): MyMindEditorContent {
   const result: MyMindEditorContent = [];
 
   for (const block of blocks) {

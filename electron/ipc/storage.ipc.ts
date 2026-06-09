@@ -1,16 +1,43 @@
-import { app, dialog, ipcMain, Notification, shell } from 'electron';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import os from 'node:os';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { assertCollectionName, collectionFiles, defaultValue, listCollections, nowIso, type CollectionName } from './storageRegistry';
+import { app, dialog, ipcMain, Notification, shell } from "electron";
+import fsSync from "node:fs";
+import fs from "node:fs/promises";
+import path from "node:path";
+import os from "node:os";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  assertCollectionName,
+  collectionFiles,
+  defaultValue,
+  listCollections,
+  nowIso,
+  type CollectionName,
+} from "./storageRegistry";
 
-const retryableStorageErrorCodes = new Set(['EBUSY', 'EPERM', 'EACCES']);
+const retryableStorageErrorCodes = new Set(["EBUSY", "EPERM", "EACCES"]);
 const storageRetryDelaysMs = [50, 100, 200, 400, 800];
 const collectionWriteQueues = new Map<CollectionName, Promise<unknown>>();
-const fileWriteQueues = new Map<string, Promise<unknown>>();
+const sqliteDatabaseFileName = "mymind.sqlite";
 
-type NoteAssetType = 'image' | 'video' | 'audio' | 'file' | 'drawing';
+type SqliteRunResult = { changes: number; lastInsertRowid: number | bigint };
+type SqliteStatement = {
+  run: (...params: unknown[]) => SqliteRunResult;
+  get: (...params: unknown[]) => any;
+  all: (...params: unknown[]) => any[];
+};
+type SqliteDatabase = {
+  exec: (sql: string) => void;
+  prepare: (sql: string) => SqliteStatement;
+  pragma: (sql: string) => unknown;
+  transaction: <T extends (...args: any[]) => any>(fn: T) => T;
+  close: () => void;
+};
+
+const BetterSqliteDatabase = require("better-sqlite3") as new (
+  file: string,
+) => SqliteDatabase;
+let sqliteDatabase: SqliteDatabase | null = null;
+
+type NoteAssetType = "image" | "video" | "audio" | "file" | "drawing";
 
 type NoteAsset = {
   id: string;
@@ -46,7 +73,7 @@ type NoteIndexItem = {
 
 type NoteFile = NoteIndexItem & {
   content?: string;
-  contentFormat?: 'plain' | 'html' | 'markdown';
+  contentFormat?: "plain" | "html" | "markdown";
   editorContent: unknown;
   editorPlainText: string;
   editorHtml?: string;
@@ -98,11 +125,246 @@ type StudyMaterialIndexItem = {
 };
 
 function getDocumentsDirectory() {
-  return app.getPath('documents') || path.join(os.homedir(), 'Documents');
+  return app.getPath("documents") || path.join(os.homedir(), "Documents");
 }
 
 function getDataDirectory() {
-  return path.join(getDocumentsDirectory(), 'MyMind', 'data');
+  return path.join(getDocumentsDirectory(), "MyMind", "data");
+}
+
+function getDatabasePath() {
+  return path.join(getDataDirectory(), sqliteDatabaseFileName);
+}
+
+function getDatabase() {
+  if (sqliteDatabase) {
+    return sqliteDatabase;
+  }
+
+  fsSync.mkdirSync(getDataDirectory(), { recursive: true });
+  const database = new BetterSqliteDatabase(getDatabasePath());
+  database.pragma("foreign_keys = ON");
+  database.pragma("journal_mode = DELETE");
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS collections (
+      name TEXT PRIMARY KEY,
+      storage_kind TEXT NOT NULL CHECK (storage_kind IN ('document', 'items')),
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS collection_items (
+      collection TEXT NOT NULL,
+      id TEXT NOT NULL,
+      value TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (collection, id),
+      FOREIGN KEY (collection) REFERENCES collections(name) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_collection_items_collection_position
+      ON collection_items(collection, position);
+
+    CREATE TABLE IF NOT EXISTS notes (
+      id TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      title TEXT NOT NULL,
+      preview_text TEXT NOT NULL,
+      editor_plain_text TEXT NOT NULL,
+      tags TEXT NOT NULL,
+      category TEXT NOT NULL,
+      group_id TEXT,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      archived_at TEXT,
+      trashed_at TEXT,
+      pinned_at TEXT,
+      layout_width INTEGER
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON notes(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_notes_pinned_updated_at ON notes(pinned DESC, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS note_search_index (
+      note_id TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS note_drafts (
+      note_id TEXT PRIMARY KEY,
+      editor_content TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS note_html_cache (
+      note_id TEXT PRIMARY KEY,
+      html TEXT,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS study_materials (
+      id TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      title TEXT NOT NULL,
+      plain_text TEXT NOT NULL,
+      board_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_study_materials_updated_at ON study_materials(updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS storage_migrations (
+      id TEXT PRIMARY KEY,
+      completed_at TEXT NOT NULL
+    );
+  `);
+  sqliteDatabase = database;
+  return database;
+}
+
+function closeDatabase() {
+  if (!sqliteDatabase) {
+    return;
+  }
+  sqliteDatabase.close();
+  sqliteDatabase = null;
+}
+
+function encodeSqliteJson(value: unknown) {
+  return JSON.stringify(value ?? null);
+}
+
+function decodeSqliteJson<T>(value: unknown, fallback: T): T {
+  if (typeof value !== "string" || !value.trim()) {
+    return fallback;
+  }
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function collectionItemId(item: unknown, index: number) {
+  if (item && typeof item === "object") {
+    const id = (item as { id?: unknown }).id;
+    if (typeof id === "string" && id.trim()) {
+      return id;
+    }
+  }
+  return `__item_${index}`;
+}
+
+function readCollectionFromDatabase(collectionName: CollectionName) {
+  const database = getDatabase();
+  const row = database
+    .prepare("SELECT storage_kind, value FROM collections WHERE name = ?")
+    .get(collectionName) as
+    | { storage_kind: "document" | "items"; value: string }
+    | undefined;
+
+  if (!row) {
+    return defaultValue(collectionName, getDataDirectory());
+  }
+
+  if (row.storage_kind === "items") {
+    return database
+      .prepare(
+        "SELECT value FROM collection_items WHERE collection = ? ORDER BY position ASC",
+      )
+      .all(collectionName)
+      .map((item) => decodeSqliteJson((item as { value: string }).value, null))
+      .filter((item) => item !== null);
+  }
+
+  return decodeSqliteJson(
+    row.value,
+    defaultValue(collectionName, getDataDirectory()),
+  );
+}
+
+function writeCollectionToDatabase(
+  collectionName: CollectionName,
+  value: unknown,
+) {
+  const database = getDatabase();
+  const timestamp = nowIso();
+  const transaction = database.transaction((nextValue: unknown) => {
+    if (Array.isArray(nextValue)) {
+      database
+        .prepare(
+          `
+          INSERT INTO collections (name, storage_kind, value, updated_at)
+          VALUES (?, 'items', '[]', ?)
+          ON CONFLICT(name) DO UPDATE SET storage_kind = excluded.storage_kind, value = excluded.value, updated_at = excluded.updated_at
+        `,
+        )
+        .run(collectionName, timestamp);
+      database
+        .prepare("DELETE FROM collection_items WHERE collection = ?")
+        .run(collectionName);
+      const insertItem = database.prepare(`
+        INSERT INTO collection_items (collection, id, value, position, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+      `);
+      nextValue.forEach((item, index) => {
+        insertItem.run(
+          collectionName,
+          collectionItemId(item, index),
+          encodeSqliteJson(item),
+          index,
+          timestamp,
+        );
+      });
+      return;
+    }
+
+    database
+      .prepare(
+        `
+        INSERT INTO collections (name, storage_kind, value, updated_at)
+        VALUES (?, 'document', ?, ?)
+        ON CONFLICT(name) DO UPDATE SET storage_kind = excluded.storage_kind, value = excluded.value, updated_at = excluded.updated_at
+      `,
+      )
+      .run(collectionName, encodeSqliteJson(nextValue), timestamp);
+    database
+      .prepare("DELETE FROM collection_items WHERE collection = ?")
+      .run(collectionName);
+  });
+
+  transaction(value);
+}
+
+function collectionExistsInDatabase(collectionName: CollectionName) {
+  return Boolean(
+    getDatabase()
+      .prepare("SELECT 1 FROM collections WHERE name = ?")
+      .get(collectionName),
+  );
+}
+
+function migrationWasCompleted(id: string) {
+  return Boolean(
+    getDatabase()
+      .prepare("SELECT 1 FROM storage_migrations WHERE id = ?")
+      .get(id),
+  );
+}
+
+function markMigrationCompleted(id: string) {
+  getDatabase()
+    .prepare(
+      "INSERT OR REPLACE INTO storage_migrations (id, completed_at) VALUES (?, ?)",
+    )
+    .run(id, nowIso());
 }
 
 async function ensureDataDirectory() {
@@ -110,33 +372,33 @@ async function ensureDataDirectory() {
 }
 
 async function ensureAssetsDirectory() {
-  const assetsDirectory = path.join(getDataDirectory(), 'assets');
+  const assetsDirectory = path.join(getDataDirectory(), "assets");
   await fs.mkdir(assetsDirectory, { recursive: true });
   return assetsDirectory;
 }
 
 function getNotesDirectory() {
-  return path.join(getDataDirectory(), 'notes');
+  return path.join(getDataDirectory(), "notes");
 }
 
 function getStudyMaterialsDirectory() {
-  return path.join(getDataDirectory(), 'study-materials');
+  return path.join(getDataDirectory(), "study-materials");
 }
 
 function getDraftsDirectory() {
-  return path.join(getDataDirectory(), 'drafts');
+  return path.join(getDataDirectory(), "drafts");
 }
 
 function getNotesIndexPath() {
-  return path.join(getDataDirectory(), 'notes.index.json');
+  return path.join(getDataDirectory(), "notes.index.json");
 }
 
 function getStudyIndexPath() {
-  return path.join(getStudyMaterialsDirectory(), 'index.json');
+  return path.join(getStudyMaterialsDirectory(), "index.json");
 }
 
 function getSearchIndexPath() {
-  return path.join(getDataDirectory(), 'search.index.json');
+  return path.join(getDataDirectory(), "search.index.json");
 }
 
 function getNoteFilePath(noteId: string) {
@@ -144,47 +406,162 @@ function getNoteFilePath(noteId: string) {
 }
 
 function getStudyMaterialFilePath(materialId: string) {
-  return path.join(getStudyMaterialsDirectory(), `${sanitizeNoteId(materialId)}.json`);
-}
-
-function getDraftFilePath(noteId: string) {
-  return path.join(getDraftsDirectory(), `${sanitizeNoteId(noteId)}.draft.json`);
+  return path.join(
+    getStudyMaterialsDirectory(),
+    `${sanitizeNoteId(materialId)}.json`,
+  );
 }
 
 function getNoteAssetsDirectory(noteId: string) {
-  return path.join(getDataDirectory(), 'assets', sanitizeNoteId(noteId));
+  return path.join(getDataDirectory(), "assets", sanitizeNoteId(noteId));
 }
 
 async function ensureNoteStorageDirectory() {
   await ensureDataDirectory();
-  await fs.mkdir(getNotesDirectory(), { recursive: true });
-  await fs.mkdir(getDraftsDirectory(), { recursive: true });
-  await fs.mkdir(path.join(getDataDirectory(), 'assets'), { recursive: true });
-
-  await ensureJsonFile(getNotesIndexPath(), []);
-  await ensureJsonFile(getSearchIndexPath(), []);
-  await backupLegacyNotesFileIfNeeded();
+  await fs.mkdir(path.join(getDataDirectory(), "assets"), { recursive: true });
+  getDatabase();
+  await migrateLegacyNoteStorageIfNeeded();
 }
 
-async function backupLegacyNotesFileIfNeeded() {
-  const legacyPath = filePath('notes');
-  const markerPath = path.join(getDataDirectory(), 'notes.legacy-backup.done');
-
+async function readDirectoryFileNames(directory: string) {
   try {
-    await fs.access(markerPath);
+    return await fs.readdir(directory);
+  } catch (error) {
+    if (getStorageErrorCode(error) === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+}
+
+async function migrateLegacyNoteStorageIfNeeded() {
+  const migrationId = "legacy-json-notes-v1";
+  if (migrationWasCompleted(migrationId)) {
     return;
-  } catch {
-    // Continue and create the marker below.
   }
 
-  try {
-    await fs.access(legacyPath);
-    await fs.copyFile(legacyPath, path.join(getDataDirectory(), `notes.legacy-backup.${Date.now()}.json`));
-  } catch {
-    // Legacy notes may not exist. The new storage starts clean.
+  const index = await readJsonFile<NoteIndexItem[]>(getNotesIndexPath(), []);
+  const legacyNoteIds = new Set(index.map((item) => item.id).filter(Boolean));
+  const noteFiles = await readDirectoryFileNames(getNotesDirectory());
+  for (const fileName of noteFiles) {
+    if (fileName.endsWith(".json")) {
+      legacyNoteIds.add(fileName.slice(0, -".json".length));
+    }
   }
 
-  await fs.writeFile(markerPath, `${new Date().toISOString()}\n`, 'utf8');
+  for (const noteId of legacyNoteIds) {
+    const note = await readJsonFile<NoteFile | null>(
+      getNoteFilePath(noteId),
+      null,
+    );
+    if (!note?.id) {
+      continue;
+    }
+    const normalized = normalizeNoteFile(note);
+    writeNoteToDatabase(normalized);
+    writeSearchItemToDatabase(searchItemFromNote(normalized));
+  }
+
+  const searchItems = await readJsonFile<NoteSearchIndexItem[]>(
+    getSearchIndexPath(),
+    [],
+  );
+  for (const item of Array.isArray(searchItems) ? searchItems : []) {
+    if (item?.noteId) {
+      writeSearchItemToDatabase(item);
+    }
+  }
+
+  const draftFiles = await readDirectoryFileNames(getDraftsDirectory());
+  for (const fileName of draftFiles) {
+    if (!fileName.endsWith(".draft.json")) {
+      continue;
+    }
+    const draft = await readJsonFile<NoteDraft | null>(
+      path.join(getDraftsDirectory(), fileName),
+      null,
+    );
+    if (draft?.noteId) {
+      getDatabase()
+        .prepare(
+          `
+        INSERT INTO note_drafts (note_id, editor_content, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(note_id) DO UPDATE SET editor_content = excluded.editor_content, updated_at = excluded.updated_at
+      `,
+        )
+        .run(
+          sanitizeNoteId(draft.noteId),
+          encodeSqliteJson(draft.editorContent),
+          draft.updatedAt ?? nowIso(),
+        );
+    }
+  }
+
+  const htmlCacheDirectory = path.join(getDataDirectory(), "html-cache");
+  const htmlFiles = await readDirectoryFileNames(htmlCacheDirectory);
+  for (const fileName of htmlFiles) {
+    if (!fileName.endsWith(".json")) {
+      continue;
+    }
+    const cache = await readJsonFile<{
+      noteId?: string;
+      html?: string | null;
+      updatedAt?: string;
+    } | null>(path.join(htmlCacheDirectory, fileName), null);
+    if (cache?.noteId) {
+      getDatabase()
+        .prepare(
+          `
+        INSERT INTO note_html_cache (note_id, html, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(note_id) DO UPDATE SET html = excluded.html, updated_at = excluded.updated_at
+      `,
+        )
+        .run(
+          sanitizeNoteId(cache.noteId),
+          cache.html ?? null,
+          cache.updatedAt ?? nowIso(),
+        );
+    }
+  }
+
+  markMigrationCompleted(migrationId);
+}
+
+async function migrateLegacyStudyStorageIfNeeded() {
+  const migrationId = "legacy-json-study-v1";
+  if (migrationWasCompleted(migrationId)) {
+    return;
+  }
+
+  const index = await readJsonFile<StudyMaterialIndexItem[]>(
+    getStudyIndexPath(),
+    [],
+  );
+  const legacyMaterialIds = new Set(
+    index.map((item) => item.id).filter(Boolean),
+  );
+  const materialFiles = await readDirectoryFileNames(
+    getStudyMaterialsDirectory(),
+  );
+  for (const fileName of materialFiles) {
+    if (fileName.endsWith(".json") && fileName !== "index.json") {
+      legacyMaterialIds.add(fileName.slice(0, -".json".length));
+    }
+  }
+
+  for (const materialId of legacyMaterialIds) {
+    const material = await readJsonFile<StudyMaterialFile | null>(
+      getStudyMaterialFilePath(materialId),
+      null,
+    );
+    if (material?.id) {
+      writeStudyMaterialToDatabase(normalizeStudyMaterial(material));
+    }
+  }
+
+  markMigrationCompleted(migrationId);
 }
 
 function filePath(collectionName: CollectionName) {
@@ -192,14 +569,21 @@ function filePath(collectionName: CollectionName) {
 }
 
 function sanitizeAssetFileName(value: unknown) {
-  const rawName = typeof value === 'string' && value.trim() ? value.trim() : 'attachment';
+  const rawName =
+    typeof value === "string" && value.trim() ? value.trim() : "attachment";
   const parsed = path.parse(rawName);
-  const baseName = (parsed.name || 'attachment').replace(/[<>:"/\\|?*\x00-\x1f]/g, '-').slice(0, 80);
-  const extension = parsed.ext.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').slice(0, 16);
-  return `${baseName || 'attachment'}${extension}`;
+  const baseName = (parsed.name || "attachment")
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "-")
+    .slice(0, 80);
+  const extension = parsed.ext
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "")
+    .slice(0, 16);
+  return `${baseName || "attachment"}${extension}`;
 }
 
-async function listAssetFiles(directory = path.join(getDataDirectory(), 'assets')): Promise<Array<{ path: string; url: string; sizeBytes: number }>> {
+async function listAssetFiles(
+  directory = path.join(getDataDirectory(), "assets"),
+): Promise<Array<{ path: string; url: string; sizeBytes: number }>> {
   try {
     const entries = await fs.readdir(directory, { withFileTypes: true });
     const results = await Promise.all(
@@ -212,12 +596,18 @@ async function listAssetFiles(directory = path.join(getDataDirectory(), 'assets'
           return [];
         }
         const stats = await fs.stat(target);
-        return [{ path: target, url: pathToFileURL(target).href, sizeBytes: stats.size }];
+        return [
+          {
+            path: target,
+            url: pathToFileURL(target).href,
+            sizeBytes: stats.size,
+          },
+        ];
       }),
     );
     return results.flat();
   } catch (error) {
-    if (getStorageErrorCode(error) === 'ENOENT') {
+    if (getStorageErrorCode(error) === "ENOENT") {
       return [];
     }
     throw error;
@@ -232,15 +622,19 @@ async function getAssetInfoFromUrl(url: string) {
   }
 
   const relative = path.relative(assetsDirectory, targetPath);
-  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
     return { url, exists: false, sizeBytes: 0 };
   }
 
   try {
     const stats = await fs.stat(targetPath);
-    return { url, exists: stats.isFile(), sizeBytes: stats.isFile() ? stats.size : 0 };
+    return {
+      url,
+      exists: stats.isFile(),
+      sizeBytes: stats.isFile() ? stats.size : 0,
+    };
   } catch (error) {
-    if (getStorageErrorCode(error) === 'ENOENT') {
+    if (getStorageErrorCode(error) === "ENOENT") {
       return { url, exists: false, sizeBytes: 0 };
     }
     throw error;
@@ -249,40 +643,44 @@ async function getAssetInfoFromUrl(url: string) {
 
 function getPathFromLocalAssetUrl(url: string) {
   try {
-    if (url.startsWith('mymind-asset:')) {
+    if (url.startsWith("mymind-asset:")) {
       const parsedUrl = new URL(url);
-      const relativePath = decodeURIComponent(parsedUrl.pathname.replace(/^\/+/, ''));
+      const relativePath = decodeURIComponent(
+        parsedUrl.pathname.replace(/^\/+/, ""),
+      );
       return resolveRelativeDataPath(relativePath);
     }
 
     return fileURLToPath(url);
   } catch {
-    return '';
+    return "";
   }
 }
 
 async function openContainingFolderFromUrl(url: string) {
   const targetPath = getPathFromLocalAssetUrl(url);
   if (!targetPath) {
-    throw new Error('Invalid file URL.');
+    throw new Error("Invalid file URL.");
   }
 
   const stats = await fs.stat(targetPath);
-  const folderPath = stats.isDirectory() ? targetPath : path.dirname(targetPath);
+  const folderPath = stats.isDirectory()
+    ? targetPath
+    : path.dirname(targetPath);
   return shell.openPath(folderPath);
 }
 
 function isRetryableStorageError(error: unknown) {
   return (
     error !== null &&
-    typeof error === 'object' &&
-    'code' in error &&
+    typeof error === "object" &&
+    "code" in error &&
     retryableStorageErrorCodes.has(String((error as { code?: unknown }).code))
   );
 }
 
 function getStorageErrorCode(error: unknown) {
-  if (error !== null && typeof error === 'object' && 'code' in error) {
+  if (error !== null && typeof error === "object" && "code" in error) {
     return String((error as { code?: unknown }).code);
   }
   return null;
@@ -302,7 +700,10 @@ async function withStorageRetry<T>(operation: () => Promise<T>) {
       return await operation();
     } catch (error) {
       lastError = error;
-      if (!isRetryableStorageError(error) || attempt === storageRetryDelaysMs.length) {
+      if (
+        !isRetryableStorageError(error) ||
+        attempt === storageRetryDelaysMs.length
+      ) {
         throw error;
       }
       await wait(storageRetryDelaysMs[attempt]);
@@ -312,8 +713,12 @@ async function withStorageRetry<T>(operation: () => Promise<T>) {
   throw lastError;
 }
 
-async function enqueueCollectionWrite<T>(collectionName: CollectionName, operation: () => Promise<T>) {
-  const previous = collectionWriteQueues.get(collectionName) ?? Promise.resolve();
+async function enqueueCollectionWrite<T>(
+  collectionName: CollectionName,
+  operation: () => Promise<T>,
+) {
+  const previous =
+    collectionWriteQueues.get(collectionName) ?? Promise.resolve();
   const next = previous.catch(() => undefined).then(operation);
   let tracked: Promise<T>;
 
@@ -328,152 +733,108 @@ async function enqueueCollectionWrite<T>(collectionName: CollectionName, operati
   return tracked;
 }
 
-async function enqueueFileWrite<T>(fileKey: string, operation: () => Promise<T>) {
-  const previous = fileWriteQueues.get(fileKey) ?? Promise.resolve();
-  const next = previous.catch(() => undefined).then(operation);
-  let tracked: Promise<T>;
-
-  tracked = next.finally(() => {
-    if (fileWriteQueues.get(fileKey) === tracked) {
-      fileWriteQueues.delete(fileKey);
-    }
-  });
-
-  fileWriteQueues.set(fileKey, tracked);
-
-  return tracked;
-}
-
-async function ensureJsonFile(file: string, fallback: unknown) {
-  try {
-    await withStorageRetry(() => fs.access(file));
-  } catch (error) {
-    if (getStorageErrorCode(error) !== 'ENOENT') {
-      throw error;
-    }
-    await writeJsonFile(file, fallback);
-  }
-}
-
 async function readJsonFile<T>(file: string, fallback: T): Promise<T> {
-  await ensureDataDirectory();
   try {
-    const content = await withStorageRetry(() => fs.readFile(file, 'utf8'));
+    const content = await withStorageRetry(() => fs.readFile(file, "utf8"));
     if (!content.trim()) {
-      await writeJsonFile(file, fallback);
       return fallback;
     }
     return JSON.parse(content) as T;
   } catch (error) {
-    if (getStorageErrorCode(error) === 'ENOENT') {
-      await writeJsonFile(file, fallback);
+    if (getStorageErrorCode(error) === "ENOENT") {
       return fallback;
     }
     if (isRetryableStorageError(error)) {
       throw error;
     }
-    try {
-      await fs.copyFile(file, `${file}.corrupted.${Date.now()}`);
-    } catch {
-      // Continue with a clean fallback when backup fails.
-    }
-    await writeJsonFile(file, fallback);
     return fallback;
   }
 }
 
-async function writeJsonFile(file: string, value: unknown) {
-  return enqueueFileWrite(file, async () => {
-    await fs.mkdir(path.dirname(file), { recursive: true });
-    const encoded = `${JSON.stringify(value, null, 2)}\n`;
-    const tempPath = `${file}.${process.pid}.${Date.now()}.tmp`;
-    try {
-      await withStorageRetry(() => fs.writeFile(tempPath, encoded, 'utf8'));
-      await withStorageRetry(() => fs.rename(tempPath, file));
-    } catch (error) {
-      try {
-        await fs.unlink(tempPath);
-      } catch {
-        // Temp cleanup is best-effort.
-      }
-      throw error;
-    }
-  });
-}
-
 async function ensureFile(collectionName: CollectionName) {
   await ensureDataDirectory();
-  const target = filePath(collectionName);
-  try {
-    await withStorageRetry(() => fs.access(target));
-  } catch (error) {
-    if (getStorageErrorCode(error) !== 'ENOENT') {
-      throw error;
-    }
-    await writeJson(collectionName, defaultValue(collectionName, getDataDirectory()));
+  getDatabase();
+  if (collectionExistsInDatabase(collectionName)) {
+    return;
   }
+
+  const legacyValue = await readJsonFile<unknown>(
+    filePath(collectionName),
+    undefined,
+  );
+  await writeJson(
+    collectionName,
+    legacyValue === undefined
+      ? defaultValue(collectionName, getDataDirectory())
+      : legacyValue,
+  );
 }
 
 async function writeJson(collectionName: CollectionName, value: unknown) {
   return enqueueCollectionWrite(collectionName, async () => {
     await ensureDataDirectory();
-    const encoded = `${JSON.stringify(value, null, 2)}\n`;
-    const target = filePath(collectionName);
-    const tempPath = `${target}.${process.pid}.${Date.now()}.tmp`;
-    try {
-      await withStorageRetry(() => fs.writeFile(tempPath, encoded, 'utf8'));
-      await withStorageRetry(() => fs.rename(tempPath, target));
-    } catch (error) {
-      try {
-        await fs.unlink(tempPath);
-      } catch {
-        // Temp cleanup is best-effort.
-      }
-      throw error;
-    }
+    writeCollectionToDatabase(collectionName, value);
   });
 }
 
 async function readJson(collectionName: CollectionName) {
   await ensureFile(collectionName);
-  const target = filePath(collectionName);
-  try {
-    const content = await withStorageRetry(() => fs.readFile(target, 'utf8'));
-    if (!content.trim()) {
-      const safeDefault = defaultValue(collectionName, getDataDirectory());
-      await writeJson(collectionName, safeDefault);
-      return safeDefault;
-    }
-    return JSON.parse(content) as unknown;
-  } catch (error) {
-    if (isRetryableStorageError(error)) {
-      throw error;
-    }
-    const backupPath = `${target}.corrupted.${Date.now()}`;
-    try {
-      await fs.copyFile(target, backupPath);
-    } catch {
-      // Recovery should continue even when the backup copy cannot be written.
-    }
-    const safeDefault = defaultValue(collectionName, getDataDirectory());
-    await writeJson(collectionName, safeDefault);
-    return safeDefault;
-  }
+  return readCollectionFromDatabase(collectionName);
 }
 
-function ensureListCollection(collectionName: CollectionName, value: unknown): Array<{ id: string }> {
-  if (!listCollections.has(collectionName) || !Array.isArray(value)) {
-    throw new Error(`${collectionName} does not support item-level storage operations`);
+async function exportSqliteDatabase(targetPath: string) {
+  await ensureDataDirectory();
+  getDatabase();
+  closeDatabase();
+  await fs.mkdir(path.dirname(targetPath), { recursive: true });
+  await withStorageRetry(() => fs.copyFile(getDatabasePath(), targetPath));
+}
+
+async function importSqliteDatabase(sourcePath: string) {
+  await ensureDataDirectory();
+  closeDatabase();
+  await withStorageRetry(() => fs.copyFile(sourcePath, getDatabasePath()));
+}
+
+async function importLegacyCollectionsFromDirectory(sourceDirectory: string) {
+  await ensureDataDirectory();
+  const imported: CollectionName[] = [];
+  for (const collectionName of Object.keys(
+    collectionFiles,
+  ) as CollectionName[]) {
+    const sourceFile = path.join(
+      sourceDirectory,
+      collectionFiles[collectionName],
+    );
+    const value = await readJsonFile<unknown>(sourceFile, undefined);
+    if (value !== undefined) {
+      await writeJson(collectionName, value);
+      imported.push(collectionName);
+    }
   }
-  return value.filter((item): item is { id: string } => Boolean(item && typeof item === 'object' && 'id' in item));
+  return imported;
+}
+
+function ensureListCollection(
+  collectionName: CollectionName,
+  value: unknown,
+): Array<{ id: string }> {
+  if (!listCollections.has(collectionName) || !Array.isArray(value)) {
+    throw new Error(
+      `${collectionName} does not support item-level storage operations`,
+    );
+  }
+  return value.filter((item): item is { id: string } =>
+    Boolean(item && typeof item === "object" && "id" in item),
+  );
 }
 
 function sanitizeNoteId(value: unknown) {
-  const id = String(value ?? '').trim();
-  if (!id || /[\\/]/.test(id) || id.includes('..')) {
-    throw new Error('Invalid note id.');
+  const id = String(value ?? "").trim();
+  if (!id || /[\\/]/.test(id) || id.includes("..")) {
+    throw new Error("Invalid note id.");
   }
-  return id.replace(/[^a-zA-Z0-9_-]/g, '-');
+  return id.replace(/[^a-zA-Z0-9_-]/g, "-");
 }
 
 function createAssetId() {
@@ -481,27 +842,27 @@ function createAssetId() {
 }
 
 function inferAssetType(mimeType: string): NoteAssetType {
-  if (mimeType.startsWith('image/')) {
-    return 'image';
+  if (mimeType.startsWith("image/")) {
+    return "image";
   }
-  if (mimeType.startsWith('video/')) {
-    return 'video';
+  if (mimeType.startsWith("video/")) {
+    return "video";
   }
-  if (mimeType.startsWith('audio/')) {
-    return 'audio';
+  if (mimeType.startsWith("audio/")) {
+    return "audio";
   }
-  return 'file';
+  return "file";
 }
 
 function toRelativeDataPath(file: string) {
-  return path.relative(getDataDirectory(), file).replace(/\\/g, '/');
+  return path.relative(getDataDirectory(), file).replace(/\\/g, "/");
 }
 
 function resolveRelativeDataPath(relativePath: string) {
   const target = path.resolve(getDataDirectory(), relativePath);
   const relative = path.relative(getDataDirectory(), target);
-  if (relative.startsWith('..') || path.isAbsolute(relative)) {
-    throw new Error('Invalid asset path.');
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("Invalid asset path.");
   }
   return target;
 }
@@ -512,34 +873,37 @@ function assetUrlFromRelativePath(relativePath: string) {
 
 function inlineContentToPlainText(content: unknown): string {
   if (!content) {
-    return '';
+    return "";
   }
-  if (typeof content === 'string') {
+  if (typeof content === "string") {
     return content;
   }
   if (Array.isArray(content)) {
-    return content.map(inlineContentToPlainText).join('');
+    return content.map(inlineContentToPlainText).join("");
   }
-  if (typeof content === 'object') {
+  if (typeof content === "object") {
     const value = content as Record<string, unknown>;
-    if (typeof value.text === 'string') {
+    if (typeof value.text === "string") {
       return value.text;
     }
     if (Array.isArray(value.content)) {
-      return value.content.map(inlineContentToPlainText).join('');
+      return value.content.map(inlineContentToPlainText).join("");
     }
   }
-  return '';
+  return "";
 }
 
 function editorContentToPlainText(content: unknown): string {
+  if (typeof content === "string") {
+    return content.trim();
+  }
   if (!Array.isArray(content)) {
-    return '';
+    return "";
   }
   const parts: string[] = [];
   const walk = (blocks: unknown[]) => {
     for (const block of blocks) {
-      if (!block || typeof block !== 'object') {
+      if (!block || typeof block !== "object") {
         continue;
       }
       const current = block as Record<string, unknown>;
@@ -548,11 +912,11 @@ function editorContentToPlainText(content: unknown): string {
         parts.push(text);
       }
       const props = current.props as Record<string, unknown> | undefined;
-      if (current.type === 'image' && typeof props?.caption === 'string') {
+      if (current.type === "image" && typeof props?.caption === "string") {
         parts.push(props.caption);
       }
-      if (current.type === 'drawing') {
-        parts.push('Drawing board');
+      if (current.type === "drawing") {
+        parts.push("Drawing board");
       }
       if (Array.isArray(current.children)) {
         walk(current.children);
@@ -560,16 +924,16 @@ function editorContentToPlainText(content: unknown): string {
     }
   };
   walk(content);
-  return parts.join(' ').replace(/\s+/g, ' ').trim();
+  return parts.join(" ").replace(/\s+/g, " ").trim();
 }
 
 function noteIndexItemFromNote(note: NoteFile): NoteIndexItem {
   return {
     id: note.id,
-    title: note.title || 'Untitled',
-    previewText: (note.editorPlainText || note.content || '').slice(0, 400),
+    title: note.title || "Untitled",
+    previewText: (note.editorPlainText || note.content || "").slice(0, 400),
     tags: Array.isArray(note.tags) ? note.tags : [],
-    category: note.category ?? '',
+    category: note.category ?? "",
     groupId: note.groupId ?? null,
     pinned: Boolean(note.pinned),
     createdAt: note.createdAt,
@@ -588,10 +952,10 @@ function noteIndexItemFromNote(note: NoteFile): NoteIndexItem {
 function searchItemFromNote(note: NoteFile): NoteSearchIndexItem {
   return {
     noteId: note.id,
-    title: note.title || 'Untitled',
-    editorPlainText: note.editorPlainText ?? '',
+    title: note.title || "Untitled",
+    editorPlainText: note.editorPlainText ?? "",
     tags: Array.isArray(note.tags) ? note.tags : [],
-    category: note.category ?? '',
+    category: note.category ?? "",
     groupId: note.groupId ?? null,
     updatedAt: note.updatedAt,
   };
@@ -599,24 +963,30 @@ function searchItemFromNote(note: NoteFile): NoteSearchIndexItem {
 
 function normalizeNoteFile(note: Partial<NoteFile> & { id: string }): NoteFile {
   const timestamp = new Date().toISOString();
-  const editorContent = Array.isArray(note.editorContent) ? note.editorContent : [];
-  const editorPlainText = String(note.editorPlainText ?? '') || editorContentToPlainText(editorContent);
+  const editorContent = note.editorContent ?? "";
+  const editorPlainText =
+    String(note.editorPlainText ?? "") ||
+    editorContentToPlainText(editorContent);
   return {
     ...note,
     id: sanitizeNoteId(note.id),
-    title: note.title || 'Untitled',
+    title: note.title || "Untitled",
     previewText: note.previewText ?? editorPlainText.slice(0, 400),
     content: note.content ?? editorPlainText,
-    contentFormat: 'plain',
+    contentFormat: "plain",
     editorContent,
     editorPlainText,
     editorHtml: undefined,
     properties: Array.isArray(note.properties) ? note.properties : [],
     assets: Array.isArray(note.assets) ? note.assets : [],
     schemaVersion: Number(note.schemaVersion) || 2,
-    layoutWidth: ([900, 1000, 1100, 1200] as const).includes(note.layoutWidth as 900 | 1000 | 1100 | 1200) ? note.layoutWidth as 900 | 1000 | 1100 | 1200 : 1200,
+    layoutWidth: ([900, 1000, 1100, 1200] as const).includes(
+      note.layoutWidth as 900 | 1000 | 1100 | 1200,
+    )
+      ? (note.layoutWidth as 900 | 1000 | 1100 | 1200)
+      : 1200,
     tags: Array.isArray(note.tags) ? note.tags : [],
-    category: note.category ?? '',
+    category: note.category ?? "",
     groupId: note.groupId ?? null,
     pinned: Boolean(note.pinned),
     createdAt: note.createdAt ?? timestamp,
@@ -630,13 +1000,135 @@ function normalizeNoteFile(note: Partial<NoteFile> & { id: string }): NoteFile {
   };
 }
 
-function walkEditorBlocks(content: unknown, visitor: (block: Record<string, unknown>) => void) {
+function noteFromDatabaseRow(row: { value: string } | undefined) {
+  if (!row) {
+    return null;
+  }
+  const note = decodeSqliteJson<NoteFile | null>(row.value, null);
+  return note ? normalizeNoteFile(note) : null;
+}
+
+function writeNoteToDatabase(note: NoteFile) {
+  const database = getDatabase();
+  const indexItem = noteIndexItemFromNote(note);
+  database
+    .prepare(
+      `
+    INSERT INTO notes (
+      id, value, title, preview_text, editor_plain_text, tags, category, group_id, pinned,
+      created_at, updated_at, archived_at, trashed_at, pinned_at, layout_width
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      value = excluded.value,
+      title = excluded.title,
+      preview_text = excluded.preview_text,
+      editor_plain_text = excluded.editor_plain_text,
+      tags = excluded.tags,
+      category = excluded.category,
+      group_id = excluded.group_id,
+      pinned = excluded.pinned,
+      created_at = excluded.created_at,
+      updated_at = excluded.updated_at,
+      archived_at = excluded.archived_at,
+      trashed_at = excluded.trashed_at,
+      pinned_at = excluded.pinned_at,
+      layout_width = excluded.layout_width
+  `,
+    )
+    .run(
+      note.id,
+      encodeSqliteJson(note),
+      indexItem.title,
+      indexItem.previewText,
+      note.editorPlainText,
+      encodeSqliteJson(indexItem.tags),
+      indexItem.category,
+      indexItem.groupId ?? null,
+      indexItem.pinned ? 1 : 0,
+      indexItem.createdAt,
+      indexItem.updatedAt,
+      indexItem.archivedAt ?? null,
+      indexItem.trashedAt ?? null,
+      indexItem.pinnedAt ?? null,
+      indexItem.layoutWidth ?? null,
+    );
+}
+
+function writeSearchItemToDatabase(item: NoteSearchIndexItem) {
+  getDatabase()
+    .prepare(
+      `
+    INSERT INTO note_search_index (note_id, value, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(note_id) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+  `,
+    )
+    .run(item.noteId, encodeSqliteJson(item), item.updatedAt);
+}
+
+function readHtmlCacheFromDatabase(noteId: string) {
+  const row = getDatabase()
+    .prepare("SELECT html FROM note_html_cache WHERE note_id = ?")
+    .get(sanitizeNoteId(noteId)) as { html: string | null } | undefined;
+  return row?.html ?? null;
+}
+
+function writeHtmlCacheToDatabase(noteId: string, html: string | null) {
+  getDatabase()
+    .prepare(
+      `
+    INSERT INTO note_html_cache (note_id, html, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(note_id) DO UPDATE SET html = excluded.html, updated_at = excluded.updated_at
+  `,
+    )
+    .run(sanitizeNoteId(noteId), html, nowIso());
+}
+
+function deleteHtmlCacheFromDatabase(noteId: string) {
+  getDatabase()
+    .prepare("DELETE FROM note_html_cache WHERE note_id = ?")
+    .run(sanitizeNoteId(noteId));
+}
+
+function writeStudyMaterialToDatabase(material: StudyMaterialFile) {
+  const item = studyIndexItemFromMaterial(material);
+  getDatabase()
+    .prepare(
+      `
+    INSERT INTO study_materials (id, value, title, plain_text, board_count, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      value = excluded.value,
+      title = excluded.title,
+      plain_text = excluded.plain_text,
+      board_count = excluded.board_count,
+      created_at = excluded.created_at,
+      updated_at = excluded.updated_at
+  `,
+    )
+    .run(
+      material.id,
+      encodeSqliteJson(material),
+      item.title,
+      item.plainText,
+      item.boardCount,
+      item.createdAt,
+      item.updatedAt,
+    );
+}
+
+function walkEditorBlocks(
+  content: unknown,
+  visitor: (block: Record<string, unknown>) => void,
+) {
   if (!Array.isArray(content)) {
     return;
   }
   const walk = (blocks: unknown[]) => {
     for (const block of blocks) {
-      if (!block || typeof block !== 'object') {
+      if (!block || typeof block !== "object") {
         continue;
       }
       const current = block as Record<string, unknown>;
@@ -649,13 +1141,16 @@ function walkEditorBlocks(content: unknown, visitor: (block: Record<string, unkn
   walk(content);
 }
 
-function mapEditorBlocks(content: unknown, mapBlock: (block: Record<string, unknown>) => Record<string, unknown>) {
+function mapEditorBlocks(
+  content: unknown,
+  mapBlock: (block: Record<string, unknown>) => Record<string, unknown>,
+) {
   if (!Array.isArray(content)) {
-    return [];
+    return content;
   }
   const mapBlocks = (blocks: unknown[]): unknown[] =>
     blocks
-      .filter((block) => block && typeof block === 'object')
+      .filter((block) => block && typeof block === "object")
       .map((block) => {
         const current = { ...(block as Record<string, unknown>) };
         if (Array.isArray(current.children)) {
@@ -668,19 +1163,24 @@ function mapEditorBlocks(content: unknown, mapBlock: (block: Record<string, unkn
 
 function serializeEditorContentForStorage(content: unknown) {
   return mapEditorBlocks(content, (block) => {
-    if (!['image', 'video', 'audio', 'file'].includes(String(block.type))) {
+    if (!["image", "video", "audio", "file"].includes(String(block.type))) {
       return block;
     }
 
-    const props = { ...((block.props as Record<string, unknown> | undefined) ?? {}) };
-    const url = typeof props.url === 'string' ? props.url : '';
-    if (url.startsWith('file:')) {
+    const props = {
+      ...((block.props as Record<string, unknown> | undefined) ?? {}),
+    };
+    const url = typeof props.url === "string" ? props.url : "";
+    if (url.startsWith("file:")) {
       try {
         const targetPath = fileURLToPath(url);
         const relativePath = toRelativeDataPath(targetPath);
-        if (relativePath.startsWith('assets/')) {
+        if (relativePath.startsWith("assets/")) {
           props.relativePath = relativePath;
-          props.assetId = typeof props.assetId === 'string' ? props.assetId : path.basename(targetPath).split('-').slice(0, 3).join('-');
+          props.assetId =
+            typeof props.assetId === "string"
+              ? props.assetId
+              : path.basename(targetPath).split("-").slice(0, 3).join("-");
           delete props.url;
         }
       } catch {
@@ -694,12 +1194,14 @@ function serializeEditorContentForStorage(content: unknown) {
 
 function hydrateEditorContentForRenderer(content: unknown) {
   return mapEditorBlocks(content, (block) => {
-    if (!['image', 'video', 'audio', 'file'].includes(String(block.type))) {
+    if (!["image", "video", "audio", "file"].includes(String(block.type))) {
       return block;
     }
 
-    const props = { ...((block.props as Record<string, unknown> | undefined) ?? {}) };
-    if (typeof props.relativePath === 'string' && !props.url) {
+    const props = {
+      ...((block.props as Record<string, unknown> | undefined) ?? {}),
+    };
+    if (typeof props.relativePath === "string" && !props.url) {
       try {
         props.url = assetUrlFromRelativePath(props.relativePath);
       } catch {
@@ -714,17 +1216,22 @@ function hydrateEditorContentForRenderer(content: unknown) {
 async function buildAssetsFromContent(noteId: string, content: unknown) {
   const assets = new Map<string, NoteAsset>();
   walkEditorBlocks(content, (block) => {
-    if (!['image', 'video', 'audio', 'file'].includes(String(block.type))) {
+    if (!["image", "video", "audio", "file"].includes(String(block.type))) {
       return;
     }
     const props = (block.props as Record<string, unknown> | undefined) ?? {};
-    const relativePath = typeof props.relativePath === 'string' ? props.relativePath : '';
+    const relativePath =
+      typeof props.relativePath === "string" ? props.relativePath : "";
     if (!relativePath) {
       return;
     }
-    const name = typeof props.name === 'string' ? props.name : path.basename(relativePath);
-    const mimeType = typeof props.mimeType === 'string' ? props.mimeType : '';
-    const assetId = typeof props.assetId === 'string' ? props.assetId : path.basename(relativePath).split('-').slice(0, 3).join('-');
+    const name =
+      typeof props.name === "string" ? props.name : path.basename(relativePath);
+    const mimeType = typeof props.mimeType === "string" ? props.mimeType : "";
+    const assetId =
+      typeof props.assetId === "string"
+        ? props.assetId
+        : path.basename(relativePath).split("-").slice(0, 3).join("-");
     assets.set(assetId, {
       id: assetId,
       noteId,
@@ -734,14 +1241,19 @@ async function buildAssetsFromContent(noteId: string, content: unknown) {
       size: Number(props.size ?? 0) || 0,
       sizeBytes: Number(props.size ?? 0) || 0,
       relativePath,
-      createdAt: typeof props.createdAt === 'string' ? props.createdAt : new Date().toISOString(),
+      createdAt:
+        typeof props.createdAt === "string"
+          ? props.createdAt
+          : new Date().toISOString(),
     });
   });
 
   const hydrated = await Promise.all(
     Array.from(assets.values()).map(async (asset) => {
       try {
-        const stats = await fs.stat(resolveRelativeDataPath(asset.relativePath));
+        const stats = await fs.stat(
+          resolveRelativeDataPath(asset.relativePath),
+        );
         return { ...asset, size: stats.size, sizeBytes: stats.size };
       } catch {
         return asset;
@@ -753,29 +1265,63 @@ async function buildAssetsFromContent(noteId: string, content: unknown) {
 
 async function readNoteIndex() {
   await ensureNoteStorageDirectory();
-  const value = await readJsonFile<NoteIndexItem[]>(getNotesIndexPath(), []);
-  return Array.isArray(value) ? value : [];
+  return getDatabase()
+    .prepare("SELECT value FROM notes ORDER BY pinned DESC, updated_at DESC")
+    .all()
+    .map((row) => noteFromDatabaseRow(row as { value: string }))
+    .filter((note): note is NoteFile => Boolean(note))
+    .map(noteIndexItemFromNote);
 }
 
 async function writeNoteIndex(items: NoteIndexItem[]) {
   await ensureNoteStorageDirectory();
-  await writeJsonFile(getNotesIndexPath(), items);
+  for (const item of items) {
+    const note = await readNoteFile(item.id);
+    if (note) {
+      writeNoteToDatabase(
+        normalizeNoteFile({
+          ...note,
+          ...item,
+          editorPlainText: item.previewText,
+        }),
+      );
+    }
+  }
 }
 
 async function readSearchIndex() {
   await ensureNoteStorageDirectory();
-  const value = await readJsonFile<NoteSearchIndexItem[]>(getSearchIndexPath(), []);
-  return Array.isArray(value) ? value : [];
+  return getDatabase()
+    .prepare("SELECT value FROM note_search_index ORDER BY updated_at DESC")
+    .all()
+    .map((row) =>
+      decodeSqliteJson<NoteSearchIndexItem | null>(
+        (row as { value: string }).value,
+        null,
+      ),
+    )
+    .filter((item): item is NoteSearchIndexItem => Boolean(item));
 }
 
 async function writeSearchIndex(items: NoteSearchIndexItem[]) {
   await ensureNoteStorageDirectory();
-  await writeJsonFile(getSearchIndexPath(), items);
+  const database = getDatabase();
+  const transaction = database.transaction(
+    (nextItems: NoteSearchIndexItem[]) => {
+      database.prepare("DELETE FROM note_search_index").run();
+      nextItems.forEach((item) => writeSearchItemToDatabase(item));
+    },
+  );
+  transaction(items);
 }
 
 async function readNoteFile(noteId: string) {
   await ensureNoteStorageDirectory();
-  const note = await readJsonFile<NoteFile | null>(getNoteFilePath(noteId), null);
+  const note = noteFromDatabaseRow(
+    getDatabase()
+      .prepare("SELECT value FROM notes WHERE id = ?")
+      .get(sanitizeNoteId(noteId)) as { value: string } | undefined,
+  );
   if (!note) {
     return null;
   }
@@ -788,9 +1334,15 @@ async function readNoteFile(noteId: string) {
 async function saveNoteFile(note: Partial<NoteFile> & { id: string }) {
   await ensureNoteStorageDirectory();
   const timestamp = new Date().toISOString();
-  const normalized = normalizeNoteFile({ ...note, updatedAt: note.updatedAt ?? timestamp });
-  const storageContent = serializeEditorContentForStorage(normalized.editorContent);
-  const editorPlainText = normalized.editorPlainText || editorContentToPlainText(storageContent);
+  const normalized = normalizeNoteFile({
+    ...note,
+    updatedAt: note.updatedAt ?? timestamp,
+  });
+  const storageContent = serializeEditorContentForStorage(
+    normalized.editorContent,
+  );
+  const editorPlainText =
+    normalized.editorPlainText || editorContentToPlainText(storageContent);
   const storageNote = normalizeNoteFile({
     ...normalized,
     content: editorPlainText,
@@ -800,18 +1352,9 @@ async function saveNoteFile(note: Partial<NoteFile> & { id: string }) {
     updatedAt: timestamp,
   });
 
-  await writeJsonFile(getNoteFilePath(storageNote.id), storageNote);
-
-  const index = await readNoteIndex();
-  const indexItem = noteIndexItemFromNote(storageNote);
-  const nextIndex = [indexItem, ...index.filter((item) => item.id !== storageNote.id)].sort(
-    (a, b) => Number(Boolean(b.pinned || b.pinnedAt)) - Number(Boolean(a.pinned || a.pinnedAt)) || b.updatedAt.localeCompare(a.updatedAt),
-  );
-  await writeNoteIndex(nextIndex);
-
-  const search = await readSearchIndex();
-  await writeSearchIndex([searchItemFromNote(storageNote), ...search.filter((item) => item.noteId !== storageNote.id)]);
-  await writeJsonFile(path.join(getDataDirectory(), 'html-cache', `${storageNote.id}.json`), { noteId: storageNote.id, html: null, updatedAt: timestamp });
+  writeNoteToDatabase(storageNote);
+  writeSearchItemToDatabase(searchItemFromNote(storageNote));
+  deleteHtmlCacheFromDatabase(storageNote.id);
 
   return {
     ...storageNote,
@@ -831,13 +1374,15 @@ async function deleteNoteStorage(noteId: string) {
   await ensureNoteStorageDirectory();
   const safeId = sanitizeNoteId(noteId);
   await Promise.all([
-    fs.rm(getNoteFilePath(safeId), { force: true }),
-    fs.rm(getDraftFilePath(safeId), { force: true }),
     fs.rm(getNoteAssetsDirectory(safeId), { recursive: true, force: true }),
-    fs.rm(path.join(getDataDirectory(), 'html-cache', `${safeId}.json`), { force: true }),
   ]);
-  await writeNoteIndex((await readNoteIndex()).filter((item) => item.id !== safeId));
-  await writeSearchIndex((await readSearchIndex()).filter((item) => item.noteId !== safeId));
+  const database = getDatabase();
+  database.prepare("DELETE FROM notes WHERE id = ?").run(safeId);
+  database
+    .prepare("DELETE FROM note_search_index WHERE note_id = ?")
+    .run(safeId);
+  database.prepare("DELETE FROM note_drafts WHERE note_id = ?").run(safeId);
+  database.prepare("DELETE FROM note_html_cache WHERE note_id = ?").run(safeId);
   return true;
 }
 
@@ -848,13 +1393,34 @@ async function saveNoteDraft(noteId: string, editorContent: unknown) {
     editorContent: serializeEditorContentForStorage(editorContent),
     updatedAt: new Date().toISOString(),
   };
-  await writeJsonFile(getDraftFilePath(noteId), draft);
+  getDatabase()
+    .prepare(
+      `
+    INSERT INTO note_drafts (note_id, editor_content, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(note_id) DO UPDATE SET editor_content = excluded.editor_content, updated_at = excluded.updated_at
+  `,
+    )
+    .run(draft.noteId, encodeSqliteJson(draft.editorContent), draft.updatedAt);
   return draft;
 }
 
 async function readNoteDraft(noteId: string) {
   await ensureNoteStorageDirectory();
-  const draft = await readJsonFile<NoteDraft | null>(getDraftFilePath(noteId), null);
+  const row = getDatabase()
+    .prepare(
+      "SELECT note_id, editor_content, updated_at FROM note_drafts WHERE note_id = ?",
+    )
+    .get(sanitizeNoteId(noteId)) as
+    | { note_id: string; editor_content: string; updated_at: string }
+    | undefined;
+  const draft = row
+    ? {
+        noteId: row.note_id,
+        editorContent: decodeSqliteJson(row.editor_content, null),
+        updatedAt: row.updated_at,
+      }
+    : null;
   return draft
     ? {
         ...draft,
@@ -865,33 +1431,39 @@ async function readNoteDraft(noteId: string) {
 
 async function ensureStudyStorageDirectory() {
   await ensureDataDirectory();
-  await fs.mkdir(getStudyMaterialsDirectory(), { recursive: true });
-  await ensureJsonFile(getStudyIndexPath(), []);
+  getDatabase();
+  await migrateLegacyStudyStorageIfNeeded();
 }
 
-function normalizeStudyMaterial(material: Partial<StudyMaterialFile> & { id: string }): StudyMaterialFile {
+function normalizeStudyMaterial(
+  material: Partial<StudyMaterialFile> & { id: string },
+): StudyMaterialFile {
   const timestamp = new Date().toISOString();
   return {
     id: sanitizeNoteId(material.id),
-    title: material.title || 'Новый материал',
-    editorContent: Array.isArray(material.editorContent) ? material.editorContent : [],
-    plainText: material.plainText ?? '',
+    title: material.title || "Новый материал",
+    editorContent: Array.isArray(material.editorContent)
+      ? material.editorContent
+      : [],
+    plainText: material.plainText ?? "",
     boardLinks: Array.isArray(material.boardLinks)
       ? material.boardLinks
-        .filter((link) => link?.boardId)
-        .map((link) => ({
-          id: link.id || `${link.boardId}-link`,
-          boardId: link.boardId,
-          title: link.title || 'Доска',
-          createdAt: link.createdAt ?? timestamp,
-        }))
+          .filter((link) => link?.boardId)
+          .map((link) => ({
+            id: link.id || `${link.boardId}-link`,
+            boardId: link.boardId,
+            title: link.title || "Доска",
+            createdAt: link.createdAt ?? timestamp,
+          }))
       : [],
     createdAt: material.createdAt ?? timestamp,
     updatedAt: material.updatedAt ?? material.createdAt ?? timestamp,
   };
 }
 
-function studyIndexItemFromMaterial(material: StudyMaterialFile): StudyMaterialIndexItem {
+function studyIndexItemFromMaterial(
+  material: StudyMaterialFile,
+): StudyMaterialIndexItem {
   return {
     id: material.id,
     title: material.title,
@@ -904,47 +1476,75 @@ function studyIndexItemFromMaterial(material: StudyMaterialFile): StudyMaterialI
 
 async function readStudyIndex() {
   await ensureStudyStorageDirectory();
-  const value = await readJsonFile<StudyMaterialIndexItem[]>(getStudyIndexPath(), []);
-  return Array.isArray(value) ? value : [];
+  return getDatabase()
+    .prepare("SELECT value FROM study_materials ORDER BY updated_at DESC")
+    .all()
+    .map((row) =>
+      decodeSqliteJson<StudyMaterialFile | null>(
+        (row as { value: string }).value,
+        null,
+      ),
+    )
+    .filter((material): material is StudyMaterialFile => Boolean(material))
+    .map((material) =>
+      studyIndexItemFromMaterial(normalizeStudyMaterial(material)),
+    );
 }
 
 async function writeStudyIndex(items: StudyMaterialIndexItem[]) {
   await ensureStudyStorageDirectory();
-  await writeJsonFile(getStudyIndexPath(), items);
+  for (const item of items) {
+    const material = await readStudyMaterial(item.id);
+    if (material) {
+      writeStudyMaterialToDatabase(
+        normalizeStudyMaterial({ ...material, ...item }),
+      );
+    }
+  }
 }
 
 async function readStudyMaterial(materialId: string) {
   await ensureStudyStorageDirectory();
-  const material = await readJsonFile<StudyMaterialFile | null>(getStudyMaterialFilePath(materialId), null);
+  const row = getDatabase()
+    .prepare("SELECT value FROM study_materials WHERE id = ?")
+    .get(sanitizeNoteId(materialId)) as { value: string } | undefined;
+  const material = row
+    ? decodeSqliteJson<StudyMaterialFile | null>(row.value, null)
+    : null;
   return material ? normalizeStudyMaterial(material) : null;
 }
 
-async function saveStudyMaterial(material: Partial<StudyMaterialFile> & { id: string }) {
+async function saveStudyMaterial(
+  material: Partial<StudyMaterialFile> & { id: string },
+) {
   await ensureStudyStorageDirectory();
-  const normalized = normalizeStudyMaterial({ ...material, updatedAt: material.updatedAt ?? new Date().toISOString() });
-  await writeJsonFile(getStudyMaterialFilePath(normalized.id), normalized);
-  const index = await readStudyIndex();
-  await writeStudyIndex([studyIndexItemFromMaterial(normalized), ...index.filter((item) => item.id !== normalized.id)].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-  ));
+  const normalized = normalizeStudyMaterial({
+    ...material,
+    updatedAt: material.updatedAt ?? new Date().toISOString(),
+  });
+  writeStudyMaterialToDatabase(normalized);
   return normalized;
 }
 
 async function deleteStudyMaterial(materialId: string) {
   await ensureStudyStorageDirectory();
   const safeId = sanitizeNoteId(materialId);
-  await fs.rm(getStudyMaterialFilePath(safeId), { force: true });
-  await writeStudyIndex((await readStudyIndex()).filter((item) => item.id !== safeId));
+  getDatabase().prepare("DELETE FROM study_materials WHERE id = ?").run(safeId);
   return true;
 }
 
-async function saveNoteAsset(payload: { noteId?: unknown; name?: unknown; mimeType?: unknown; data?: ArrayBuffer }) {
+async function saveNoteAsset(payload: {
+  noteId?: unknown;
+  name?: unknown;
+  mimeType?: unknown;
+  data?: ArrayBuffer;
+}) {
   if (!payload?.data || !(payload.data instanceof ArrayBuffer)) {
-    throw new Error('Asset payload is empty.');
+    throw new Error("Asset payload is empty.");
   }
   const noteId = sanitizeNoteId(payload.noteId);
   const assetId = createAssetId();
-  const mimeType = String(payload.mimeType ?? '');
+  const mimeType = String(payload.mimeType ?? "");
   const safeName = sanitizeAssetFileName(payload.name);
   const targetDirectory = getNoteAssetsDirectory(noteId);
   await fs.mkdir(targetDirectory, { recursive: true });
@@ -977,14 +1577,16 @@ async function listNoteAssetFiles(noteId: string) {
         .map(async (entry) => {
           const targetPath = path.join(directory, entry.name);
           const stats = await fs.stat(targetPath);
-          const [prefix, timestamp, random] = entry.name.split('-');
-          const assetId = [prefix, timestamp, random].filter(Boolean).join('-') || path.parse(entry.name).name;
+          const [prefix, timestamp, random] = entry.name.split("-");
+          const assetId =
+            [prefix, timestamp, random].filter(Boolean).join("-") ||
+            path.parse(entry.name).name;
           return {
             id: assetId,
             noteId: sanitizeNoteId(noteId),
-            type: 'file' as NoteAssetType,
-            name: entry.name.replace(`${assetId}-`, ''),
-            mimeType: '',
+            type: "file" as NoteAssetType,
+            name: entry.name.replace(`${assetId}-`, ""),
+            mimeType: "",
             size: stats.size,
             sizeBytes: stats.size,
             relativePath: toRelativeDataPath(targetPath),
@@ -996,7 +1598,7 @@ async function listNoteAssetFiles(noteId: string) {
     );
     return assets;
   } catch (error) {
-    if (getStorageErrorCode(error) === 'ENOENT') {
+    if (getStorageErrorCode(error) === "ENOENT") {
       return [];
     }
     throw error;
@@ -1006,11 +1608,12 @@ async function listNoteAssetFiles(noteId: string) {
 function collectUsedAssetIds(content: unknown) {
   const used = new Set<string>();
   walkEditorBlocks(content, (block) => {
-    if (!['image', 'video', 'audio', 'file'].includes(String(block.type))) {
+    if (!["image", "video", "audio", "file"].includes(String(block.type))) {
       return;
     }
-    const assetId = (block.props as Record<string, unknown> | undefined)?.assetId;
-    if (typeof assetId === 'string' && assetId) {
+    const assetId = (block.props as Record<string, unknown> | undefined)
+      ?.assetId;
+    if (typeof assetId === "string" && assetId) {
       used.add(assetId);
     }
   });
@@ -1019,64 +1622,96 @@ function collectUsedAssetIds(content: unknown) {
 
 function escapeHtml(value: string) {
   return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function noteContentToHtml(content: unknown): string {
+  if (typeof content === "string") {
+    return content
+      .split(/\n{2,}/)
+      .map(
+        (paragraph) =>
+          `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`,
+      )
+      .join("");
+  }
   if (!Array.isArray(content)) {
-    return '';
+    return "";
   }
 
-  return content.map(blockToHtml).join('');
+  return content.map(blockToHtml).join("");
 }
 
 function blockToHtml(block: unknown): string {
-  if (!block || typeof block !== 'object') {
-    return '';
+  if (!block || typeof block !== "object") {
+    return "";
   }
   const current = block as Record<string, unknown>;
   const props = (current.props as Record<string, unknown> | undefined) ?? {};
-  const children = Array.isArray(current.children) ? current.children.map(blockToHtml).join('') : '';
-  const text = escapeHtml(inlineContentToPlainText(current.content)).replace(/\n/g, '<br>');
+  const children = Array.isArray(current.children)
+    ? current.children.map(blockToHtml).join("")
+    : "";
+  const text = escapeHtml(inlineContentToPlainText(current.content)).replace(
+    /\n/g,
+    "<br>",
+  );
 
   switch (current.type) {
-    case 'heading': {
+    case "heading": {
       const level = Math.min(3, Math.max(1, Number(props.level) || 1));
       return `<h${level}>${text}</h${level}>${children}`;
     }
-    case 'bulletListItem':
+    case "bulletListItem":
       return `<ul><li>${text}${children}</li></ul>`;
-    case 'numberedListItem':
+    case "numberedListItem":
       return `<ol><li>${text}${children}</li></ol>`;
-    case 'checkListItem':
-      return `<p>${props.checked ? '[x]' : '[ ]'} ${text}</p>${children}`;
-    case 'quote':
+    case "checkListItem":
+      return `<p>${props.checked ? "[x]" : "[ ]"} ${text}</p>${children}`;
+    case "quote":
       return `<blockquote>${text}</blockquote>${children}`;
-    case 'codeBlock':
+    case "codeBlock":
       return `<pre><code>${text}</code></pre>${children}`;
-    case 'divider':
-      return '<hr>';
-    case 'image': {
-      const url = typeof props.relativePath === 'string' ? assetUrlFromRelativePath(props.relativePath) : String(props.url ?? '');
-      const caption = escapeHtml(String(props.caption ?? ''));
-      return url ? `<figure><img src="${escapeHtml(url)}" loading="lazy">${caption ? `<figcaption>${caption}</figcaption>` : ''}</figure>` : '';
+    case "divider":
+      return "<hr>";
+    case "image": {
+      const url =
+        typeof props.relativePath === "string"
+          ? assetUrlFromRelativePath(props.relativePath)
+          : String(props.url ?? "");
+      const caption = escapeHtml(String(props.caption ?? ""));
+      return url
+        ? `<figure><img src="${escapeHtml(url)}" loading="lazy">${caption ? `<figcaption>${caption}</figcaption>` : ""}</figure>`
+        : "";
     }
-    case 'video': {
-      const url = typeof props.relativePath === 'string' ? assetUrlFromRelativePath(props.relativePath) : String(props.url ?? '');
-      return url ? `<video src="${escapeHtml(url)}" controls preload="metadata"></video>` : '';
+    case "video": {
+      const url =
+        typeof props.relativePath === "string"
+          ? assetUrlFromRelativePath(props.relativePath)
+          : String(props.url ?? "");
+      return url
+        ? `<video src="${escapeHtml(url)}" controls preload="metadata"></video>`
+        : "";
     }
-    case 'audio': {
-      const url = typeof props.relativePath === 'string' ? assetUrlFromRelativePath(props.relativePath) : String(props.url ?? '');
-      return url ? `<audio src="${escapeHtml(url)}" controls preload="metadata"></audio>` : '';
+    case "audio": {
+      const url =
+        typeof props.relativePath === "string"
+          ? assetUrlFromRelativePath(props.relativePath)
+          : String(props.url ?? "");
+      return url
+        ? `<audio src="${escapeHtml(url)}" controls preload="metadata"></audio>`
+        : "";
     }
-    case 'file': {
-      const url = typeof props.relativePath === 'string' ? assetUrlFromRelativePath(props.relativePath) : String(props.url ?? '');
-      const name = escapeHtml(String(props.name ?? 'File'));
-      return url ? `<p><a href="${escapeHtml(url)}">${name}</a></p>` : '';
+    case "file": {
+      const url =
+        typeof props.relativePath === "string"
+          ? assetUrlFromRelativePath(props.relativePath)
+          : String(props.url ?? "");
+      const name = escapeHtml(String(props.name ?? "File"));
+      return url ? `<p><a href="${escapeHtml(url)}">${name}</a></p>` : "";
     }
     default:
       return `<p>${text}</p>${children}`;
@@ -1084,394 +1719,453 @@ function blockToHtml(block: unknown): string {
 }
 
 export function registerStorageIpc() {
-  ipcMain.handle('storage:getAll', async (_event, collectionName: string) => {
+  ipcMain.handle("storage:getAll", async (_event, collectionName: string) => {
     return readJson(assertCollectionName(collectionName));
   });
 
-  ipcMain.handle('storage:saveAll', async (_event, collectionName: string, items: unknown) => {
-    const safeName = assertCollectionName(collectionName);
-    await writeJson(safeName, items);
-    return readJson(safeName);
-  });
+  ipcMain.handle(
+    "storage:saveAll",
+    async (_event, collectionName: string, items: unknown) => {
+      const safeName = assertCollectionName(collectionName);
+      await writeJson(safeName, items);
+      return readJson(safeName);
+    },
+  );
 
-  ipcMain.handle('storage:add', async (_event, collectionName: string, item: { id: string }) => {
-    const safeName = assertCollectionName(collectionName);
-    const list = ensureListCollection(safeName, await readJson(safeName));
-    list.push(item);
-    await writeJson(safeName, list);
-    return item;
-  });
-
-  ipcMain.handle('storage:update', async (_event, collectionName: string, item: { id: string }) => {
-    const safeName = assertCollectionName(collectionName);
-    const list = ensureListCollection(safeName, await readJson(safeName));
-    const index = list.findIndex((existing) => existing.id === item.id);
-    if (index === -1) {
+  ipcMain.handle(
+    "storage:add",
+    async (_event, collectionName: string, item: { id: string }) => {
+      const safeName = assertCollectionName(collectionName);
+      const list = ensureListCollection(safeName, await readJson(safeName));
       list.push(item);
-    } else {
-      list[index] = item;
-    }
-    await writeJson(safeName, list);
-    return item;
-  });
+      await writeJson(safeName, list);
+      return item;
+    },
+  );
 
-  ipcMain.handle('storage:delete', async (_event, collectionName: string, id: string) => {
-    const safeName = assertCollectionName(collectionName);
-    const list = ensureListCollection(safeName, await readJson(safeName));
-    await writeJson(
-      safeName,
-      list.filter((item) => item.id !== id),
-    );
-    return true;
-  });
+  ipcMain.handle(
+    "storage:update",
+    async (_event, collectionName: string, item: { id: string }) => {
+      const safeName = assertCollectionName(collectionName);
+      const list = ensureListCollection(safeName, await readJson(safeName));
+      const index = list.findIndex((existing) => existing.id === item.id);
+      if (index === -1) {
+        list.push(item);
+      } else {
+        list[index] = item;
+      }
+      await writeJson(safeName, list);
+      return item;
+    },
+  );
 
-  ipcMain.handle('storage:getDataDirectory', async () => {
+  ipcMain.handle(
+    "storage:delete",
+    async (_event, collectionName: string, id: string) => {
+      const safeName = assertCollectionName(collectionName);
+      const list = ensureListCollection(safeName, await readJson(safeName));
+      await writeJson(
+        safeName,
+        list.filter((item) => item.id !== id),
+      );
+      return true;
+    },
+  );
+
+  ipcMain.handle("storage:getDataDirectory", async () => {
     await ensureDataDirectory();
     return getDataDirectory();
   });
 
-  ipcMain.handle('storage:openDataDirectory', async () => {
+  ipcMain.handle("storage:openDataDirectory", async () => {
     await ensureDataDirectory();
     return shell.openPath(getDataDirectory());
   });
 
-  ipcMain.handle('files:saveAsset', async (_event, payload: { name?: unknown; data?: ArrayBuffer }) => {
-    if (!payload?.data || !(payload.data instanceof ArrayBuffer)) {
-      throw new Error('Asset payload is empty.');
-    }
+  ipcMain.handle(
+    "files:saveAsset",
+    async (_event, payload: { name?: unknown; data?: ArrayBuffer }) => {
+      if (!payload?.data || !(payload.data instanceof ArrayBuffer)) {
+        throw new Error("Asset payload is empty.");
+      }
 
-    const assetsDirectory = await ensureAssetsDirectory();
-    const safeName = sanitizeAssetFileName(payload.name);
-    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${safeName}`;
-    const targetPath = path.join(assetsDirectory, fileName);
-    await fs.writeFile(targetPath, Buffer.from(payload.data));
-    return pathToFileURL(targetPath).href;
-  });
+      const assetsDirectory = await ensureAssetsDirectory();
+      const safeName = sanitizeAssetFileName(payload.name);
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${safeName}`;
+      const targetPath = path.join(assetsDirectory, fileName);
+      await fs.writeFile(targetPath, Buffer.from(payload.data));
+      return pathToFileURL(targetPath).href;
+    },
+  );
 
-  ipcMain.handle('files:listAssets', async () => {
+  ipcMain.handle("files:listAssets", async () => {
     await ensureAssetsDirectory();
     return listAssetFiles();
   });
 
-  ipcMain.handle('files:getAssetInfo', async (_event, url: string) => {
+  ipcMain.handle("files:getAssetInfo", async (_event, url: string) => {
     return getAssetInfoFromUrl(url);
   });
 
-  ipcMain.handle('files:openContainingFolder', async (_event, url: string) => {
+  ipcMain.handle("files:openContainingFolder", async (_event, url: string) => {
     return openContainingFolderFromUrl(url);
   });
 
-  ipcMain.handle('notes:listIndex', async () => {
+  ipcMain.handle("notes:listIndex", async () => {
     const startedAt = performance.now();
     const index = await readNoteIndex();
     if (!app.isPackaged) {
-      console.info('[notes:index]', { items: index.length, loadMs: Math.round((performance.now() - startedAt) * 10) / 10 });
+      console.info("[notes:index]", {
+        items: index.length,
+        loadMs: Math.round((performance.now() - startedAt) * 10) / 10,
+      });
     }
     return index;
   });
 
-  ipcMain.handle('notes:listSearchIndex', async () => {
+  ipcMain.handle("notes:listSearchIndex", async () => {
     return readSearchIndex();
   });
 
-  ipcMain.handle('notes:get', async (_event, noteId: string) => {
+  ipcMain.handle("notes:get", async (_event, noteId: string) => {
     const startedAt = performance.now();
     const note = await readNoteFile(noteId);
     if (!app.isPackaged && note) {
-      console.info('[notes:get]', {
+      console.info("[notes:get]", {
         noteId,
         loadMs: Math.round((performance.now() - startedAt) * 10) / 10,
-        approximateSizeBytes: Buffer.byteLength(JSON.stringify(note), 'utf8'),
+        approximateSizeBytes: Buffer.byteLength(JSON.stringify(note), "utf8"),
         assetCount: note.assets.length,
       });
     }
     return note;
   });
 
-  ipcMain.handle('notes:save', async (_event, note: NoteFile) => {
+  ipcMain.handle("notes:save", async (_event, note: NoteFile) => {
     const startedAt = performance.now();
     const saved = await saveNoteFile(note);
     if (!app.isPackaged) {
-      console.info('[notes:save:file]', {
+      console.info("[notes:save:file]", {
         noteId: saved.id,
         saveMs: Math.round((performance.now() - startedAt) * 10) / 10,
-        approximateSizeBytes: Buffer.byteLength(JSON.stringify(saved), 'utf8'),
+        approximateSizeBytes: Buffer.byteLength(JSON.stringify(saved), "utf8"),
         assetCount: saved.assets.length,
       });
     }
     return saved;
   });
 
-  ipcMain.handle('notes:patchMetadata', async (_event, noteId: string, patch: Partial<NoteFile>) => {
-    return patchNoteMetadata(noteId, patch);
-  });
+  ipcMain.handle(
+    "notes:patchMetadata",
+    async (_event, noteId: string, patch: Partial<NoteFile>) => {
+      return patchNoteMetadata(noteId, patch);
+    },
+  );
 
-  ipcMain.handle('notes:patchManyMetadata', async (_event, noteIds: string[], patch: Partial<NoteFile>) => {
-    await Promise.all(noteIds.map((noteId) => patchNoteMetadata(noteId, patch)));
-    return true;
-  });
+  ipcMain.handle(
+    "notes:patchManyMetadata",
+    async (_event, noteIds: string[], patch: Partial<NoteFile>) => {
+      await Promise.all(
+        noteIds.map((noteId) => patchNoteMetadata(noteId, patch)),
+      );
+      return true;
+    },
+  );
 
-  ipcMain.handle('notes:delete', async (_event, noteId: string) => {
+  ipcMain.handle("notes:delete", async (_event, noteId: string) => {
     return deleteNoteStorage(noteId);
   });
 
-  ipcMain.handle('notes:saveDraft', async (_event, noteId: string, editorContent: unknown) => {
-    const startedAt = performance.now();
-    const draft = await saveNoteDraft(noteId, editorContent);
-    if (!app.isPackaged) {
-      console.info('[notes:draft:save]', { noteId, saveMs: Math.round((performance.now() - startedAt) * 10) / 10 });
-    }
-    return draft;
-  });
+  ipcMain.handle(
+    "notes:saveDraft",
+    async (_event, noteId: string, editorContent: unknown) => {
+      const startedAt = performance.now();
+      const draft = await saveNoteDraft(noteId, editorContent);
+      if (!app.isPackaged) {
+        console.info("[notes:draft:save]", {
+          noteId,
+          saveMs: Math.round((performance.now() - startedAt) * 10) / 10,
+        });
+      }
+      return draft;
+    },
+  );
 
-  ipcMain.handle('notes:getDraft', async (_event, noteId: string) => {
+  ipcMain.handle("notes:getDraft", async (_event, noteId: string) => {
     return readNoteDraft(noteId);
   });
 
-  ipcMain.handle('notes:deleteDraft', async (_event, noteId: string) => {
-    await fs.rm(getDraftFilePath(noteId), { force: true });
+  ipcMain.handle("notes:deleteDraft", async (_event, noteId: string) => {
+    await ensureNoteStorageDirectory();
+    getDatabase()
+      .prepare("DELETE FROM note_drafts WHERE note_id = ?")
+      .run(sanitizeNoteId(noteId));
     return true;
   });
 
-  ipcMain.handle('notes:saveAsset', async (_event, payload: { noteId?: unknown; name?: unknown; mimeType?: unknown; data?: ArrayBuffer }) => {
-    return saveNoteAsset(payload);
-  });
+  ipcMain.handle(
+    "notes:saveAsset",
+    async (
+      _event,
+      payload: {
+        noteId?: unknown;
+        name?: unknown;
+        mimeType?: unknown;
+        data?: ArrayBuffer;
+      },
+    ) => {
+      return saveNoteAsset(payload);
+    },
+  );
 
-  ipcMain.handle('notes:listAssets', async (_event, noteId: string) => {
+  ipcMain.handle("notes:listAssets", async (_event, noteId: string) => {
     return listNoteAssetFiles(noteId);
   });
 
-  ipcMain.handle('notes:getAssetInfo', async (_event, noteId: string, assetId: string) => {
-    return (await listNoteAssetFiles(noteId)).find((asset) => asset.id === assetId) ?? null;
-  });
+  ipcMain.handle(
+    "notes:getAssetInfo",
+    async (_event, noteId: string, assetId: string) => {
+      return (
+        (await listNoteAssetFiles(noteId)).find(
+          (asset) => asset.id === assetId,
+        ) ?? null
+      );
+    },
+  );
 
-  ipcMain.handle('notes:deleteAsset', async (_event, noteId: string, assetId: string) => {
-    const asset = (await listNoteAssetFiles(noteId)).find((item) => item.id === assetId);
-    if (!asset) {
-      return false;
-    }
-    await fs.rm(resolveRelativeDataPath(asset.relativePath), { force: true });
-    return true;
-  });
-
-  ipcMain.handle('notes:cleanupUnusedAssets', async (_event, noteId: string) => {
-    const note = await readNoteFile(noteId);
-    const assets = await listNoteAssetFiles(noteId);
-    const usedIds = collectUsedAssetIds(note?.editorContent);
-    const deleted: NoteAsset[] = [];
-    const kept: NoteAsset[] = [];
-
-    for (const asset of assets) {
-      if (usedIds.has(asset.id)) {
-        kept.push(asset);
-        continue;
+  ipcMain.handle(
+    "notes:deleteAsset",
+    async (_event, noteId: string, assetId: string) => {
+      const asset = (await listNoteAssetFiles(noteId)).find(
+        (item) => item.id === assetId,
+      );
+      if (!asset) {
+        return false;
       }
       await fs.rm(resolveRelativeDataPath(asset.relativePath), { force: true });
-      deleted.push(asset);
-    }
+      return true;
+    },
+  );
 
-    return {
-      deleted,
-      kept,
-      totalSizeBytes: kept.reduce((sum, asset) => sum + (asset.sizeBytes || asset.size || 0), 0),
-    };
-  });
+  ipcMain.handle(
+    "notes:cleanupUnusedAssets",
+    async (_event, noteId: string) => {
+      const note = await readNoteFile(noteId);
+      const assets = await listNoteAssetFiles(noteId);
+      const usedIds = collectUsedAssetIds(note?.editorContent);
+      const deleted: NoteAsset[] = [];
+      const kept: NoteAsset[] = [];
 
-  ipcMain.handle('notes:generateHtml', async (_event, noteId: string) => {
+      for (const asset of assets) {
+        if (usedIds.has(asset.id)) {
+          kept.push(asset);
+          continue;
+        }
+        await fs.rm(resolveRelativeDataPath(asset.relativePath), {
+          force: true,
+        });
+        deleted.push(asset);
+      }
+
+      return {
+        deleted,
+        kept,
+        totalSizeBytes: kept.reduce(
+          (sum, asset) => sum + (asset.sizeBytes || asset.size || 0),
+          0,
+        ),
+      };
+    },
+  );
+
+  ipcMain.handle("notes:generateHtml", async (_event, noteId: string) => {
     const note = await readNoteFile(noteId);
-    const html = note ? noteContentToHtml(note.editorContent) : '';
-    await writeJsonFile(path.join(getDataDirectory(), 'html-cache', `${sanitizeNoteId(noteId)}.json`), {
-      noteId: sanitizeNoteId(noteId),
-      html,
-      updatedAt: new Date().toISOString(),
-    });
+    const html = note ? noteContentToHtml(note.editorContent) : "";
+    writeHtmlCacheToDatabase(noteId, html);
     return html;
   });
 
-  ipcMain.handle('notes:getCachedHtml', async (_event, noteId: string) => {
-    const cache = await readJsonFile<{ html?: string | null } | null>(path.join(getDataDirectory(), 'html-cache', `${sanitizeNoteId(noteId)}.json`), null);
-    return cache?.html ?? null;
+  ipcMain.handle("notes:getCachedHtml", async (_event, noteId: string) => {
+    await ensureNoteStorageDirectory();
+    return readHtmlCacheFromDatabase(noteId);
   });
 
-  ipcMain.handle('notes:invalidateHtmlCache', async (_event, noteId: string) => {
-    await fs.rm(path.join(getDataDirectory(), 'html-cache', `${sanitizeNoteId(noteId)}.json`), { force: true });
-    return true;
-  });
+  ipcMain.handle(
+    "notes:invalidateHtmlCache",
+    async (_event, noteId: string) => {
+      await ensureNoteStorageDirectory();
+      deleteHtmlCacheFromDatabase(noteId);
+      return true;
+    },
+  );
 
-  ipcMain.handle('study:listIndex', async () => {
+  ipcMain.handle("study:listIndex", async () => {
     return readStudyIndex();
   });
 
-  ipcMain.handle('study:get', async (_event, materialId: string) => {
+  ipcMain.handle("study:get", async (_event, materialId: string) => {
     return readStudyMaterial(materialId);
   });
 
-  ipcMain.handle('study:save', async (_event, material: StudyMaterialFile) => {
+  ipcMain.handle("study:save", async (_event, material: StudyMaterialFile) => {
     return saveStudyMaterial(material);
   });
 
-  ipcMain.handle('study:delete', async (_event, materialId: string) => {
+  ipcMain.handle("study:delete", async (_event, materialId: string) => {
     return deleteStudyMaterial(materialId);
   });
 
-  ipcMain.handle('storage:exportBackup', async () => {
+  ipcMain.handle("storage:exportBackup", async () => {
     await ensureDataDirectory();
-    const backupDirectory = path.join(getDocumentsDirectory(), 'MyMind', 'backups', `backup-${Date.now()}`);
+    const backupDirectory = path.join(
+      getDocumentsDirectory(),
+      "MyMind",
+      "backups",
+      `backup-${Date.now()}`,
+    );
     await fs.mkdir(backupDirectory, { recursive: true });
-    for (const fileName of Object.values(collectionFiles)) {
-      try {
-        await fs.copyFile(path.join(getDataDirectory(), fileName), path.join(backupDirectory, fileName));
-      } catch {
-        // Continue exporting the files that exist.
-      }
-    }
+    await exportSqliteDatabase(path.join(backupDirectory, sqliteDatabaseFileName));
     try {
-      await fs.cp(path.join(getDataDirectory(), 'assets'), path.join(backupDirectory, 'assets'), { recursive: true });
+      await fs.cp(
+        path.join(getDataDirectory(), "assets"),
+        path.join(backupDirectory, "assets"),
+        { recursive: true },
+      );
     } catch {
       // Assets are optional and older backups may not have them.
-    }
-    for (const noteStorageName of ['notes.index.json', 'search.index.json', 'notes', 'drafts', 'html-cache', 'study-materials']) {
-      try {
-        await fs.cp(path.join(getDataDirectory(), noteStorageName), path.join(backupDirectory, noteStorageName), { recursive: true });
-      } catch {
-        // New note storage files are optional for older workspaces.
-      }
     }
     return backupDirectory;
   });
 
-  ipcMain.handle('storage:exportBackupFile', async () => {
+  ipcMain.handle("storage:exportBackupFile", async () => {
     await ensureDataDirectory();
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const result = await dialog.showSaveDialog({
-      title: 'Export full MyMind backup',
-      defaultPath: path.join(getDocumentsDirectory(), `mymind-backup-${timestamp}.json`),
-      filters: [{ name: 'JSON', extensions: ['json'] }],
+      title: "Export MyMind SQLite backup",
+      defaultPath: path.join(
+        getDocumentsDirectory(),
+        `mymind-backup-${timestamp}.sqlite`,
+      ),
+      filters: [{ name: "SQLite", extensions: ["sqlite", "db"] }],
     });
     if (result.canceled || !result.filePath) {
       return null;
     }
-    const collections = Object.fromEntries(
-      await Promise.all(
-        Object.keys(collectionFiles).map(async (collectionName) => [
-          collectionName,
-          await readJson(collectionName as CollectionName),
-        ]),
-      ),
-    );
-    await fs.writeFile(
-      result.filePath,
-      `${JSON.stringify({ app: 'MyMind', version: 1, exportedAt: nowIso(), collections }, null, 2)}\n`,
-      'utf8',
-    );
+    await exportSqliteDatabase(result.filePath);
     return result.filePath;
   });
 
-  ipcMain.handle('storage:importBackupFile', async () => {
+  ipcMain.handle("storage:importBackupFile", async () => {
     const result = await dialog.showOpenDialog({
-      title: 'Import full MyMind backup',
-      properties: ['openFile'],
-      filters: [{ name: 'JSON', extensions: ['json'] }],
+      title: "Import MyMind SQLite backup",
+      properties: ["openFile"],
+      filters: [{ name: "SQLite", extensions: ["sqlite", "db"] }],
     });
     if (result.canceled || result.filePaths.length === 0) {
       return null;
     }
-    const content = await fs.readFile(result.filePaths[0], 'utf8');
-    const parsed = JSON.parse(content) as { collections?: Partial<Record<CollectionName, unknown>>; exportedAt?: string };
-    if (!parsed.collections || typeof parsed.collections !== 'object') {
-      throw new Error('Selected file is not a MyMind backup.');
-    }
-    const availableCollections = Object.keys(parsed.collections).filter((name) => name in collectionFiles);
     const confirmation = await dialog.showMessageBox({
-      type: 'warning',
-      buttons: ['Import backup', 'Cancel'],
+      type: "warning",
+      buttons: ["Import backup", "Cancel"],
       defaultId: 1,
       cancelId: 1,
-      title: 'Import backup preview',
-      message: `This backup contains ${availableCollections.length} collections.`,
-      detail: `Exported: ${parsed.exportedAt ?? 'unknown'}\nCollections: ${availableCollections.join(', ')}\n\nImporting will replace the matching local JSON files.`,
+      title: "Import backup preview",
+      message: "This will replace the current MyMind SQLite database.",
+      detail: "Assets are not stored inside the SQLite file. Import asset folders from a folder backup when needed.",
     });
     if (confirmation.response !== 0) {
       return null;
     }
-    await ensureDataDirectory();
-    for (const collectionName of availableCollections) {
-      await writeJson(collectionName as CollectionName, parsed.collections[collectionName as CollectionName]);
-    }
+    await importSqliteDatabase(result.filePaths[0]);
     return getDataDirectory();
   });
 
-  ipcMain.handle('storage:importBackup', async () => {
+  ipcMain.handle("storage:importBackup", async () => {
     const result = await dialog.showOpenDialog({
-      title: 'Select MyMind JSON backup folder',
-      properties: ['openDirectory'],
+      title: "Select MyMind backup folder",
+      properties: ["openDirectory"],
     });
     if (result.canceled || result.filePaths.length === 0) {
       return null;
     }
     await ensureDataDirectory();
-    for (const fileName of Object.values(collectionFiles)) {
-      try {
-        await fs.copyFile(path.join(result.filePaths[0], fileName), path.join(getDataDirectory(), fileName));
-      } catch {
-        // Import partial backups without crashing.
+    const sourceDirectory = result.filePaths[0];
+    const sqliteBackupPath = path.join(sourceDirectory, sqliteDatabaseFileName);
+    try {
+      await fs.access(sqliteBackupPath);
+      await importSqliteDatabase(sqliteBackupPath);
+    } catch (error) {
+      if (getStorageErrorCode(error) !== "ENOENT") {
+        throw error;
       }
+      await importLegacyCollectionsFromDirectory(sourceDirectory);
     }
     try {
-      await fs.cp(path.join(result.filePaths[0], 'assets'), path.join(getDataDirectory(), 'assets'), { recursive: true });
+      await fs.cp(
+        path.join(sourceDirectory, "assets"),
+        path.join(getDataDirectory(), "assets"),
+        { recursive: true },
+      );
     } catch {
       // Import partial backups without crashing.
     }
-    for (const noteStorageName of ['notes.index.json', 'search.index.json', 'notes', 'drafts', 'html-cache', 'study-materials']) {
-      try {
-        await fs.cp(path.join(result.filePaths[0], noteStorageName), path.join(getDataDirectory(), noteStorageName), { recursive: true });
-      } catch {
-        // Import partial backups without crashing.
-      }
-    }
     return getDataDirectory();
   });
 
-  ipcMain.handle('storage:exportCollection', async (_event, collectionName: string) => {
-    const safeName = assertCollectionName(collectionName);
-    await ensureFile(safeName);
-    const result = await dialog.showSaveDialog({
-      title: `Export ${safeName}`,
-      defaultPath: path.join(getDocumentsDirectory(), `${safeName}.json`),
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-    });
-    if (result.canceled || !result.filePath) {
-      return null;
-    }
-    await fs.copyFile(filePath(safeName), result.filePath);
-    return result.filePath;
-  });
+  ipcMain.handle(
+    "storage:exportCollection",
+    async (_event, collectionName: string) => {
+      const safeName = assertCollectionName(collectionName);
+      await ensureFile(safeName);
+      const result = await dialog.showSaveDialog({
+        title: `Export ${safeName}`,
+        defaultPath: path.join(getDocumentsDirectory(), `${safeName}.json`),
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (result.canceled || !result.filePath) {
+        return null;
+      }
+      await fs.writeFile(result.filePath, `${JSON.stringify(await readJson(safeName), null, 2)}\n`, "utf8");
+      return result.filePath;
+    },
+  );
 
-  ipcMain.handle('storage:importCollection', async (_event, collectionName: string) => {
-    const safeName = assertCollectionName(collectionName);
-    const result = await dialog.showOpenDialog({
-      title: `Import ${safeName}`,
-      properties: ['openFile'],
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-    });
-    if (result.canceled || result.filePaths.length === 0) {
-      return null;
-    }
-    const content = await fs.readFile(result.filePaths[0], 'utf8');
-    const parsed = JSON.parse(content);
-    await writeJson(safeName, parsed);
-    return filePath(safeName);
-  });
+  ipcMain.handle(
+    "storage:importCollection",
+    async (_event, collectionName: string) => {
+      const safeName = assertCollectionName(collectionName);
+      const result = await dialog.showOpenDialog({
+        title: `Import ${safeName}`,
+        properties: ["openFile"],
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (result.canceled || result.filePaths.length === 0) {
+        return null;
+      }
+      const content = await fs.readFile(result.filePaths[0], "utf8");
+      const parsed = JSON.parse(content);
+      await writeJson(safeName, parsed);
+      return getDatabasePath();
+    },
+  );
 
-  ipcMain.handle('reminders:schedule', async (_event, reminders: Array<{ id: string; title: string; body: string; at: string }>) => {
-    scheduleReminders(reminders);
-    return true;
-  });
+  ipcMain.handle(
+    "reminders:schedule",
+    async (
+      _event,
+      reminders: Array<{ id: string; title: string; body: string; at: string }>,
+    ) => {
+      scheduleReminders(reminders);
+      return true;
+    },
+  );
 }
 
 const reminderTimers = new Map<string, NodeJS.Timeout>();
 
-function scheduleReminders(reminders: Array<{ id: string; title: string; body: string; at: string }>) {
+function scheduleReminders(
+  reminders: Array<{ id: string; title: string; body: string; at: string }>,
+) {
   for (const timer of reminderTimers.values()) {
     clearTimeout(timer);
   }

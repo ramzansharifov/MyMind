@@ -557,7 +557,7 @@ function DataSettings({
   const [activeTab, setActiveTab] = useState<DataSettingsTab>('general');
   return (
     <section className="panel settings-page-panel">
-      <SettingsPanelHeading icon={<Database size={18} />} title="Data" description="Backups, imports, demo data, and local JSON files." />
+      <SettingsPanelHeading icon={<Database size={18} />} title="Data" description="Backups, imports, demo data, and the local SQLite database." />
 
       <div className="settings-inner-tabs" role="tablist" aria-label={t('Data')}>
         <button className={activeTab === 'general' ? 'active' : ''} type="button" onClick={() => setActiveTab('general')}>
@@ -573,11 +573,11 @@ function DataSettings({
       {activeTab === 'general' ? (
         <>
           <div className="settings-action-grid">
-            <ActionCard icon={<Download size={18} />} title="Export JSON backup" description="Export every module as a backup folder." onClick={() => void onExportBackup()} />
-            <ActionCard icon={<Upload size={18} />} title="Import JSON backup" description="Import a backup folder into local storage." onClick={() => void onImportBackup()} />
-            <ActionCard icon={<FileJson size={18} />} title="Export full backup file" description="Export all collections into one JSON file." onClick={() => void onExportBackupFile()} />
-            <ActionCard icon={<FileJson size={18} />} title="Import full backup file" description="Import one JSON file with preview." onClick={() => void onImportBackupFile()} />
-            <ActionCard icon={<FolderOpen size={18} />} title="Open data folder" description="Open the local JSON storage folder." onClick={() => void onOpenDataFolder()} />
+            <ActionCard icon={<Download size={18} />} title="Export SQLite backup" description="Export the SQLite database and assets as a backup folder." onClick={() => void onExportBackup()} />
+            <ActionCard icon={<Upload size={18} />} title="Import SQLite backup" description="Import a SQLite backup folder into local storage." onClick={() => void onImportBackup()} />
+            <ActionCard icon={<FileJson size={18} />} title="Export database file" description="Export the full SQLite database file." onClick={() => void onExportBackupFile()} />
+            <ActionCard icon={<FileJson size={18} />} title="Import database file" description="Import one SQLite database file with confirmation." onClick={() => void onImportBackupFile()} />
+            <ActionCard icon={<FolderOpen size={18} />} title="Open data folder" description="Open the local SQLite storage folder." onClick={() => void onOpenDataFolder()} />
           </div>
 
           <div className="settings-danger-zone">
@@ -594,7 +594,7 @@ function DataSettings({
                 label="Clear demo data"
                 onConfirm={() => void onClearDemoData()}
                 confirmTitle="Clear demo data?"
-                confirmMessage="This will clear local demo collections from JSON storage."
+                confirmMessage="This will clear local demo collections from SQLite storage."
               />
             </div>
           </div>

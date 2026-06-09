@@ -40,7 +40,7 @@ export function MovieCard({ movie, onOpen, onEdit, onPin, onArchive, onTrash }: 
       <div className="card-actions">
         <PinButton isPinned={Boolean(movie.pinnedAt)} onClick={onPin} />
         <EditButton onClick={onEdit} />
-        <ArchiveButton label="Archive" onConfirm={onArchive} confirmTitle="Archive item?" confirmMessage="The item will be hidden from regular lists but kept in local JSON storage." />
+        <ArchiveButton label="Archive" onConfirm={onArchive} confirmTitle="Archive item?" confirmMessage="The item will be hidden from regular lists but kept in local SQLite storage." />
         <DeleteButton label="Move to trash" onConfirm={onTrash} confirmTitle="Move movie to trash?" confirmMessage="The movie will stay in trash for 30 days before permanent deletion." />
       </div>
     </article>

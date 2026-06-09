@@ -16,15 +16,10 @@ const assertNotIncludes = (file, token) => {
   }
 };
 
-assertIncludes('src/modules/notes/editor/constants.ts', "'drawing'");
-assertIncludes('src/modules/notes/editor/contentSanitizer.ts', "source.type === 'drawing'");
-assertIncludes('src/modules/notes/editor/noteSchema.ts', 'drawingBlockSpec');
-assertIncludes('src/modules/notes/editor/ReadOnlyBlocks.tsx', 'note-read-video');
-assertIncludes('src/modules/notes/editor/ReadOnlyBlocks.tsx', 'note-read-audio');
-assertIncludes('src/modules/notes/editor/ReadOnlyBlocks.tsx', 'note-read-file');
-assertIncludes('src/modules/notes/NoteEditorWorkspace.tsx', "from './editor/ReadOnlyBlocks'");
+assertIncludes('src/modules/notes/NoteEditorWorkspace.tsx', 'note-plain-textarea');
 assertIncludes('src/modules/notes/NoteEditorPage.tsx', "from './NoteEditorWorkspace'");
 assertIncludes('src/shared/components/SimpleEntityPage.tsx', 'useCollectionItems');
 assertNotIncludes('src/vite-env.d.ts', 'tldraw');
+assertNotIncludes('src/modules/notes/NoteEditorWorkspace.tsx', '@blocknote');
 
 console.log('Notes architecture checks passed.');

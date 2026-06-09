@@ -1,1 +1,0 @@
-export { dividerBlockSpec } from './DividerBlock';

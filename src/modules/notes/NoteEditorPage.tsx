@@ -3,8 +3,7 @@ import { LoadingState } from '../../shared/components/LoadingState';
 import type { ContentGroup } from '../../shared/types/common';
 import { noteStorageClient } from './storage/noteStorageClient';
 import type { Note } from './types';
-import { NoteEditorWorkspace, type NoteEditorNavigationActions } from './NoteEditorWorkspace';
-import type { NoteMode } from './editor/types';
+import { NoteEditorWorkspace, type NoteEditorNavigationActions, type NoteMode } from './NoteEditorWorkspace';
 
 interface NoteEditorPageProps {
   noteId?: string | null;

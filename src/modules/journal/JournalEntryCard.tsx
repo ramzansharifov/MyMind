@@ -34,7 +34,7 @@ export function JournalEntryCard({ entry, onEdit, onPin, onArchive, onTrash }: J
       <div className="card-actions">
         <PinButton isPinned={Boolean(entry.pinnedAt)} onClick={onPin} />
         <EditButton onClick={onEdit} />
-        <ArchiveButton label="Archive" onConfirm={onArchive} confirmTitle="Archive item?" confirmMessage="The item will be hidden from regular lists but kept in local JSON storage." />
+        <ArchiveButton label="Archive" onConfirm={onArchive} confirmTitle="Archive item?" confirmMessage="The item will be hidden from regular lists but kept in local SQLite storage." />
         <DeleteButton label="Move to trash" onConfirm={onTrash} confirmTitle="Move journal entry to trash?" confirmMessage="The journal entry will stay in trash for 30 days before permanent deletion." />
       </div>
     </article>

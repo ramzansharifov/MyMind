@@ -65,15 +65,7 @@ export function createStudyMaterial(id: string, title: string): StudyMaterial {
   return {
     id,
     title,
-    editorContent: [
-      {
-        id: createId('block'),
-        type: 'paragraph',
-        props: {},
-        content: [{ type: 'text', text: 'Начни писать материал здесь. Используй / для блоков редактора.', styles: {} }],
-        children: [],
-      },
-    ],
+    editorContent: '',
     plainText: '',
     boardLinks: [],
     createdAt: timestamp,
@@ -97,6 +89,7 @@ export function collectDescendantIds(nodes: StudyNode[], nodeId: string) {
 }
 
 export function editorContentToPlainText(content: unknown): string {
+  if (typeof content === 'string') return content.trim();
   if (!Array.isArray(content)) return '';
   const parts: string[] = [];
   const visit = (blocks: unknown[]) => {

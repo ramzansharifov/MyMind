@@ -240,7 +240,7 @@ function ArchiveTrashContent({
                         iconOnly={false}
                         label="Delete forever"
                         confirmTitle="Delete forever?"
-                        confirmMessage="This permanently removes the item from local JSON storage."
+                        confirmMessage="This permanently removes the item from local SQLite storage."
                         onConfirm={() => deleteForever(row.config, row.item.id)}
                       />
                     </div>

@@ -74,7 +74,7 @@ export function TemplateCard({ template, onBuild, onEdit, onPin, onArchive, onTr
           label="Archive"
           onConfirm={onArchive}
           confirmTitle="Archive template?"
-          confirmMessage="The template will be hidden from regular lists but kept in local JSON storage."
+          confirmMessage="The template will be hidden from regular lists but kept in local SQLite storage."
         />
         <DeleteButton
           label="Move to trash"

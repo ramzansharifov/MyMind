@@ -48,7 +48,7 @@ export function CalendarEventCard({ event, onEdit, onPin, onArchive, onTrash }: 
         <div className="card-actions compact calendar-event-actions">
           <PinButton isPinned={Boolean(event.pinnedAt)} onClick={onPin} />
           <EditButton onClick={onEdit} />
-          <ArchiveButton label="Archive" onConfirm={onArchive} confirmTitle="Archive item?" confirmMessage="The item will be hidden from regular lists but kept in local JSON storage." />
+          <ArchiveButton label="Archive" onConfirm={onArchive} confirmTitle="Archive item?" confirmMessage="The item will be hidden from regular lists but kept in local SQLite storage." />
           <DeleteButton label="Move to trash" onConfirm={onTrash} confirmTitle="Move event to trash?" confirmMessage="The event will stay in trash for 30 days before permanent deletion." />
         </div>
       </div>

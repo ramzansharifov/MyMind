@@ -48,7 +48,7 @@ export function NoteCard({ note, groupTitle, onOpen, onEdit, onPin, onArchive, o
         <ArchiveButton
           label="Archive"
           confirmTitle="Archive note?"
-          confirmMessage="The note will be hidden from regular lists but kept in local JSON storage."
+          confirmMessage="The note will be hidden from regular lists but kept in local SQLite storage."
           onConfirm={onArchive}
         />
         <DeleteButton

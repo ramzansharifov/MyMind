@@ -46,7 +46,7 @@ export function TodoCard({ todo, groupTitle, onToggle, onEdit, onPin, onArchive,
         <ArchiveButton
           label="Archive"
           confirmTitle="Archive task?"
-          confirmMessage="The task will be hidden from regular lists but kept in local JSON storage."
+          confirmMessage="The task will be hidden from regular lists but kept in local SQLite storage."
           onConfirm={onArchive}
         />
         <DeleteButton

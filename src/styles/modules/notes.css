@@ -1,2 +1,191 @@
-@import "./notes-core.css";
-@import "./notes-editor-overrides.css";
+.note-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.note-preview-card.pinned {
+  border-color: rgba(72, 190, 171, 0.45);
+}
+
+.note-preview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  min-height: 128px;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.note-preview-body h3 {
+  margin: 0;
+  color: var(--text);
+}
+
+.note-preview-body p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.note-card-group {
+  color: var(--accent);
+}
+
+.note-editor-page {
+  min-height: calc(100vh - 48px);
+  padding: 24px;
+}
+
+.note-topbar,
+.note-topbar-leading,
+.note-topbar-actions,
+.note-metadata,
+.note-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.note-topbar {
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.note-topbar-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.note-save-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--success);
+  box-shadow: 0 0 0 4px rgba(72, 190, 171, 0.12);
+}
+
+.note-save-status-dot.dirty {
+  background: var(--warning);
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.14);
+}
+
+.note-editor-shell {
+  display: flex;
+  justify-content: center;
+}
+
+.note-editor-main {
+  width: min(100%, 1040px);
+  padding: 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-soft);
+}
+
+.note-title-input,
+.note-plain-textarea,
+.note-group-select input,
+.note-group-select select,
+.note-tag-input {
+  color: var(--text);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.note-title-input {
+  width: 100%;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.note-metadata {
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.note-group-select {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.note-group-select input,
+.note-group-select select {
+  min-height: 38px;
+  padding: 0 10px;
+}
+
+.note-tag-row {
+  flex: 1;
+  flex-wrap: wrap;
+  min-width: 260px;
+}
+
+.note-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  color: var(--text);
+  background: rgba(72, 190, 171, 0.12);
+  border: 1px solid rgba(72, 190, 171, 0.24);
+  border-radius: 999px;
+}
+
+.note-tag-input {
+  flex: 1;
+  min-width: 150px;
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.note-plain-textarea {
+  width: 100%;
+  min-height: 420px;
+  padding: 18px;
+  resize: vertical;
+  line-height: 1.65;
+}
+
+.note-read-panel {
+  min-height: 360px;
+  padding: 18px;
+  color: var(--text);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.note-read-panel p {
+  margin: 0 0 1rem;
+  line-height: 1.7;
+}
+
+@media (max-width: 760px) {
+  .note-editor-page {
+    padding: 16px;
+  }
+
+  .note-topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .note-editor-main {
+    padding: 18px;
+  }
+}

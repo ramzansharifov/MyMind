@@ -150,7 +150,7 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
 
   if (editorNoteId !== undefined) {
     return (
-      <Suspense fallback={<LoadingState title="Opening editor" message="Preparing BlockNote tools and note content..." variant="page" />}>
+      <Suspense fallback={<LoadingState title="Opening editor" message="Preparing note content..." variant="page" />}>
         <NoteEditorPage
           noteId={editorNoteId}
           groups={groups}
