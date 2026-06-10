@@ -18,6 +18,7 @@ export interface RichTextState {
   underline: boolean;
   strikeThrough: boolean;
   code: boolean;
+  link: boolean;
   unorderedList: boolean;
   orderedList: boolean;
   align: "left" | "center" | "right";
@@ -228,6 +229,24 @@ function isSafeHref(value: string) {
   }
 }
 
+export function normalizeRichTextHref(value: string) {
+  const href = value.trim();
+
+  if (!href) return "";
+
+  const normalized = /^[a-z][a-z\d+.-]*:/i.test(href) || href.startsWith("/") ? href : `https://${href}`;
+  return isSafeHref(normalized) ? normalized : "";
+}
+
+function setSafeLinkAttributes(to: HTMLElement, href: string) {
+  if (!isSafeHref(href)) return false;
+
+  to.setAttribute("href", href);
+  to.setAttribute("target", "_blank");
+  to.setAttribute("rel", "noreferrer");
+  return true;
+}
+
 function copySafeAlignment(from: HTMLElement, to: HTMLElement) {
   const rawAlign = from.style.textAlign || from.getAttribute("align") || "";
   const align = rawAlign.trim().toLowerCase();
@@ -258,11 +277,9 @@ function copySafeInlineStyles(from: HTMLElement, to: HTMLElement) {
 function copySafeLinkAttributes(from: HTMLElement, to: HTMLElement) {
   const href = from.getAttribute("href")?.trim() ?? "";
 
-  if (!href || !isSafeHref(href)) return;
+  if (!href) return;
 
-  to.setAttribute("href", href);
-  to.setAttribute("target", "_blank");
-  to.setAttribute("rel", "noreferrer");
+  setSafeLinkAttributes(to, href);
 }
 
 function cleanNode(node: Node): Node | null {
@@ -624,6 +641,74 @@ export function applyRichTextStyle(root: HTMLElement, style: RichTextStylePatch)
   return true;
 }
 
+export function getCurrentRichTextLink(root: HTMLElement) {
+  const range = getScopedSelectionRange(root);
+  const element = range ? getElementFromRange(range) : null;
+  const current = closestInRoot(element, "a[href]", root);
+
+  if (current) return current.getAttribute("href") ?? "";
+
+  if (!range || range.collapsed) return "";
+
+  const links = Array.from(root.querySelectorAll<HTMLElement>("a[href]")).filter((link) => range.intersectsNode(link));
+  return links.length === 1 ? links[0].getAttribute("href") ?? "" : "";
+}
+
+export function applyRichTextLink(root: HTMLElement, hrefValue: string) {
+  const range = getScopedSelectionRange(root);
+  const href = normalizeRichTextHref(hrefValue);
+
+  if (!range || !href) return false;
+
+  const current = closestInRoot(getElementFromRange(range), "a[href]", root);
+
+  if (current && range.collapsed) {
+    return setSafeLinkAttributes(current, href);
+  }
+
+  const link = document.createElement("a");
+
+  if (!setSafeLinkAttributes(link, href)) return false;
+
+  if (range.collapsed) {
+    link.textContent = href;
+    insertNodeAtRange(range, link);
+    return true;
+  }
+
+  const contents = range.extractContents();
+  contents.querySelectorAll?.("a[href]").forEach((childLink) => unwrapElement(childLink as HTMLElement));
+  link.appendChild(contents);
+  range.insertNode(link);
+
+  const selection = window.getSelection();
+  if (selection) {
+    const nextRange = document.createRange();
+    nextRange.selectNodeContents(link);
+    selection.removeAllRanges();
+    selection.addRange(nextRange);
+  }
+
+  root.normalize();
+  return true;
+}
+
+export function removeRichTextLink(root: HTMLElement) {
+  const range = getScopedSelectionRange(root);
+  if (!range) return false;
+
+  const current = closestInRoot(getElementFromRange(range), "a[href]", root);
+  const links = current
+    ? [current]
+    : Array.from(root.querySelectorAll<HTMLElement>("a[href]")).filter((link) => range.intersectsNode(link));
+
+  if (links.length === 0) return false;
+
+  links.forEach(unwrapElement);
+  root.normalize();
+  return true;
+}
+
 function applyInlineCommand(root: HTMLElement, range: Range, command: RichTextCommand) {
   const tag = INLINE_TAG_BY_COMMAND[command];
   if (!tag) return;
@@ -823,8 +908,13 @@ export function cleanupRichTextEditorDom(root: HTMLElement) {
     }
   });
 
-  root.querySelectorAll("strong, em, u, s, code").forEach((element) => {
+  root.querySelectorAll("strong, em, u, s, code, a").forEach((element) => {
     element.textContent = element.textContent?.replace(/\u200b/g, "") ?? "";
+
+    if (element.tagName.toLowerCase() === "a" && !element.getAttribute("href")) {
+      unwrapElement(element as HTMLElement);
+      return;
+    }
 
     if (!(element.textContent ?? "").trim() && element.children.length === 0) {
       element.remove();
@@ -853,6 +943,7 @@ export function getRichTextState(root: HTMLElement): RichTextState {
     underline: Boolean(closestInRoot(element, "u", root)),
     strikeThrough: Boolean(closestInRoot(element, "s", root)),
     code: Boolean(closestInRoot(element, "code", root)),
+    link: Boolean(closestInRoot(element, "a[href]", root)),
     unorderedList: Boolean(closestInRoot(element, "ul", root)),
     orderedList: Boolean(closestInRoot(element, "ol", root)),
     align,

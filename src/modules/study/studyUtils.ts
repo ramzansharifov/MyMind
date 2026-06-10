@@ -2,9 +2,9 @@ import { createId } from "../../shared/utils/idGenerator";
 import {
   createStudyBlockDocument,
   isStudyBlockDocument,
+  richTextHtmlToPlainText,
   studyBlocksToPlainText,
-} from "./blocks/blockCore";
-import { richTextHtmlToPlainText } from "./richText/richTextCore";
+} from "../../shared/blockEditor";
 import type { StudyData, StudyMaterial, StudyNode } from "./types";
 
 export const emptyStudyData: StudyData = {

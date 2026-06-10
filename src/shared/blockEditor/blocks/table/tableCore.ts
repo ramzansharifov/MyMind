@@ -29,9 +29,9 @@ export interface StudyTableData {
 }
 
 const DEFAULT_COLUMN_WIDTH = 180;
-const DEFAULT_ROW_HEIGHT = 92;
+const DEFAULT_ROW_HEIGHT = 46;
 const MIN_COLUMN_WIDTH = 96;
-const MIN_ROW_HEIGHT = 56;
+const MIN_ROW_HEIGHT = 38;
 
 export const defaultCellStyle: StudyTableCellStyle = {
   backgroundColor: "transparent",
@@ -193,10 +193,12 @@ export function tableToPlainText(table: StudyTableData) {
 function normalizeTableRow(value: unknown, columnCount: number): StudyTableRow {
   const source = (value ?? {}) as Partial<StudyTableRow>;
   const rawCells = Array.isArray(source.cells) ? source.cells : [];
+  const rawHeight = Number(source.height) || DEFAULT_ROW_HEIGHT;
+  const height = rawHeight === 92 ? DEFAULT_ROW_HEIGHT : rawHeight;
 
   return {
     id: typeof source.id === "string" ? source.id : createTableId("row"),
-    height: clampRowHeight(Number(source.height) || DEFAULT_ROW_HEIGHT),
+    height: clampRowHeight(height),
     cells: Array.from({ length: columnCount }, (_, index) => normalizeTableCell(rawCells[index])),
   };
 }

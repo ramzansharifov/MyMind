@@ -1,6 +1,5 @@
 import type { BaseEntity } from "../../shared/types/common";
-import type { StudyBlockDocument } from "./blocks/blockCore";
-import type { RichTextDocument } from "./richText/richTextCore";
+import type { RichTextDocument, StudyBlockDocument } from "../../shared/blockEditor";
 
 export type StudyEditorContent = StudyBlockDocument | RichTextDocument | string | unknown[] | null;
 

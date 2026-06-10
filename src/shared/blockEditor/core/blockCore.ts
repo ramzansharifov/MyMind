@@ -2,15 +2,16 @@ import {
   createRichTextDocument,
   richTextHtmlToPlainText,
   type RichTextDocument,
-} from "../richText/richTextCore";
+} from "../blocks/richText/richTextCore";
 import {
   createStudyTable,
   normalizeStudyTable,
   tableToPlainText,
   type StudyTableData,
-} from "./tableCore";
+} from "../blocks/table/tableCore";
 
-export type StudyBlockType = "text" | "table" | "markdown" | "latex" | "code";
+export type StudyHeadingLevel = 1 | 2 | 3 | 4 | 5;
+export type StudyBlockType = "text" | "heading" | "table" | "markdown" | "latex" | "code";
 
 export interface StudyTextBlock {
   id: string;
@@ -22,6 +23,13 @@ export interface StudyTableBlock {
   id: string;
   type: "table";
   table: StudyTableData;
+}
+
+export interface StudyHeadingBlock {
+  id: string;
+  type: "heading";
+  text: string;
+  level: StudyHeadingLevel;
 }
 
 export interface StudyMarkdownBlock {
@@ -46,6 +54,7 @@ export interface StudyCodeBlock {
 
 export type StudyContentBlock =
   | StudyTextBlock
+  | StudyHeadingBlock
   | StudyTableBlock
   | StudyMarkdownBlock
   | StudyLatexBlock
@@ -96,6 +105,15 @@ export function createStudyTableBlock(rowCount = 3, columnCount = 3): StudyTable
   };
 }
 
+export function createStudyHeadingBlock(text = "", level: StudyHeadingLevel = 1): StudyHeadingBlock {
+  return {
+    id: createStudyBlockId("heading"),
+    type: "heading",
+    text,
+    level,
+  };
+}
+
 export function createStudyMarkdownBlock(source = ""): StudyMarkdownBlock {
   return {
     id: createStudyBlockId("markdown"),
@@ -126,6 +144,7 @@ export function studyBlocksToPlainText(blocks: StudyContentBlock[]) {
   return blocks
     .map((block) => {
       if (block.type === "text") return richTextHtmlToPlainText(block.content);
+      if (block.type === "heading") return block.text.trim();
       if (block.type === "table") return tableToPlainText(block.table);
       if (block.type === "markdown" || block.type === "latex" || block.type === "code") return block.source.trim();
       return "";
@@ -177,6 +196,15 @@ function normalizeStudyBlock(value: unknown): StudyContentBlock | null {
     };
   }
 
+  if (source.type === "heading") {
+    return {
+      id: typeof source.id === "string" ? source.id : createStudyBlockId("heading"),
+      type: "heading",
+      text: typeof (source as Partial<StudyHeadingBlock>).text === "string" ? (source as Partial<StudyHeadingBlock>).text ?? "" : "",
+      level: normalizeStudyHeadingLevel((source as Partial<StudyHeadingBlock>).level),
+    };
+  }
+
   if (source.type === "markdown") {
     return {
       id: typeof source.id === "string" ? source.id : createStudyBlockId("markdown"),
@@ -207,6 +235,14 @@ function normalizeStudyBlock(value: unknown): StudyContentBlock | null {
   }
 
   return null;
+}
+
+function normalizeStudyHeadingLevel(value: unknown): StudyHeadingLevel {
+  const level = Number(value);
+
+  if (level === 1 || level === 2 || level === 3 || level === 4 || level === 5) return level;
+
+  return 1;
 }
 
 function createStudyBlockId(prefix: string) {

@@ -3,9 +3,11 @@ import {
   AlignLeft,
   AlignRight,
   Bold,
+  Check,
   Code2,
   Indent,
   Italic,
+  Link,
   List,
   ListOrdered,
   Outdent,
@@ -13,6 +15,8 @@ import {
   Strikethrough,
   Type,
   Underline,
+  Unlink,
+  X,
 } from "lucide-react";
 import {
   useCallback,
@@ -27,17 +31,21 @@ import {
 import { createPortal } from "react-dom";
 import {
   applyRichTextCommand,
+  applyRichTextLink,
   applyRichTextStyle,
   cleanupRichTextEditorDom,
   EMPTY_RICH_TEXT_HTML,
+  getCurrentRichTextLink,
   getRichTextSelectionStyle,
   getRichTextState,
   insertRichTextHtml,
   isRangeInsideRoot,
   isRichTextEmpty,
   normalizeCssColorToHex,
+  normalizeRichTextHref,
   normalizeRichTextContent,
   RICH_TEXT_SIZE_OPTIONS,
+  removeRichTextLink,
   richTextHtmlToPlainText,
   sanitizeRichTextHtml,
   type RichTextCommand,
@@ -66,6 +74,7 @@ const emptyState: RichTextState = {
   underline: false,
   strikeThrough: false,
   code: false,
+  link: false,
   unorderedList: false,
   orderedList: false,
   align: "left",
@@ -82,6 +91,7 @@ export function RichTextEditor({
   onChange,
 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const linkInputRef = useRef<HTMLInputElement | null>(null);
   const lastHtmlRef = useRef("");
   const savedRangeRef = useRef<Range | null>(null);
   const emitTimerRef = useRef<number | null>(null);
@@ -90,6 +100,8 @@ export function RichTextEditor({
   const [selectionState, setSelectionState] = useState<RichTextState>(emptyState);
   const [selectedColor, setSelectedColor] = useState("#e5e7eb");
   const [selectedSize, setSelectedSize] = useState("1rem");
+  const [linkEditorOpen, setLinkEditorOpen] = useState(false);
+  const [linkDraft, setLinkDraft] = useState("");
 
   const normalizedValue = useMemo(() => normalizeRichTextContent(value), [value]);
   const isEmpty = isRichTextEmpty(normalizedValue);
@@ -188,6 +200,15 @@ export function RichTextEditor({
     };
   }, [clearPendingEmit]);
 
+  useEffect(() => {
+    if (!linkEditorOpen) return;
+
+    window.setTimeout(() => {
+      linkInputRef.current?.focus();
+      linkInputRef.current?.select();
+    }, 0);
+  }, [linkEditorOpen]);
+
   function restoreSelection() {
     const editor = editorRef.current;
     const range = getValidSavedRange();
@@ -253,6 +274,80 @@ export function RichTextEditor({
     }
   }
 
+  function openLinkEditor() {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    saveSelection();
+    restoreSelection();
+
+    const currentHref = getCurrentRichTextLink(editor);
+    setLinkDraft(currentHref);
+    setLinkEditorOpen(true);
+    setSelectionState(getRichTextState(editor));
+    saveSelection();
+  }
+
+  function applyLinkFromDraft() {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    restoreSelection();
+
+    if (!linkDraft.trim()) {
+      if (removeRichTextLink(editor)) {
+        emitChange("immediate");
+        setSelectionState(getRichTextState(editor));
+      }
+
+      setLinkEditorOpen(false);
+      saveSelection();
+      return;
+    }
+
+    if (!normalizeRichTextHref(linkDraft)) {
+      saveSelection();
+      return;
+    }
+
+    if (applyRichTextLink(editor, linkDraft)) {
+      emitChange("immediate");
+      setSelectionState(getRichTextState(editor));
+      setLinkEditorOpen(false);
+      saveSelection();
+    }
+  }
+
+  function runUnlink() {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    saveSelection();
+    restoreSelection();
+
+    if (removeRichTextLink(editor)) {
+      emitChange("immediate");
+      setSelectionState(getRichTextState(editor));
+      setLinkDraft("");
+      setLinkEditorOpen(false);
+      saveSelection();
+    }
+  }
+
+  function handleLinkInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      applyLinkFromDraft();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setLinkEditorOpen(false);
+      restoreSelection();
+    }
+  }
+
   function handlePaste(event: ClipboardEvent<HTMLDivElement>) {
     const editor = editorRef.current;
     if (!editor) return;
@@ -301,6 +396,12 @@ export function RichTextEditor({
       return;
     }
 
+    if (key === "k") {
+      event.preventDefault();
+      openLinkEditor();
+      return;
+    }
+
     const command = commandByKey[key];
 
     if (!command) return;
@@ -330,6 +431,41 @@ export function RichTextEditor({
         <ToolbarButton label="Моноширный" active={selectionState.code} onClick={() => runCommand("code")}>
           <Code2 size={16} />
         </ToolbarButton>
+
+        <ToolbarButton label="Ссылка" active={selectionState.link || linkEditorOpen} onClick={openLinkEditor}>
+          <Link size={16} />
+        </ToolbarButton>
+
+        {linkEditorOpen ? (
+          <div className="rich-text-link-control" onMouseDown={(event) => event.stopPropagation()}>
+            <input
+              ref={linkInputRef}
+              type="url"
+              value={linkDraft}
+              placeholder="https://example.com"
+              aria-label="Ссылка"
+              onMouseDown={saveSelection}
+              onPointerDown={saveSelection}
+              onChange={(event) => setLinkDraft(event.target.value)}
+              onKeyDown={handleLinkInputKeyDown}
+            />
+            <ToolbarButton label="Применить ссылку" onClick={applyLinkFromDraft}>
+              <Check size={16} />
+            </ToolbarButton>
+            <ToolbarButton label="Убрать ссылку" onClick={runUnlink}>
+              <Unlink size={16} />
+            </ToolbarButton>
+            <ToolbarButton
+              label="Закрыть"
+              onClick={() => {
+                setLinkEditorOpen(false);
+                restoreSelection();
+              }}
+            >
+              <X size={16} />
+            </ToolbarButton>
+          </div>
+        ) : null}
 
         <span className="rich-text-toolbar-divider" />
 

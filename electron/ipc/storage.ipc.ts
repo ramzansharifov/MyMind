@@ -1530,6 +1530,12 @@ function studyEditorContentToPlainText(content: unknown): string {
           return studyEditorContentToPlainText(source.content);
         }
 
+        if (source.type === "heading") {
+          return typeof (source as { text?: unknown }).text === "string"
+            ? ((source as { text: string }).text.trim())
+            : "";
+        }
+
         if (source.type === "table") {
           return (
             source.table?.rows

@@ -3,33 +3,24 @@ import {
   ArrowUp,
   Code2,
   Columns3,
+  Eye,
   GripVertical,
+  Heading,
   Rows3,
   Sigma,
   Table2,
   Trash2,
   Type,
 } from "lucide-react";
-import hljs from "highlight.js/lib/core";
-import bash from "highlight.js/lib/languages/bash";
-import css from "highlight.js/lib/languages/css";
-import javascript from "highlight.js/lib/languages/javascript";
-import json from "highlight.js/lib/languages/json";
-import markdown from "highlight.js/lib/languages/markdown";
-import python from "highlight.js/lib/languages/python";
-import sql from "highlight.js/lib/languages/sql";
-import typescript from "highlight.js/lib/languages/typescript";
-import xml from "highlight.js/lib/languages/xml";
-import "highlight.js/styles/github-dark.css";
-import katex from "katex";
-import "katex/dist/katex.min.css";
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { RichTextEditor, RichTextViewer } from "../richText/RichTextEditor";
-import { createRichTextDocument } from "../richText/richTextCore";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { CodeBlockEditor } from "../blocks/code/CodeBlockEditor";
+import { HeadingBlockEditor } from "../blocks/heading/HeadingBlockEditor";
+import { LatexPreview, MarkdownPreview, MarkupBlockEditor } from "../blocks/markup/MarkupBlock";
+import { RichTextEditor } from "../blocks/richText/RichTextEditor";
+import { createRichTextDocument } from "../blocks/richText/richTextCore";
 import {
   createStudyCodeBlock,
+  createStudyHeadingBlock,
   createStudyLatexBlock,
   createStudyMarkdownBlock,
   createStudyBlockDocument,
@@ -37,10 +28,17 @@ import {
   createStudyTextBlock,
   normalizeStudyBlockDocument,
   type StudyBlockDocument,
-  type StudyCodeBlock,
   type StudyContentBlock,
+  type StudyHeadingLevel,
   type StudyTableBlock,
-} from "./blockCore";
+} from "../core/blockCore";
+import {
+  TableBlockEditor,
+  getCellRangeArea,
+  getCellRangeBounds,
+  type SelectedCell,
+  type SelectedCellRange,
+} from "../blocks/table/TableBlockEditor";
 import {
   addTableColumn,
   addTableRow,
@@ -48,10 +46,10 @@ import {
   removeTableRow,
   resizeTableColumn,
   resizeTableRow,
-  updateTableCellContent,
   updateTableCellStyle,
   type StudyTableData,
-} from "./tableCore";
+} from "../blocks/table/tableCore";
+import { StudyReadTree } from "./readMode";
 
 interface StudyBlockEditorProps {
   value: unknown;
@@ -59,76 +57,30 @@ interface StudyBlockEditorProps {
   onChange: (document: StudyBlockDocument, plainText: string) => void;
 }
 
-type SelectedCell = {
-  blockId: string;
-  rowIndex: number;
-  columnIndex: number;
-};
-
-type SelectedCellRange = {
-  blockId: string;
-  anchorRowIndex: number;
-  anchorColumnIndex: number;
-  focusRowIndex: number;
-  focusColumnIndex: number;
-};
-
 type DragState =
   | {
-      type: "column";
-      blockId: string;
-      columnIndex: number;
-      startX: number;
-      startWidth: number;
-    }
-  | {
-      type: "row";
-      blockId: string;
-      rowIndex: number;
-      startY: number;
-      startHeight: number;
-    };
-
-const CODE_LANGUAGE_OPTIONS = [
-  { value: "auto", label: "Auto" },
-  { value: "typescript", label: "TypeScript" },
-  { value: "javascript", label: "JavaScript" },
-  { value: "tsx", label: "TSX" },
-  { value: "jsx", label: "JSX" },
-  { value: "html", label: "HTML" },
-  { value: "css", label: "CSS" },
-  { value: "json", label: "JSON" },
-  { value: "python", label: "Python" },
-  { value: "bash", label: "Bash" },
-  { value: "sql", label: "SQL" },
-  { value: "markdown", label: "Markdown" },
-];
-
-const HIGHLIGHT_LANGUAGES = [
-  ["bash", bash],
-  ["css", css],
-  ["html", xml],
-  ["javascript", javascript],
-  ["jsx", typescript],
-  ["json", json],
-  ["markdown", markdown],
-  ["python", python],
-  ["sql", sql],
-  ["tsx", typescript],
-  ["typescript", typescript],
-] as const;
-
-HIGHLIGHT_LANGUAGES.forEach(([name, language]) => {
-  if (!hljs.getLanguage(name)) {
-    hljs.registerLanguage(name, language);
+    type: "column";
+    blockId: string;
+    columnIndex: number;
+    startX: number;
+    startWidth: number;
   }
-});
+  | {
+    type: "row";
+    blockId: string;
+    rowIndex: number;
+    startY: number;
+      startHeight: number;
+  };
+
+const HEADING_LEVEL_OPTIONS = [1, 2, 3, 4, 5] as const;
 
 export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProps) {
   const document = useMemo(() => normalizeStudyBlockDocument(value), [value]);
   const [selectedRange, setSelectedRange] = useState<SelectedCellRange | null>(null);
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const [activeTextEditorId, setActiveTextEditorId] = useState<string | null>(null);
+  const [previewBlockIds, setPreviewBlockIds] = useState<Record<string, boolean>>({});
   const [textToolbarTarget, setTextToolbarTarget] = useState<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const isSelectingCellsRef = useRef(false);
@@ -158,13 +110,15 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
     const block =
       type === "table"
         ? createStudyTableBlock()
-        : type === "markdown"
-          ? createStudyMarkdownBlock()
-          : type === "latex"
-            ? createStudyLatexBlock()
-            : type === "code"
-              ? createStudyCodeBlock()
-              : createStudyTextBlock();
+        : type === "heading"
+          ? createStudyHeadingBlock()
+          : type === "markdown"
+            ? createStudyMarkdownBlock()
+            : type === "latex"
+              ? createStudyLatexBlock()
+              : type === "code"
+                ? createStudyCodeBlock()
+                : createStudyTextBlock();
     const index = afterId ? document.blocks.findIndex((item) => item.id === afterId) : document.blocks.length - 1;
     const insertAt = index >= 0 ? index + 1 : document.blocks.length;
 
@@ -195,6 +149,13 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
     const [block] = blocks.splice(index, 1);
     blocks.splice(nextIndex, 0, block);
     emitBlocks(blocks);
+  }
+
+  function toggleBlockPreview(blockId: string) {
+    setPreviewBlockIds((current) => ({
+      ...current,
+      [blockId]: !current[blockId],
+    }));
   }
 
   function updateTable(blockId: string, table: StudyTableData) {
@@ -321,13 +282,7 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
   }
 
   if (mode === "read") {
-    return (
-      <div className="study-block-reader">
-        {document.blocks.map((block) => (
-          <BlockReader key={block.id} block={block} />
-        ))}
-      </div>
-    );
+    return <StudyReadTree blocks={document.blocks} />;
   }
 
   return (
@@ -427,6 +382,41 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
             <div className="study-block-controls">
               <GripVertical size={16} />
               <span>{blockTypeLabel(block.type)}</span>
+              {block.type === "heading" ? (
+                <label className="study-heading-level-control">
+                  <span>Уровень</span>
+                  <select
+                    value={block.level}
+                    onChange={(event) =>
+                      updateBlock(block.id, (current) =>
+                        current.type === "heading"
+                          ? {
+                            ...current,
+                            level: Number(event.target.value) as StudyHeadingLevel,
+                          }
+                          : current,
+                      )
+                    }
+                  >
+                    {HEADING_LEVEL_OPTIONS.map((level) => (
+                      <option value={level} key={level}>
+                        H{level}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {isPreviewableBlock(block.type) ? (
+                <button
+                  className={`icon-button ${previewBlockIds[block.id] ? "active" : ""}`}
+                  type="button"
+                  onClick={() => toggleBlockPreview(block.id)}
+                  aria-label="Предпросмотр блока"
+                  title="Предпросмотр"
+                >
+                  <Eye size={16} />
+                </button>
+              ) : null}
               <button
                 className="icon-button"
                 type="button"
@@ -455,7 +445,21 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
               </button>
             </div>
 
-            {block.type === "text" ? (
+            {block.type === "heading" ? (
+              <HeadingBlockEditor
+                block={block}
+                onChange={(text) =>
+                  updateBlock(block.id, (current) =>
+                    current.type === "heading"
+                      ? {
+                        ...current,
+                        text,
+                      }
+                      : current,
+                  )
+                }
+              />
+            ) : block.type === "text" ? (
               <RichTextEditor
                 value={block.content}
                 showToolbar={activeTextEditorId === `text:${block.id}` && Boolean(textToolbarTarget)}
@@ -469,9 +473,9 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
                   updateBlock(block.id, (current) =>
                     current.type === "text"
                       ? {
-                          ...current,
-                          content: createRichTextDocument(html, plainText),
-                        }
+                        ...current,
+                        content: createRichTextDocument(html, plainText),
+                      }
                       : current,
                   )
                 }
@@ -500,13 +504,14 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
                 value={block.source}
                 placeholder="# Заголовок&#10;&#10;- пункт списка&#10;- **важный** текст"
                 preview={<MarkdownPreview source={block.source} />}
+                previewMode={Boolean(previewBlockIds[block.id])}
                 onChange={(source) =>
                   updateBlock(block.id, (current) =>
                     current.type === "markdown"
                       ? {
-                          ...current,
-                          source,
-                        }
+                        ...current,
+                        source,
+                      }
                       : current,
                   )
                 }
@@ -517,13 +522,14 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
                 value={block.source}
                 placeholder="E = mc^2"
                 preview={<LatexPreview source={block.source} displayMode={block.displayMode} />}
+                previewMode={Boolean(previewBlockIds[block.id])}
                 onChange={(source) =>
                   updateBlock(block.id, (current) =>
                     current.type === "latex"
                       ? {
-                          ...current,
-                          source,
-                        }
+                        ...current,
+                        source,
+                      }
                       : current,
                   )
                 }
@@ -531,13 +537,14 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
             ) : (
               <CodeBlockEditor
                 block={block}
+                previewMode={Boolean(previewBlockIds[block.id])}
                 onChangeSource={(source) =>
                   updateBlock(block.id, (current) =>
                     current.type === "code"
                       ? {
-                          ...current,
-                          source,
-                        }
+                        ...current,
+                        source,
+                      }
                       : current,
                   )
                 }
@@ -545,9 +552,9 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
                   updateBlock(block.id, (current) =>
                     current.type === "code"
                       ? {
-                          ...current,
-                          language,
-                        }
+                        ...current,
+                        language,
+                      }
                       : current,
                   )
                 }
@@ -562,6 +569,10 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
         <button className="button ghost" type="button" onClick={() => addBlock("text")}>
           <Type size={16} />
           Текст
+        </button>
+        <button className="button ghost" type="button" onClick={() => addBlock("heading")}>
+          <Heading size={16} />
+          Заголовок
         </button>
         <button className="button ghost" type="button" onClick={() => addBlock("table")}>
           <Table2 size={16} />
@@ -585,360 +596,19 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
   );
 }
 
-function TableBlockEditor({
-  block,
-  selectedRange,
-  activeTextEditorId,
-  toolbarTarget,
-  onSelectCellStart,
-  onExtendSelection,
-  onActivateTextEditor,
-  onChangeTable,
-  onColumnResizeStart,
-  onRowResizeStart,
-  onResizeMove,
-  onResizeEnd,
-}: {
-  block: StudyTableBlock;
-  selectedRange: SelectedCellRange | null;
-  activeTextEditorId: string | null;
-  toolbarTarget: HTMLDivElement | null;
-  onSelectCellStart: (event: MouseEvent<HTMLDivElement>, cell: SelectedCell) => void;
-  onExtendSelection: (cell: SelectedCell) => void;
-  onActivateTextEditor: (editorId: string) => void;
-  onChangeTable: (table: StudyTableData) => void;
-  onColumnResizeStart: (event: PointerEvent<HTMLButtonElement>, block: StudyTableBlock, columnIndex: number) => void;
-  onRowResizeStart: (event: PointerEvent<HTMLButtonElement>, block: StudyTableBlock, rowIndex: number) => void;
-  onResizeMove: (event: PointerEvent<HTMLButtonElement>) => void;
-  onResizeEnd: (event: PointerEvent<HTMLButtonElement>) => void;
-}) {
-  return (
-    <div className="study-table-block">
-      <div className="study-table-scroll">
-        <div
-          className="study-table-grid"
-          style={{
-            gridTemplateColumns: block.table.columns.map((column) => `${column.width}px`).join(" "),
-          }}
-        >
-          {block.table.columns.map((column, columnIndex) => (
-            <div className="study-table-column-header" style={{ width: column.width }} key={column.id}>
-              <span>{columnIndex + 1}</span>
-              <button
-                className="study-table-column-resizer"
-                type="button"
-                aria-label="Изменить ширину колонки"
-                onPointerDown={(event) => onColumnResizeStart(event, block, columnIndex)}
-                onPointerMove={onResizeMove}
-                onPointerUp={onResizeEnd}
-                onPointerCancel={onResizeEnd}
-              />
-            </div>
-          ))}
-
-          {block.table.rows.map((row, rowIndex) =>
-            row.cells.map((cell, columnIndex) => {
-              const isSelected = isCellInSelectedRange(selectedRange, block.id, rowIndex, columnIndex);
-              const editorId = `cell:${block.id}:${rowIndex}:${columnIndex}`;
-              const isFocused =
-                selectedRange?.blockId === block.id &&
-                selectedRange.focusRowIndex === rowIndex &&
-                selectedRange.focusColumnIndex === columnIndex;
-
-              return (
-                <div
-                  className={`study-table-cell ${isSelected ? "selected" : ""}`}
-                  style={{
-                    minHeight: row.height,
-                    backgroundColor: cell.style.backgroundColor,
-                    borderColor: cell.style.borderColor,
-                    color: cell.style.textColor,
-                  }}
-                  key={cell.id}
-                  onMouseDown={(event) => onSelectCellStart(event, { blockId: block.id, rowIndex, columnIndex })}
-                  onMouseEnter={() => onExtendSelection({ blockId: block.id, rowIndex, columnIndex })}
-                >
-                  <RichTextEditor
-                    value={cell.content}
-                    compact
-                    showToolbar={isFocused && activeTextEditorId === editorId && Boolean(toolbarTarget)}
-                    toolbarTarget={toolbarTarget}
-                    onEditorFocus={() => onActivateTextEditor(editorId)}
-                    className="study-table-cell-editor"
-                    placeholder=""
-                    onChange={(html, plainText) =>
-                      onChangeTable(updateTableCellContent(block.table, rowIndex, columnIndex, html, plainText))
-                    }
-                  />
-                  <button
-                    className="study-table-cell-column-resizer"
-                    type="button"
-                    aria-label="Изменить ширину колонки"
-                    onPointerDown={(event) => onColumnResizeStart(event, block, columnIndex)}
-                    onPointerMove={onResizeMove}
-                    onPointerUp={onResizeEnd}
-                    onPointerCancel={onResizeEnd}
-                  />
-                  <button
-                    className="study-table-row-resizer"
-                    type="button"
-                    aria-label="Изменить высоту строки"
-                    onPointerDown={(event) => onRowResizeStart(event, block, rowIndex)}
-                    onPointerMove={onResizeMove}
-                    onPointerUp={onResizeEnd}
-                    onPointerCancel={onResizeEnd}
-                  />
-                </div>
-              );
-            }),
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MarkupBlockEditor({
-  label,
-  value,
-  placeholder,
-  preview,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  placeholder: string;
-  preview: ReactNode;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="study-markup-block">
-      <label className="study-markup-source">
-        <span>{label}</span>
-        <textarea value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
-      </label>
-      <div className="study-markup-preview">{preview}</div>
-    </div>
-  );
-}
-
-function MarkdownPreview({ source }: { source: string }) {
-  if (!source.trim()) {
-    return <p className="muted-text">Markdown пуст.</p>;
-  }
-
-  return (
-    <div className="study-markdown-preview">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{source}</ReactMarkdown>
-    </div>
-  );
-}
-
-function LatexPreview({ source, displayMode }: { source: string; displayMode: boolean }) {
-  const html = useMemo(() => {
-    if (!source.trim()) return "";
-
-    try {
-      return katex.renderToString(source, {
-        displayMode,
-        output: "html",
-        throwOnError: false,
-        strict: false,
-        trust: false,
-      });
-    } catch (error) {
-      return `<span class="study-latex-error">${escapeHtml(error instanceof Error ? error.message : "LaTeX error")}</span>`;
-    }
-  }, [displayMode, source]);
-
-  if (!html) {
-    return <p className="muted-text">LaTeX пуст.</p>;
-  }
-
-  return <div className="study-latex-preview" dangerouslySetInnerHTML={{ __html: html }} />;
-}
-
-function CodeBlockEditor({
-  block,
-  onChangeSource,
-  onChangeLanguage,
-}: {
-  block: StudyCodeBlock;
-  onChangeSource: (source: string) => void;
-  onChangeLanguage: (language: string) => void;
-}) {
-  return (
-    <div className="study-code-block">
-      <label className="study-code-source">
-        <span>Code</span>
-        <textarea
-          value={block.source}
-          placeholder={'function hello() {\n  return "world";\n}'}
-          spellCheck={false}
-          onChange={(event) => onChangeSource(event.target.value)}
-        />
-      </label>
-
-      <div className="study-code-preview-panel">
-        <label className="study-code-language">
-          <span>Language</span>
-          <select value={block.language || "auto"} onChange={(event) => onChangeLanguage(event.target.value)}>
-            {CODE_LANGUAGE_OPTIONS.map((option) => (
-              <option value={option.value} key={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <CodePreview source={block.source} language={block.language} />
-      </div>
-    </div>
-  );
-}
-
-function CodePreview({ source, language }: { source: string; language: string }) {
-  const html = useMemo(() => {
-    if (!source.trim()) return "";
-
-    try {
-      if (language && language !== "auto" && hljs.getLanguage(language)) {
-        return hljs.highlight(source, {
-          language,
-          ignoreIllegals: true,
-        }).value;
-      }
-
-      return hljs.highlightAuto(source).value;
-    } catch {
-      return escapeHtml(source);
-    }
-  }, [language, source]);
-
-  if (!html) {
-    return <p className="muted-text">Code is empty.</p>;
-  }
-
-  return (
-    <pre className="study-code-preview">
-      <code
-        className={`hljs ${language && language !== "auto" ? `language-${language}` : ""}`}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-    </pre>
-  );
-}
-
-function BlockReader({ block }: { block: StudyContentBlock }) {
-  if (block.type === "text") {
-    return (
-      <section className="study-read-block">
-        <RichTextViewer value={block.content} />
-      </section>
-    );
-  }
-
-  if (block.type === "markdown") {
-    return (
-      <section className="study-read-block">
-        <MarkdownPreview source={block.source} />
-      </section>
-    );
-  }
-
-  if (block.type === "latex") {
-    return (
-      <section className="study-read-block">
-        <LatexPreview source={block.source} displayMode={block.displayMode} />
-      </section>
-    );
-  }
-
-  if (block.type === "code") {
-    return (
-      <section className="study-read-block">
-        <CodePreview source={block.source} language={block.language} />
-      </section>
-    );
-  }
-
-  return (
-    <section className="study-read-block">
-      <div
-        className="study-table-grid study-table-grid-readonly"
-        style={{
-          gridTemplateColumns: block.table.columns.map((column) => `${column.width}px`).join(" "),
-        }}
-      >
-        {block.table.rows.flatMap((row) =>
-          row.cells.map((cell) => (
-            <div
-              className="study-table-cell readonly"
-              style={{
-                minHeight: row.height,
-                backgroundColor: cell.style.backgroundColor,
-                borderColor: cell.style.borderColor,
-                color: cell.style.textColor,
-              }}
-              key={cell.id}
-            >
-              <RichTextViewer value={cell.content} fallback="" />
-            </div>
-          )),
-        )}
-      </div>
-    </section>
-  );
-}
-
 function colorInputValue(value: string, fallback: string) {
   return /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
 }
 
+function isPreviewableBlock(type: StudyContentBlock["type"]) {
+  return type === "markdown" || type === "latex" || type === "code";
+}
+
 function blockTypeLabel(type: StudyContentBlock["type"]) {
+  if (type === "heading") return "Заголовок";
   if (type === "table") return "Таблица";
   if (type === "markdown") return "Markdown";
   if (type === "latex") return "LaTeX";
   if (type === "code") return "Code";
   return "Текст";
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-function getCellRangeBounds(range: SelectedCellRange) {
-  return {
-    minRow: Math.min(range.anchorRowIndex, range.focusRowIndex),
-    maxRow: Math.max(range.anchorRowIndex, range.focusRowIndex),
-    minColumn: Math.min(range.anchorColumnIndex, range.focusColumnIndex),
-    maxColumn: Math.max(range.anchorColumnIndex, range.focusColumnIndex),
-  };
-}
-
-function getCellRangeArea(range: SelectedCellRange) {
-  const bounds = getCellRangeBounds(range);
-  return (bounds.maxRow - bounds.minRow + 1) * (bounds.maxColumn - bounds.minColumn + 1);
-}
-
-function isCellInSelectedRange(
-  range: SelectedCellRange | null,
-  blockId: string,
-  rowIndex: number,
-  columnIndex: number,
-) {
-  if (!range || range.blockId !== blockId) return false;
-
-  const bounds = getCellRangeBounds(range);
-
-  return (
-    rowIndex >= bounds.minRow &&
-    rowIndex <= bounds.maxRow &&
-    columnIndex >= bounds.minColumn &&
-    columnIndex <= bounds.maxColumn
-  );
 }
