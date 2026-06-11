@@ -52,26 +52,19 @@ export function CodeBlockEditor({
   block,
   previewMode,
   onChangeSource,
-  onChangeLanguage,
 }: {
   block: StudyCodeBlock;
   previewMode: boolean;
   onChangeSource: (source: string) => void;
-  onChangeLanguage: (language: string) => void;
 }) {
   return (
     <div className="study-code-block">
       {previewMode ? (
         <div className="study-code-preview-panel">
-          <CodeLanguageControl value={block.language} onChange={onChangeLanguage} />
           <CodePreview source={block.source} language={block.language} />
         </div>
       ) : (
         <div className="study-code-source">
-          <div className="study-code-source-header">
-            <span>Code</span>
-            <CodeLanguageControl value={block.language} onChange={onChangeLanguage} />
-          </div>
           <AutoResizeTextarea
             value={block.source}
             placeholder={'function hello() {\n  return "world";\n}'}
@@ -82,21 +75,6 @@ export function CodeBlockEditor({
         </div>
       )}
     </div>
-  );
-}
-
-function CodeLanguageControl({ value, onChange }: { value: string; onChange: (language: string) => void }) {
-  return (
-    <label className="study-code-language">
-      <span>Language</span>
-      <select value={value || "auto"} onChange={(event) => onChange(event.target.value)}>
-        {CODE_LANGUAGE_OPTIONS.map((option) => (
-          <option value={option.value} key={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 

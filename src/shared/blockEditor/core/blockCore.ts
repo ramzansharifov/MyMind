@@ -3,12 +3,6 @@ import {
   richTextHtmlToPlainText,
   type RichTextDocument,
 } from "../blocks/richText/richTextCore";
-import {
-  createStudyTable,
-  normalizeStudyTable,
-  tableToPlainText,
-  type StudyTableData,
-} from "../blocks/table/tableCore";
 
 export type StudyHeadingLevel = 1 | 2 | 3 | 4 | 5;
 export type StudyBlockType = "text" | "heading" | "table" | "markdown" | "latex" | "code";
@@ -22,7 +16,8 @@ export interface StudyTextBlock {
 export interface StudyTableBlock {
   id: string;
   type: "table";
-  table: StudyTableData;
+  tableId: string | null;
+  title: string;
 }
 
 export interface StudyHeadingBlock {
@@ -97,11 +92,12 @@ export function createStudyTextBlock(content: unknown = ""): StudyTextBlock {
   };
 }
 
-export function createStudyTableBlock(rowCount = 3, columnCount = 3): StudyTableBlock {
+export function createStudyTableBlock(title = "Новая таблица", tableId: string | null = null): StudyTableBlock {
   return {
     id: createStudyBlockId("table"),
     type: "table",
-    table: createStudyTable(rowCount, columnCount),
+    tableId,
+    title,
   };
 }
 
@@ -145,7 +141,7 @@ export function studyBlocksToPlainText(blocks: StudyContentBlock[]) {
     .map((block) => {
       if (block.type === "text") return richTextHtmlToPlainText(block.content);
       if (block.type === "heading") return block.text.trim();
-      if (block.type === "table") return tableToPlainText(block.table);
+      if (block.type === "table") return block.title.trim();
       if (block.type === "markdown" || block.type === "latex" || block.type === "code") return block.source.trim();
       return "";
     })
@@ -181,10 +177,12 @@ function normalizeStudyBlock(value: unknown): StudyContentBlock | null {
   if (!source || typeof source !== "object") return null;
 
   if (source.type === "table") {
+    const tableBlock = source as Partial<StudyTableBlock>;
     return {
       id: typeof source.id === "string" ? source.id : createStudyBlockId("table"),
       type: "table",
-      table: normalizeStudyTable((source as Partial<StudyTableBlock>).table),
+      tableId: typeof tableBlock.tableId === "string" && tableBlock.tableId.trim() ? tableBlock.tableId : null,
+      title: typeof tableBlock.title === "string" && tableBlock.title.trim() ? tableBlock.title : "Таблица",
     };
   }
 

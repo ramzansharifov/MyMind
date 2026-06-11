@@ -16,12 +16,15 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import type { BoardsData } from '../boards/types';
+import type { TablesData } from '../tables/types';
+import { createTableItem, normalizeTablesData, upsertTable } from '../tables/tablesUtils';
 import {
   StudyBlockEditor,
   createStudyBlockDocument,
   normalizeStudyBlockDocument,
   type StudyBlockDocument,
 } from '../../shared/blockEditor';
+import { ConfirmDialog } from '../../shared/components/ConfirmDialog';
 import { studyStorageClient } from './storage/studyStorageClient';
 import {
   collectDescendantIds,
@@ -37,16 +40,19 @@ import '../../styles/modules/study.css';
 interface StudyPageProps {
   data: StudyData;
   boards: BoardsData;
+  tables: TablesData;
   onChange: (data: StudyData) => void;
   onBoardsChange: (data: BoardsData) => void;
+  onTablesChange: (data: TablesData) => void;
   onOpenBoards: (boardId: string) => void;
+  onOpenTable: (tableId: string) => void;
 }
 
 type StudyMode = 'edit' | 'read';
 type SaveMaterialOptions = { source?: 'manual' | 'auto' | 'flush' };
 type StudyTreeMenuState = { nodeId: string; x: number; y: number };
 
-export function StudyPage({ data, onChange }: StudyPageProps) {
+export function StudyPage({ data, onChange, tables, onTablesChange, onOpenTable }: StudyPageProps) {
   const safeData = useMemo(() => normalizeStudyData(data), [data]);
 
   const [mode, setMode] = useState<StudyMode>('edit');
@@ -59,8 +65,10 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [treeMenu, setTreeMenu] = useState<StudyTreeMenuState | null>(null);
+  const [nodePendingDelete, setNodePendingDelete] = useState<StudyNode | null>(null);
 
   const activeMaterialRef = useRef<StudyMaterial | null>(null);
+  const tablesRef = useRef<TablesData>(tables);
   const draftContentRef = useRef<StudyBlockDocument>(draftContent);
   const draftPlainTextRef = useRef(draftPlainText);
   const hasUnsavedChangesRef = useRef(false);
@@ -88,6 +96,10 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
   useEffect(() => {
     activeMaterialRef.current = activeMaterial;
   }, [activeMaterial]);
+
+  useEffect(() => {
+    tablesRef.current = tables;
+  }, [tables]);
 
   useEffect(() => {
     draftContentRef.current = draftContent;
@@ -167,16 +179,27 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
         if (cancelled) return;
 
         const safeMaterial = material ?? createStudyMaterial(selectedMaterialId, selectedNode?.title ?? 'Новый материал');
-        const blockContent = normalizeStudyBlockDocument(safeMaterial.editorContent, safeMaterial.plainText);
+        const migratedContent = migrateLegacyInlineTables(safeMaterial.editorContent, safeMaterial.title);
+
+        if (migratedContent.tables.length > 0) {
+          let nextTables = normalizeTablesData(tablesRef.current);
+          migratedContent.tables.forEach((table) => {
+            nextTables = upsertTable(nextTables, table);
+          });
+          tablesRef.current = nextTables;
+          onTablesChange(nextTables);
+        }
+
+        const blockContent = normalizeStudyBlockDocument(migratedContent.content, safeMaterial.plainText);
         const plainText = blockContent.plainText;
-        const normalizedMaterial = {
+        let normalizedMaterial: StudyMaterial = {
           ...safeMaterial,
           editorContent: blockContent,
           plainText,
         };
 
-        if (!material) {
-          await studyStorageClient.saveMaterial(normalizedMaterial);
+        if (!material || migratedContent.tables.length > 0) {
+          normalizedMaterial = await studyStorageClient.saveMaterial(normalizedMaterial);
 
           if (cancelled) return;
         }
@@ -219,6 +242,26 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
 
   function updateStudy(next: StudyData) {
     onChange(normalizeStudyData(next));
+  }
+
+  function createLinkedStudyTable() {
+    const baseTitle = activeMaterialRef.current?.title || selectedNode?.title || 'Новая таблица';
+    const table = createTableItem(`${baseTitle} — таблица`);
+    onTablesChange(upsertTable(normalizeTablesData(tables), table));
+
+    return {
+      id: table.id,
+      title: table.title,
+    };
+  }
+
+  async function openLinkedStudyTable(tableId: string) {
+    if (hasUnsavedChangesRef.current) {
+      const saved = await saveMaterial({ source: 'manual' });
+      if (!saved) return;
+    }
+
+    onOpenTable(tableId);
   }
 
   async function flushPendingMaterialSave() {
@@ -342,7 +385,7 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
   }
 
   async function deleteNode(targetNode: StudyNode | null) {
-    if (!targetNode || !window.confirm(`Удалить "${targetNode.title}"?`)) return;
+    if (!targetNode) return;
 
     setErrorMessage(null);
     clearAutoSaveTimer();
@@ -382,6 +425,13 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Не удалось удалить элемент.');
     }
+  }
+
+  function requestDeleteNode(targetNode: StudyNode | null) {
+    if (!targetNode) return;
+
+    setTreeMenu(null);
+    setNodePendingDelete(targetNode);
   }
 
   function toggleFolder(nodeId: string) {
@@ -461,9 +511,11 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
 
   function handleEditorChange(document: StudyBlockDocument, plainText: string) {
     draftVersionRef.current += 1;
+    draftContentRef.current = document;
+    draftPlainTextRef.current = plainText;
+    hasUnsavedChangesRef.current = true;
     setDraftContent(document);
     setDraftPlainText(plainText);
-    hasUnsavedChangesRef.current = true;
     setHasUnsavedChanges(true);
   }
 
@@ -552,7 +604,7 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
               <Pencil size={15} />
               Переименовать
             </button>
-            <button className="danger" type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => deleteNode(treeMenuNode))}>
+            <button className="danger" type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => requestDeleteNode(treeMenuNode))}>
               <Trash2 size={15} />
               Удалить
             </button>
@@ -599,7 +651,7 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
               Переименовать
             </button>
 
-            <button className="icon-button danger" type="button" onClick={() => void deleteNode(selectedNode)} disabled={!selectedNode} aria-label="Удалить" title="Удалить">
+            <button className="icon-button danger" type="button" onClick={() => requestDeleteNode(selectedNode)} disabled={!selectedNode} aria-label="Удалить" title="Удалить">
               <Trash2 size={18} />
             </button>
           </div>
@@ -614,7 +666,13 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
                 <div className="study-loading-state">Загрузка материала...</div>
               ) : mode === 'edit' ? (
                 <>
-                  <StudyBlockEditor value={draftContent} mode="edit" onChange={handleEditorChange} />
+                  <StudyBlockEditor
+                    value={draftContent}
+                    mode="edit"
+                    onChange={handleEditorChange}
+                    onCreateTable={createLinkedStudyTable}
+                    onOpenTable={(tableId) => void openLinkedStudyTable(tableId)}
+                  />
 
                   <div className="study-editor-footer">
                     <span>{draftPlainText.trim().length} символов</span>
@@ -627,7 +685,12 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
                 </>
               ) : (
                 <article className="study-read-panel">
-                  <StudyBlockEditor value={draftContent} mode="read" onChange={handleEditorChange} />
+                  <StudyBlockEditor
+                    value={draftContent}
+                    mode="read"
+                    onChange={handleEditorChange}
+                    onOpenTable={(tableId) => void openLinkedStudyTable(tableId)}
+                  />
                 </article>
               )}
             </section>
@@ -677,8 +740,38 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
           </div>
         )}
       </main>
+
+      {nodePendingDelete ? (
+        <ConfirmDialog
+          title={`Удалить «${nodePendingDelete.title}»?`}
+          message={getDeleteNodeConfirmMessage(nodePendingDelete, safeData.nodes)}
+          confirmLabel="Удалить"
+          confirmVariant="danger"
+          action="delete"
+          onCancel={() => setNodePendingDelete(null)}
+          onConfirm={() => {
+            const targetNode = nodePendingDelete;
+            setNodePendingDelete(null);
+            void deleteNode(targetNode);
+          }}
+        />
+      ) : null}
     </section>
   );
+}
+
+function getDeleteNodeConfirmMessage(node: StudyNode, nodes: StudyNode[]) {
+  if (node.type === 'material') {
+    return 'Материал будет удалён вместе с сохранённым содержимым. Это действие нельзя отменить.';
+  }
+
+  const descendantCount = Math.max(collectDescendantIds(nodes, node.id).size - 1, 0);
+
+  if (descendantCount === 0) {
+    return 'Папка будет удалена. Это действие нельзя отменить.';
+  }
+
+  return `Папка и все вложенные элементы будут удалены. Внутри: ${descendantCount}. Это действие нельзя отменить.`;
 }
 
 function StudyTreeNode({
@@ -747,6 +840,61 @@ function StudyTreeNode({
       ) : null}
     </div>
   );
+}
+
+function migrateLegacyInlineTables(content: unknown, materialTitle: string) {
+  const sourceDocument = content as { blocks?: unknown[] } | null;
+  const sourceBlocks = Array.isArray(content) ? content : Array.isArray(sourceDocument?.blocks) ? sourceDocument.blocks : null;
+
+  if (!sourceBlocks) {
+    return {
+      content,
+      tables: [],
+    };
+  }
+
+  let tableNumber = 1;
+  const tables: ReturnType<typeof createTableItem>[] = [];
+  const blocks = sourceBlocks.map((block) => {
+    const sourceBlock = block as { id?: unknown; type?: unknown; table?: unknown; tableId?: unknown; title?: unknown } | null;
+
+    if (
+      !sourceBlock ||
+      sourceBlock.type !== 'table' ||
+      !sourceBlock.table ||
+      (typeof sourceBlock.tableId === 'string' && sourceBlock.tableId.trim())
+    ) {
+      return block;
+    }
+
+    const title =
+      typeof sourceBlock.title === 'string' && sourceBlock.title.trim()
+        ? sourceBlock.title.trim()
+        : `${materialTitle || 'Материал'} — таблица ${tableNumber}`;
+    tableNumber += 1;
+
+    const table = createTableItem(title, undefined, sourceBlock.table);
+    tables.push(table);
+
+    return {
+      id: typeof sourceBlock.id === 'string' ? sourceBlock.id : undefined,
+      type: 'table',
+      tableId: table.id,
+      title: table.title,
+    };
+  });
+
+  if (tables.length === 0) {
+    return {
+      content,
+      tables,
+    };
+  }
+
+  return {
+    content: Array.isArray(content) ? blocks : { ...(content as object), blocks },
+    tables,
+  };
 }
 
 function getStudyNodePath(nodes: StudyNode[], selectedNode: StudyNode | null) {

@@ -6,7 +6,6 @@ import remarkGfm from "remark-gfm";
 import { AutoResizeTextarea } from "../../components/AutoResizeTextarea";
 
 export function MarkupBlockEditor({
-  label,
   value,
   placeholder,
   preview,
@@ -26,7 +25,6 @@ export function MarkupBlockEditor({
         <div className="study-markup-preview">{preview}</div>
       ) : (
         <label className="study-markup-source">
-          <span>{label}</span>
           <AutoResizeTextarea value={value} placeholder={placeholder} minRows={2} onChange={onChange} />
         </label>
       )}

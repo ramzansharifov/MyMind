@@ -12,6 +12,7 @@ import type { HealthData } from '../../modules/health/types';
 import type { InventoryItem } from '../../modules/inventory/types';
 import type { Project } from '../../modules/projects/types';
 import type { TemplatesData } from '../../modules/templates/types';
+import type { TablesData } from '../../modules/tables/types';
 import type { StudyData, StudyMaterial, StudyMaterialIndexItem } from '../../modules/study/types';
 import type { TodoData } from '../../modules/todos/types';
 import type { WorkoutData } from '../../modules/workouts/types';
@@ -29,6 +30,7 @@ export type CollectionName =
   | 'templates'
   | 'study'
   | 'boards'
+  | 'tables'
   | 'projects'
   | 'contacts'
   | 'health'
@@ -48,6 +50,7 @@ export interface CollectionMap {
   templates: TemplatesData;
   study: StudyData;
   boards: BoardsData;
+  tables: TablesData;
   projects: Project[];
   contacts: ContactsData;
   health: HealthData;

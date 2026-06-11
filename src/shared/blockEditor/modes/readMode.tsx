@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, Table2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CodePreview } from "../blocks/code/CodeBlockEditor";
 import { LatexPreview, MarkdownPreview } from "../blocks/markup/MarkupBlock";
@@ -14,9 +14,14 @@ export type StudyReadNode =
       kind: "section";
       heading: StudyHeadingBlock;
       children: StudyReadNode[];
-    };
+};
 
-export function StudyReadTree({ blocks }: { blocks: StudyContentBlock[] }) {
+interface StudyReadTreeProps {
+  blocks: StudyContentBlock[];
+  onOpenTable?: (tableId: string) => void | Promise<void>;
+}
+
+export function StudyReadTree({ blocks, onOpenTable }: StudyReadTreeProps) {
   const tree = useMemo(() => buildStudyReadTree(blocks), [blocks]);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
@@ -34,6 +39,7 @@ export function StudyReadTree({ blocks }: { blocks: StudyContentBlock[] }) {
           node={node}
           collapsedSections={collapsedSections}
           onToggleSection={toggleSection}
+          onOpenTable={onOpenTable}
           key={getStudyReadNodeKey(node)}
         />
       ))}
@@ -78,13 +84,15 @@ function StudyReadNodeView({
   node,
   collapsedSections,
   onToggleSection,
+  onOpenTable,
 }: {
   node: StudyReadNode;
   collapsedSections: Record<string, boolean>;
   onToggleSection: (sectionId: string) => void;
+  onOpenTable?: (tableId: string) => void | Promise<void>;
 }) {
   if (node.kind === "block") {
-    return <BlockReader block={node.block} />;
+    return <BlockReader block={node.block} onOpenTable={onOpenTable} />;
   }
 
   const isCollapsed = Boolean(collapsedSections[node.heading.id]);
@@ -113,6 +121,7 @@ function StudyReadNodeView({
               node={child}
               collapsedSections={collapsedSections}
               onToggleSection={onToggleSection}
+              onOpenTable={onOpenTable}
               key={getStudyReadNodeKey(child)}
             />
           ))}
@@ -122,7 +131,13 @@ function StudyReadNodeView({
   );
 }
 
-function BlockReader({ block }: { block: Exclude<StudyContentBlock, StudyHeadingBlock> }) {
+function BlockReader({
+  block,
+  onOpenTable,
+}: {
+  block: Exclude<StudyContentBlock, StudyHeadingBlock>;
+  onOpenTable?: (tableId: string) => void | Promise<void>;
+}) {
   if (block.type === "text") {
     return (
       <section className="study-read-block">
@@ -157,41 +172,23 @@ function BlockReader({ block }: { block: Exclude<StudyContentBlock, StudyHeading
 
   return (
     <section className="study-read-block">
-      <div
-        className="study-table-grid study-table-grid-readonly"
-        style={{
-          gridTemplateColumns: block.table.columns.map((column) => `${column.width}px`).join(" "),
-          gridTemplateRows: block.table.rows.map((row) => `${row.height}px`).join(" "),
-        }}
-      >
-        {block.table.rows.flatMap((row, rowIndex) =>
-          row.cells.map((cell, columnIndex) => {
-            if (cell.mergedInto) return null;
-
-            const isHeaderRow = block.table.settings.hasHeaderRow && rowIndex === 0;
-            const isHeaderColumn = block.table.settings.hasHeaderColumn && columnIndex === 0;
-
-            return (
-            <div
-              className={`study-table-cell readonly ${isHeaderRow ? "header-row" : ""} ${isHeaderColumn ? "header-column" : ""}`}
-              style={{
-                gridColumn: `${columnIndex + 1} / span ${cell.colSpan}`,
-                gridRow: `${rowIndex + 1} / span ${cell.rowSpan}`,
-                backgroundColor: cell.style.backgroundColor,
-                borderColor: cell.style.borderColor,
-                borderWidth: cell.style.borderWidth,
-                color: cell.style.textColor,
-                textAlign: cell.style.align,
-                alignItems: cell.style.verticalAlign === "middle" ? "center" : cell.style.verticalAlign === "bottom" ? "flex-end" : "flex-start",
-                fontWeight: cell.style.fontWeight,
-              }}
-              key={cell.id}
-            >
-              <RichTextViewer value={cell.content} fallback="" />
-            </div>
-            );
-          }),
-        )}
+      <div className="study-table-link-card readonly">
+        <span className="study-table-link-icon">
+          <Table2 size={18} />
+        </span>
+        <div>
+          <strong>{block.title || "Таблица"}</strong>
+          <span>{block.tableId ? "Открыть в модуле таблиц" : "Таблица не связана"}</span>
+        </div>
+        <button
+          className="button ghost"
+          type="button"
+          disabled={!block.tableId || !onOpenTable}
+          onClick={() => block.tableId && void onOpenTable?.(block.tableId)}
+        >
+          <ExternalLink size={16} />
+          Открыть
+        </button>
       </div>
     </section>
   );

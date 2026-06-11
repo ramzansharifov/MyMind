@@ -1,0 +1,263 @@
+.tables-page {
+  display: grid;
+  gap: 22px;
+}
+
+.tables-layout {
+  display: grid;
+  grid-template-columns: 292px minmax(0, 1fr);
+  gap: 18px;
+  min-height: min(780px, calc(100vh - 190px));
+}
+
+.tables-sidebar,
+.tables-main,
+.tables-toolbar,
+.tables-empty-state {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.tables-sidebar {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 14px;
+  min-height: 0;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.tables-sidebar-head,
+.tables-folder-label,
+.tables-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tables-sidebar-head,
+.tables-toolbar {
+  justify-content: space-between;
+}
+
+.tables-sidebar-head strong {
+  display: block;
+}
+
+.tables-folder-label {
+  min-height: 38px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  font-weight: 800;
+}
+
+.tables-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.tables-list-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  text-align: left;
+  background: var(--surface-soft);
+  cursor: pointer;
+}
+
+.tables-list-item:hover,
+.tables-list-item.active {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-soft));
+}
+
+.tables-list-item svg {
+  color: var(--accent);
+}
+
+.tables-list-item span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 800;
+}
+
+.tables-list-item small,
+.tables-empty span {
+  color: var(--muted);
+}
+
+.tables-main {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.tables-toolbar {
+  border-width: 0 0 1px;
+  box-shadow: none;
+  padding: 12px 14px;
+}
+
+.tables-title-group {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tables-title-input {
+  width: min(560px, 52vw);
+  min-height: 36px;
+  padding: 0;
+  color: var(--text);
+  font-size: 1.28rem;
+  font-weight: 900;
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.tables-title-input:focus {
+  color: var(--accent-strong);
+}
+
+.tables-editor-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.tables-canvas {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+  background:
+    linear-gradient(var(--line-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px),
+    var(--surface-soft);
+  background-size: 28px 28px;
+}
+
+.tables-canvas .study-table-block {
+  width: max-content;
+  min-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.tables-empty,
+.tables-empty-state {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.tables-empty {
+  min-height: 160px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.tables-empty-state {
+  min-height: 420px;
+  border-radius: 10px;
+  padding: 24px;
+}
+
+.tables-empty-state svg {
+  color: var(--accent);
+}
+
+@media (max-width: 980px) {
+  .tables-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .tables-sidebar {
+    min-height: 240px;
+  }
+}
+
+/* Unified tables module surface cleanup */
+.tables-page {
+  gap: 20px;
+  background: transparent;
+}
+
+.tables-layout {
+  min-height: min(780px, calc(100vh - 176px));
+}
+
+.tables-sidebar {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+.tables-main {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.tables-toolbar,
+.tables-editor-toolbar,
+.tables-canvas {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.tables-toolbar {
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+}
+
+.tables-editor-toolbar {
+  border-top: 0;
+  border-radius: 0;
+}
+
+.tables-canvas {
+  border-top: 0;
+  border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+  background: var(--surface-soft);
+}
+
+.tables-canvas .study-table-block {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.tables-folder-label,
+.tables-list-item,
+.tables-empty,
+.tables-empty-state {
+  box-shadow: none;
+}

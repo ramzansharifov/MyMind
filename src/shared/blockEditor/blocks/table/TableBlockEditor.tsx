@@ -7,7 +7,6 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from "react";
-import type { StudyTableBlock } from "../../core/blockCore";
 import { RichTextEditor } from "../richText/RichTextEditor";
 import {
   autoFitTableColumns,
@@ -27,6 +26,11 @@ import {
   type StudyTableData,
   type StudyTableRangeBounds,
 } from "./tableCore";
+
+export interface TableEditorBlock {
+  id: string;
+  table: StudyTableData;
+}
 
 export type SelectedCell = {
   blockId: string;
@@ -64,7 +68,7 @@ type TableMenuTarget =
     };
 
 interface TableBlockEditorProps {
-  block: StudyTableBlock;
+  block: TableEditorBlock;
   selectedRange: SelectedCellRange | null;
   activeTextEditorId: string | null;
   toolbarTarget: HTMLDivElement | null;
@@ -75,8 +79,8 @@ interface TableBlockEditorProps {
   onActivateTextEditor: (editorId: string) => void;
   onExitTextEditor: () => void;
   onChangeTable: (table: StudyTableData) => void;
-  onColumnResizeStart: (event: PointerEvent<HTMLButtonElement>, block: StudyTableBlock, columnIndex: number) => void;
-  onRowResizeStart: (event: PointerEvent<HTMLButtonElement>, block: StudyTableBlock, rowIndex: number) => void;
+  onColumnResizeStart: (event: PointerEvent<HTMLButtonElement>, block: TableEditorBlock, columnIndex: number) => void;
+  onRowResizeStart: (event: PointerEvent<HTMLButtonElement>, block: TableEditorBlock, rowIndex: number) => void;
   onResizeMove: (event: PointerEvent<HTMLButtonElement>) => void;
   onResizeEnd: (event: PointerEvent<HTMLButtonElement>) => void;
 }

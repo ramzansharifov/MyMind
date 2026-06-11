@@ -9,7 +9,6 @@ export function HeadingBlockEditor({
 }) {
   return (
     <label className={`study-heading-editor level-${block.level}`}>
-      <span>H{block.level}</span>
       <input
         type="text"
         value={block.text}
