@@ -161,23 +161,36 @@ function BlockReader({ block }: { block: Exclude<StudyContentBlock, StudyHeading
         className="study-table-grid study-table-grid-readonly"
         style={{
           gridTemplateColumns: block.table.columns.map((column) => `${column.width}px`).join(" "),
+          gridTemplateRows: block.table.rows.map((row) => `${row.height}px`).join(" "),
         }}
       >
-        {block.table.rows.flatMap((row) =>
-          row.cells.map((cell) => (
+        {block.table.rows.flatMap((row, rowIndex) =>
+          row.cells.map((cell, columnIndex) => {
+            if (cell.mergedInto) return null;
+
+            const isHeaderRow = block.table.settings.hasHeaderRow && rowIndex === 0;
+            const isHeaderColumn = block.table.settings.hasHeaderColumn && columnIndex === 0;
+
+            return (
             <div
-              className="study-table-cell readonly"
+              className={`study-table-cell readonly ${isHeaderRow ? "header-row" : ""} ${isHeaderColumn ? "header-column" : ""}`}
               style={{
-                minHeight: row.height,
+                gridColumn: `${columnIndex + 1} / span ${cell.colSpan}`,
+                gridRow: `${rowIndex + 1} / span ${cell.rowSpan}`,
                 backgroundColor: cell.style.backgroundColor,
                 borderColor: cell.style.borderColor,
+                borderWidth: cell.style.borderWidth,
                 color: cell.style.textColor,
+                textAlign: cell.style.align,
+                alignItems: cell.style.verticalAlign === "middle" ? "center" : cell.style.verticalAlign === "bottom" ? "flex-end" : "flex-start",
+                fontWeight: cell.style.fontWeight,
               }}
               key={cell.id}
             >
               <RichTextViewer value={cell.content} fallback="" />
             </div>
-          )),
+            );
+          }),
         )}
       </div>
     </section>

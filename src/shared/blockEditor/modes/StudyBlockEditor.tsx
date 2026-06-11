@@ -1,13 +1,22 @@
 import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   ArrowDown,
   ArrowUp,
+  Bold,
   Code2,
   Columns3,
+  Copy,
+  ClipboardPaste,
+  Eraser,
   Eye,
   GripVertical,
   Heading,
+  Merge,
   Rows3,
   Sigma,
+  Split,
   Table2,
   Trash2,
   Type,
@@ -42,12 +51,29 @@ import {
 import {
   addTableColumn,
   addTableRow,
+  applyTableTemplate,
+  autoFitTableColumns,
+  autoFitTableRows,
+  clearTableCellContents,
+  clearTableCellStyles,
+  equalizeTableColumns,
+  insertTableColumn,
+  insertTableRow,
+  mergeTableRange,
+  pasteTableText,
   removeTableColumn,
   removeTableRow,
+  removeTableColumns,
+  removeTableRows,
   resizeTableColumn,
   resizeTableRow,
+  tableRangeToTsv,
+  unmergeTableRange,
   updateTableCellStyle,
+  updateTableSettings,
   type StudyTableData,
+  type StudyTableRangeBounds,
+  type StudyTableTemplate,
 } from "../blocks/table/tableCore";
 import { StudyReadTree } from "./readMode";
 
@@ -223,15 +249,36 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
     if (event.button !== 0) return;
 
     isSelectingCellsRef.current = true;
+    selectTableCell(cell, event.shiftKey);
+  }
+
+  function selectTableCell(cell: SelectedCell, extend = false) {
     setActiveBlockId(cell.blockId);
-    setActiveTextEditorId(`cell:${cell.blockId}:${cell.rowIndex}:${cell.columnIndex}`);
-    setSelectedRange({
-      blockId: cell.blockId,
-      anchorRowIndex: cell.rowIndex,
-      anchorColumnIndex: cell.columnIndex,
-      focusRowIndex: cell.rowIndex,
-      focusColumnIndex: cell.columnIndex,
+    setActiveTextEditorId(null);
+
+    setSelectedRange((range) => {
+      if (extend && range?.blockId === cell.blockId) {
+        return {
+          ...range,
+          focusRowIndex: cell.rowIndex,
+          focusColumnIndex: cell.columnIndex,
+        };
+      }
+
+      return {
+        blockId: cell.blockId,
+        anchorRowIndex: cell.rowIndex,
+        anchorColumnIndex: cell.columnIndex,
+        focusRowIndex: cell.rowIndex,
+        focusColumnIndex: cell.columnIndex,
+      };
     });
+  }
+
+  function selectTableRange(range: SelectedCellRange) {
+    setActiveBlockId(range.blockId);
+    setActiveTextEditorId(null);
+    setSelectedRange(range);
   }
 
   function handleCellSelectionExtend(cell: SelectedCell) {
@@ -281,6 +328,40 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
     updateTable(selectedTableBlock.id, nextTable);
   }
 
+  function updateSelectedTableRange(update: (table: StudyTableData, bounds: StudyTableRangeBounds) => StudyTableData) {
+    if (!selectedRange || !selectedTableBlock) return;
+
+    updateTable(selectedTableBlock.id, update(selectedTableBlock.table, getCellRangeBounds(selectedRange)));
+  }
+
+  function selectedRowIndexes() {
+    if (!selectedRange) return [];
+    const bounds = getCellRangeBounds(selectedRange);
+    return Array.from({ length: bounds.maxRow - bounds.minRow + 1 }, (_, index) => bounds.minRow + index);
+  }
+
+  function selectedColumnIndexes() {
+    if (!selectedRange) return [];
+    const bounds = getCellRangeBounds(selectedRange);
+    return Array.from({ length: bounds.maxColumn - bounds.minColumn + 1 }, (_, index) => bounds.minColumn + index);
+  }
+
+  async function copySelectedTableRange() {
+    if (!selectedRange || !selectedTableBlock) return;
+    await navigator.clipboard?.writeText(tableRangeToTsv(selectedTableBlock.table, getCellRangeBounds(selectedRange)));
+  }
+
+  async function pasteIntoSelectedTableRange() {
+    if (!selectedRange || !selectedTableBlock) return;
+    const text = await navigator.clipboard?.readText();
+    if (!text?.trim()) return;
+
+    updateTable(
+      selectedTableBlock.id,
+      pasteTableText(selectedTableBlock.table, selectedRange.focusRowIndex, selectedRange.focusColumnIndex, text),
+    );
+  }
+
   if (mode === "read") {
     return <StudyReadTree blocks={document.blocks} />;
   }
@@ -309,20 +390,78 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
                 <Columns3 size={16} />
                 Колонка
               </button>
-              <button
-                className="button ghost"
-                type="button"
-                onClick={() => updateTable(activeTableBlock.id, removeTableRow(activeTableBlock.table, activeTableBlock.table.rows.length - 1))}
-              >
-                Убрать строку
-              </button>
-              <button
-                className="button ghost"
-                type="button"
-                onClick={() => updateTable(activeTableBlock.id, removeTableColumn(activeTableBlock.table, activeTableBlock.table.columns.length - 1))}
-              >
-                Убрать колонку
-              </button>
+              {selectedRange && selectedTableBlock?.id === activeTableBlock.id ? (
+                <>
+                  <button className="button ghost" type="button" onClick={() => updateSelectedTableRange((table, bounds) => insertTableRow(table, bounds.minRow))}>
+                    Строка выше
+                  </button>
+                  <button className="button ghost" type="button" onClick={() => updateSelectedTableRange((table, bounds) => insertTableColumn(table, bounds.minColumn))}>
+                    Колонка слева
+                  </button>
+                  <button className="button ghost" type="button" onClick={() => updateTable(activeTableBlock.id, removeTableRows(activeTableBlock.table, selectedRowIndexes()))}>
+                    Убрать строки
+                  </button>
+                  <button className="button ghost" type="button" onClick={() => updateTable(activeTableBlock.id, removeTableColumns(activeTableBlock.table, selectedColumnIndexes()))}>
+                    Убрать колонки
+                  </button>
+                  <button className="icon-button" type="button" onClick={() => void copySelectedTableRange()} aria-label="Копировать диапазон" title="Копировать">
+                    <Copy size={16} />
+                  </button>
+                  <button className="icon-button" type="button" onClick={() => void pasteIntoSelectedTableRange()} aria-label="Вставить в диапазон" title="Вставить">
+                    <ClipboardPaste size={16} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    className="button ghost"
+                    type="button"
+                    onClick={() => updateTable(activeTableBlock.id, removeTableRow(activeTableBlock.table, activeTableBlock.table.rows.length - 1))}
+                  >
+                    Убрать строку
+                  </button>
+                  <button
+                    className="button ghost"
+                    type="button"
+                    onClick={() => updateTable(activeTableBlock.id, removeTableColumn(activeTableBlock.table, activeTableBlock.table.columns.length - 1))}
+                  >
+                    Убрать колонку
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="study-block-header-group">
+              <span className="study-block-header-label">Вид</span>
+              <label className="study-table-setting">
+                <input
+                  type="checkbox"
+                  checked={activeTableBlock.table.settings.hasHeaderRow}
+                  onChange={(event) => updateTable(activeTableBlock.id, updateTableSettings(activeTableBlock.table, { hasHeaderRow: event.target.checked }))}
+                />
+                Шапка
+              </label>
+              <label className="study-table-setting">
+                <input
+                  type="checkbox"
+                  checked={activeTableBlock.table.settings.hasHeaderColumn}
+                  onChange={(event) => updateTable(activeTableBlock.id, updateTableSettings(activeTableBlock.table, { hasHeaderColumn: event.target.checked }))}
+                />
+                Первая колонка
+              </label>
+              <label className="study-table-template">
+                <span>Шаблон</span>
+                <select
+                  value={activeTableBlock.table.settings.template}
+                  onChange={(event) => updateTable(activeTableBlock.id, applyTableTemplate(activeTableBlock.table, event.target.value as StudyTableTemplate))}
+                >
+                  <option value="plain">Обычная</option>
+                  <option value="comparison">Сравнение</option>
+                  <option value="plan">План</option>
+                  <option value="terms">Термины</option>
+                  <option value="formula">Формулы</option>
+                </select>
+              </label>
             </div>
           </div>
         ) : null}
@@ -367,6 +506,65 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
                   }
                 />
               </label>
+              <button className={`icon-button ${selectedTableCell.style.align === "left" ? "active" : ""}`} type="button" onClick={() => updateSelectedCellStyle({ align: "left" })} aria-label="Выровнять влево">
+                <AlignLeft size={16} />
+              </button>
+              <button className={`icon-button ${selectedTableCell.style.align === "center" ? "active" : ""}`} type="button" onClick={() => updateSelectedCellStyle({ align: "center" })} aria-label="Выровнять по центру">
+                <AlignCenter size={16} />
+              </button>
+              <button className={`icon-button ${selectedTableCell.style.align === "right" ? "active" : ""}`} type="button" onClick={() => updateSelectedCellStyle({ align: "right" })} aria-label="Выровнять вправо">
+                <AlignRight size={16} />
+              </button>
+              <button
+                className={`icon-button ${selectedTableCell.style.fontWeight === "bold" ? "active" : ""}`}
+                type="button"
+                onClick={() => updateSelectedCellStyle({ fontWeight: selectedTableCell.style.fontWeight === "bold" ? "normal" : "bold" })}
+                aria-label="Жирный текст"
+              >
+                <Bold size={16} />
+              </button>
+              <label>
+                Вертикаль
+                <select
+                  value={selectedTableCell.style.verticalAlign}
+                  onChange={(event) => updateSelectedCellStyle({ verticalAlign: event.target.value as "top" | "middle" | "bottom" })}
+                >
+                  <option value="top">Верх</option>
+                  <option value="middle">Центр</option>
+                  <option value="bottom">Низ</option>
+                </select>
+              </label>
+              <label>
+                Толщина
+                <input
+                  type="number"
+                  min={1}
+                  max={4}
+                  value={selectedTableCell.style.borderWidth}
+                  onChange={(event) => updateSelectedCellStyle({ borderWidth: Number(event.target.value) })}
+                />
+              </label>
+              <button className="icon-button" type="button" onClick={() => updateSelectedTableRange(clearTableCellContents)} aria-label="Очистить содержимое" title="Очистить содержимое">
+                <Eraser size={16} />
+              </button>
+              <button className="button ghost" type="button" onClick={() => updateSelectedTableRange(clearTableCellStyles)}>
+                Сброс стиля
+              </button>
+              <button className="icon-button" type="button" onClick={() => updateSelectedTableRange(mergeTableRange)} aria-label="Объединить" title="Объединить">
+                <Merge size={16} />
+              </button>
+              <button className="icon-button" type="button" onClick={() => updateSelectedTableRange(unmergeTableRange)} aria-label="Разъединить" title="Разъединить">
+                <Split size={16} />
+              </button>
+              <button className="button ghost" type="button" onClick={() => updateSelectedTableRange(equalizeTableColumns)}>
+                Ровная ширина
+              </button>
+              <button className="button ghost" type="button" onClick={() => updateSelectedTableRange(autoFitTableColumns)}>
+                Автоширина
+              </button>
+              <button className="button ghost" type="button" onClick={() => updateSelectedTableRange(autoFitTableRows)}>
+                Автовысота
+              </button>
             </div>
           </div>
         ) : null}
@@ -488,10 +686,13 @@ export function StudyBlockEditor({ value, mode, onChange }: StudyBlockEditorProp
                 toolbarTarget={textToolbarTarget}
                 onSelectCellStart={handleCellSelectionStart}
                 onExtendSelection={handleCellSelectionExtend}
+                onSelectRange={selectTableRange}
+                onSelectCell={selectTableCell}
                 onActivateTextEditor={(editorId) => {
                   setActiveBlockId(block.id);
                   setActiveTextEditorId(editorId);
                 }}
+                onExitTextEditor={() => setActiveTextEditorId(null)}
                 onChangeTable={(table) => updateTable(block.id, table)}
                 onColumnResizeStart={handleColumnResizeStart}
                 onRowResizeStart={handleRowResizeStart}

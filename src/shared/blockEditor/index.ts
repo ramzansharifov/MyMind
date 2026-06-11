@@ -11,7 +11,12 @@ export type {
   StudyTableCellStyle,
   StudyTableColumn,
   StudyTableData,
+  StudyTableHorizontalAlign,
+  StudyTableRangeBounds,
   StudyTableRow,
+  StudyTableSettings,
+  StudyTableTemplate,
+  StudyTableVerticalAlign,
 } from "./blocks/table/tableCore";
 export {
   createStudyBlockDocument,
