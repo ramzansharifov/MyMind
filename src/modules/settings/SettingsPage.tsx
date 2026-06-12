@@ -837,7 +837,6 @@ const exportableCollections: Array<{ name: CollectionName; label: string }> = [
   { name: 'journal_entries', label: 'Diary' },
   { name: 'notes', label: 'Notes' },
   { name: 'templates', label: 'Templates' },
-  { name: 'tables', label: 'Tables' },
   { name: 'projects', label: 'Projects' },
   { name: 'contacts', label: 'Contacts' },
   { name: 'health', label: 'Health' },

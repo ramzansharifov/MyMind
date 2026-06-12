@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, ExternalLink, Table2 } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CodePreview } from "../blocks/code/CodeBlockEditor";
 import { LatexPreview, MarkdownPreview } from "../blocks/markup/MarkupBlock";
@@ -18,10 +18,9 @@ export type StudyReadNode =
 
 interface StudyReadTreeProps {
   blocks: StudyContentBlock[];
-  onOpenTable?: (tableId: string) => void | Promise<void>;
 }
 
-export function StudyReadTree({ blocks, onOpenTable }: StudyReadTreeProps) {
+export function StudyReadTree({ blocks }: StudyReadTreeProps) {
   const tree = useMemo(() => buildStudyReadTree(blocks), [blocks]);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
@@ -39,7 +38,6 @@ export function StudyReadTree({ blocks, onOpenTable }: StudyReadTreeProps) {
           node={node}
           collapsedSections={collapsedSections}
           onToggleSection={toggleSection}
-          onOpenTable={onOpenTable}
           key={getStudyReadNodeKey(node)}
         />
       ))}
@@ -84,15 +82,13 @@ function StudyReadNodeView({
   node,
   collapsedSections,
   onToggleSection,
-  onOpenTable,
 }: {
   node: StudyReadNode;
   collapsedSections: Record<string, boolean>;
   onToggleSection: (sectionId: string) => void;
-  onOpenTable?: (tableId: string) => void | Promise<void>;
 }) {
   if (node.kind === "block") {
-    return <BlockReader block={node.block} onOpenTable={onOpenTable} />;
+    return <BlockReader block={node.block} />;
   }
 
   const isCollapsed = Boolean(collapsedSections[node.heading.id]);
@@ -121,7 +117,6 @@ function StudyReadNodeView({
               node={child}
               collapsedSections={collapsedSections}
               onToggleSection={onToggleSection}
-              onOpenTable={onOpenTable}
               key={getStudyReadNodeKey(child)}
             />
           ))}
@@ -131,13 +126,7 @@ function StudyReadNodeView({
   );
 }
 
-function BlockReader({
-  block,
-  onOpenTable,
-}: {
-  block: Exclude<StudyContentBlock, StudyHeadingBlock>;
-  onOpenTable?: (tableId: string) => void | Promise<void>;
-}) {
+function BlockReader({ block }: { block: Exclude<StudyContentBlock, StudyHeadingBlock> }) {
   if (block.type === "text") {
     return (
       <section className="study-read-block">
@@ -170,28 +159,7 @@ function BlockReader({
     );
   }
 
-  return (
-    <section className="study-read-block">
-      <div className="study-table-link-card readonly">
-        <span className="study-table-link-icon">
-          <Table2 size={18} />
-        </span>
-        <div>
-          <strong>{block.title || "Таблица"}</strong>
-          <span>{block.tableId ? "Открыть в модуле таблиц" : "Таблица не связана"}</span>
-        </div>
-        <button
-          className="button ghost"
-          type="button"
-          disabled={!block.tableId || !onOpenTable}
-          onClick={() => block.tableId && void onOpenTable?.(block.tableId)}
-        >
-          <ExternalLink size={16} />
-          Открыть
-        </button>
-      </div>
-    </section>
-  );
+  return null;
 }
 
 function getStudyReadNodeKey(node: StudyReadNode) {

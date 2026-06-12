@@ -426,13 +426,6 @@ function legacyBlocksToEditorContent(blocks: MyMindEditorBlock[]): MyMindEditorC
       continue;
     }
 
-    if (type === 'table') {
-      const tableText = Array.isArray(block.rows) ? block.rows.map((row) => (Array.isArray(row) ? row.join('\t') : String(row))).join('\n') : '';
-      const text = tableText || stripHtml(String(block.content ?? ''));
-      result.push({ type: 'paragraph', content: text });
-      continue;
-    }
-
     const text = stripHtml(String(block.content ?? ''));
     if (text) {
       result.push({ type: 'paragraph', content: text });

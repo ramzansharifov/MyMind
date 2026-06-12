@@ -10,7 +10,6 @@ export type CollectionName =
   | 'templates'
   | 'study'
   | 'boards'
-  | 'tables'
   | 'projects'
   | 'contacts'
   | 'health'
@@ -30,7 +29,6 @@ export const collectionFiles: Record<CollectionName, string> = {
   templates: 'templates.json',
   study: 'study.json',
   boards: 'boards.json',
-  tables: 'tables.json',
   projects: 'projects.json',
   contacts: 'contacts.json',
   health: 'health.json',
@@ -79,9 +77,6 @@ export function defaultValue(collectionName: CollectionName, dataDirectory: stri
   }
   if (collectionName === 'boards') {
     return { boards: [], folders: [] };
-  }
-  if (collectionName === 'tables') {
-    return { activeTableId: null, folders: [], tables: [] };
   }
   if (collectionName === 'app_settings') {
     return {

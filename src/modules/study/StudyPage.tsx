@@ -14,10 +14,8 @@ import {
   Search,
   Trash2,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import type { BoardsData } from '../boards/types';
-import type { TablesData } from '../tables/types';
-import { createTableItem, normalizeTablesData, upsertTable } from '../tables/tablesUtils';
 import {
   StudyBlockEditor,
   createStudyBlockDocument,
@@ -40,19 +38,17 @@ import '../../styles/modules/study.css';
 interface StudyPageProps {
   data: StudyData;
   boards: BoardsData;
-  tables: TablesData;
   onChange: (data: StudyData) => void;
   onBoardsChange: (data: BoardsData) => void;
-  onTablesChange: (data: TablesData) => void;
   onOpenBoards: (boardId: string) => void;
-  onOpenTable: (tableId: string) => void;
 }
 
 type StudyMode = 'edit' | 'read';
 type SaveMaterialOptions = { source?: 'manual' | 'auto' | 'flush' };
 type StudyTreeMenuState = { nodeId: string; x: number; y: number };
+type StudyTreeDropTarget = { parentId: string | null };
 
-export function StudyPage({ data, onChange, tables, onTablesChange, onOpenTable }: StudyPageProps) {
+export function StudyPage({ data, onChange }: StudyPageProps) {
   const safeData = useMemo(() => normalizeStudyData(data), [data]);
 
   const [mode, setMode] = useState<StudyMode>('edit');
@@ -66,9 +62,10 @@ export function StudyPage({ data, onChange, tables, onTablesChange, onOpenTable 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [treeMenu, setTreeMenu] = useState<StudyTreeMenuState | null>(null);
   const [nodePendingDelete, setNodePendingDelete] = useState<StudyNode | null>(null);
+  const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
+  const [treeDropTarget, setTreeDropTarget] = useState<StudyTreeDropTarget | null>(null);
 
   const activeMaterialRef = useRef<StudyMaterial | null>(null);
-  const tablesRef = useRef<TablesData>(tables);
   const draftContentRef = useRef<StudyBlockDocument>(draftContent);
   const draftPlainTextRef = useRef(draftPlainText);
   const hasUnsavedChangesRef = useRef(false);
@@ -96,10 +93,6 @@ export function StudyPage({ data, onChange, tables, onTablesChange, onOpenTable 
   useEffect(() => {
     activeMaterialRef.current = activeMaterial;
   }, [activeMaterial]);
-
-  useEffect(() => {
-    tablesRef.current = tables;
-  }, [tables]);
 
   useEffect(() => {
     draftContentRef.current = draftContent;
@@ -179,18 +172,7 @@ export function StudyPage({ data, onChange, tables, onTablesChange, onOpenTable 
         if (cancelled) return;
 
         const safeMaterial = material ?? createStudyMaterial(selectedMaterialId, selectedNode?.title ?? 'Новый материал');
-        const migratedContent = migrateLegacyInlineTables(safeMaterial.editorContent, safeMaterial.title);
-
-        if (migratedContent.tables.length > 0) {
-          let nextTables = normalizeTablesData(tablesRef.current);
-          migratedContent.tables.forEach((table) => {
-            nextTables = upsertTable(nextTables, table);
-          });
-          tablesRef.current = nextTables;
-          onTablesChange(nextTables);
-        }
-
-        const blockContent = normalizeStudyBlockDocument(migratedContent.content, safeMaterial.plainText);
+        const blockContent = normalizeStudyBlockDocument(safeMaterial.editorContent, safeMaterial.plainText);
         const plainText = blockContent.plainText;
         let normalizedMaterial: StudyMaterial = {
           ...safeMaterial,
@@ -198,7 +180,7 @@ export function StudyPage({ data, onChange, tables, onTablesChange, onOpenTable 
           plainText,
         };
 
-        if (!material || migratedContent.tables.length > 0) {
+        if (!material) {
           normalizedMaterial = await studyStorageClient.saveMaterial(normalizedMaterial);
 
           if (cancelled) return;
@@ -242,26 +224,6 @@ export function StudyPage({ data, onChange, tables, onTablesChange, onOpenTable 
 
   function updateStudy(next: StudyData) {
     onChange(normalizeStudyData(next));
-  }
-
-  function createLinkedStudyTable() {
-    const baseTitle = activeMaterialRef.current?.title || selectedNode?.title || 'Новая таблица';
-    const table = createTableItem(`${baseTitle} — таблица`);
-    onTablesChange(upsertTable(normalizeTablesData(tables), table));
-
-    return {
-      id: table.id,
-      title: table.title,
-    };
-  }
-
-  async function openLinkedStudyTable(tableId: string) {
-    if (hasUnsavedChangesRef.current) {
-      const saved = await saveMaterial({ source: 'manual' });
-      if (!saved) return;
-    }
-
-    onOpenTable(tableId);
   }
 
   async function flushPendingMaterialSave() {
@@ -448,6 +410,134 @@ export function StudyPage({ data, onChange, tables, onTablesChange, onOpenTable 
     });
   }
 
+  function canMoveNodeToParent(nodeId: string, parentId: string | null) {
+    const node = safeData.nodes.find((item) => item.id === nodeId);
+    if (!node) return false;
+    if (node.parentId === parentId) return false;
+    if (parentId === null) return true;
+    if (node.id === parentId) return false;
+
+    const parent = safeData.nodes.find((item) => item.id === parentId);
+    if (!parent || parent.type !== 'folder') return false;
+
+    if (node.type === 'folder' && collectDescendantIds(safeData.nodes, node.id).has(parentId)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function draggedIdFromEvent(event: ReactDragEvent) {
+    return draggedNodeId || event.dataTransfer.getData('application/x-study-node') || event.dataTransfer.getData('text/plain') || null;
+  }
+
+  async function moveNodeToParent(nodeId: string, parentId: string | null) {
+    if (!canMoveNodeToParent(nodeId, parentId)) return;
+    if (!(await flushPendingMaterialSave())) return;
+
+    const timestamp = nowIso();
+    const order = Date.now();
+
+    updateStudy({
+      ...safeData,
+      nodes: safeData.nodes.map((node) => {
+        if (node.id === nodeId) {
+          return {
+            ...node,
+            parentId,
+            order,
+            updatedAt: timestamp,
+          };
+        }
+
+        if (parentId && node.id === parentId) {
+          return {
+            ...node,
+            isExpanded: true,
+            updatedAt: timestamp,
+          };
+        }
+
+        return node;
+      }),
+    });
+  }
+
+  function handleNodeDragStart(event: ReactDragEvent, node: StudyNode) {
+    event.stopPropagation();
+    setTreeMenu(null);
+    setDraggedNodeId(node.id);
+    setTreeDropTarget(null);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('application/x-study-node', node.id);
+    event.dataTransfer.setData('text/plain', node.id);
+  }
+
+  function handleNodeDragEnd() {
+    setDraggedNodeId(null);
+    setTreeDropTarget(null);
+  }
+
+  function handleFolderDragOver(event: ReactDragEvent, node: StudyNode) {
+    event.stopPropagation();
+
+    const nodeId = draggedIdFromEvent(event);
+    if (node.type !== 'folder' || !nodeId || !canMoveNodeToParent(nodeId, node.id)) {
+      setTreeDropTarget(null);
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    setTreeDropTarget({ parentId: node.id });
+  }
+
+  function handleFolderDragLeave(event: ReactDragEvent, node: StudyNode) {
+    if (!treeDropTarget || treeDropTarget.parentId !== node.id) return;
+    const nextTarget = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+    if (nextTarget && event.currentTarget.contains(nextTarget)) return;
+    setTreeDropTarget(null);
+  }
+
+  function handleFolderDrop(event: ReactDragEvent, node: StudyNode) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const nodeId = draggedIdFromEvent(event);
+    setDraggedNodeId(null);
+    setTreeDropTarget(null);
+
+    if (!nodeId || node.type !== 'folder') return;
+    void moveNodeToParent(nodeId, node.id);
+  }
+
+  function handleRootDragOver(event: ReactDragEvent) {
+    const nodeId = draggedIdFromEvent(event);
+    if (!nodeId || !canMoveNodeToParent(nodeId, null)) return;
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    setTreeDropTarget({ parentId: null });
+  }
+
+  function handleRootDrop(event: ReactDragEvent) {
+    event.preventDefault();
+
+    const nodeId = draggedIdFromEvent(event);
+    setDraggedNodeId(null);
+    setTreeDropTarget(null);
+
+    if (!nodeId) return;
+    void moveNodeToParent(nodeId, null);
+  }
+
+  function handleRootDragLeave(event: ReactDragEvent) {
+    if (!treeDropTarget || treeDropTarget.parentId !== null) return;
+    const nextTarget = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+    if (nextTarget && event.currentTarget.contains(nextTarget)) return;
+    setTreeDropTarget(null);
+  }
+
   function openTreeMenu(event: ReactMouseEvent, node: StudyNode) {
     event.preventDefault();
     event.stopPropagation();
@@ -568,6 +658,17 @@ export function StudyPage({ data, onChange, tables, onTablesChange, onOpenTable 
         </div>
 
         <div className="study-tree">
+          {draggedNodeId ? (
+            <div
+              className={`study-tree-root-drop ${treeDropTarget?.parentId === null ? 'active' : ''}`}
+              onDragOver={handleRootDragOver}
+              onDragLeave={handleRootDragLeave}
+              onDrop={handleRootDrop}
+            >
+              Перенести в корень
+            </div>
+          ) : null}
+
           {rootNodes.length === 0 ? (
             <div className="study-empty-tree">{isSearchActive ? 'Ничего не найдено.' : 'Создай папку или материал.'}</div>
           ) : (
@@ -580,6 +681,13 @@ export function StudyPage({ data, onChange, tables, onTablesChange, onOpenTable 
                 onSelect={selectNode}
                 onToggle={toggleFolder}
                 onContextMenu={openTreeMenu}
+                onDragStart={handleNodeDragStart}
+                onDragEnd={handleNodeDragEnd}
+                onDragOverFolder={handleFolderDragOver}
+                onDragLeaveFolder={handleFolderDragLeave}
+                onDropOnFolder={handleFolderDrop}
+                draggedNodeId={draggedNodeId}
+                dropTargetParentId={treeDropTarget?.parentId ?? undefined}
                 forceExpanded={isSearchActive}
               />
             ))
@@ -670,18 +778,17 @@ export function StudyPage({ data, onChange, tables, onTablesChange, onOpenTable 
                     value={draftContent}
                     mode="edit"
                     onChange={handleEditorChange}
-                    onCreateTable={createLinkedStudyTable}
-                    onOpenTable={(tableId) => void openLinkedStudyTable(tableId)}
+                    sidebarFooter={
+                      <div className="study-editor-footer">
+                        <span>{draftPlainText.trim().length} символов</span>
+
+                        <button className="button primary" type="button" onClick={() => void saveMaterial()} disabled={isSaving}>
+                          <Save size={18} />
+                          {isSaving ? 'Сохранение...' : 'Сохранить'}
+                        </button>
+                      </div>
+                    }
                   />
-
-                  <div className="study-editor-footer">
-                    <span>{draftPlainText.trim().length} символов</span>
-
-                    <button className="button primary" type="button" onClick={() => void saveMaterial()} disabled={isSaving}>
-                      <Save size={18} />
-                      {isSaving ? 'Сохранение...' : 'Сохранить'}
-                    </button>
-                  </div>
                 </>
               ) : (
                 <article className="study-read-panel">
@@ -689,7 +796,6 @@ export function StudyPage({ data, onChange, tables, onTablesChange, onOpenTable 
                     value={draftContent}
                     mode="read"
                     onChange={handleEditorChange}
-                    onOpenTable={(tableId) => void openLinkedStudyTable(tableId)}
                   />
                 </article>
               )}
@@ -781,6 +887,13 @@ function StudyTreeNode({
   onSelect,
   onToggle,
   onContextMenu,
+  onDragStart,
+  onDragEnd,
+  onDragOverFolder,
+  onDragLeaveFolder,
+  onDropOnFolder,
+  draggedNodeId,
+  dropTargetParentId,
   forceExpanded,
 }: {
   node: StudyNode;
@@ -789,16 +902,34 @@ function StudyTreeNode({
   onSelect: (node: StudyNode) => void | Promise<void>;
   onToggle: (nodeId: string) => void;
   onContextMenu: (event: ReactMouseEvent, node: StudyNode) => void;
+  onDragStart: (event: ReactDragEvent, node: StudyNode) => void;
+  onDragEnd: () => void;
+  onDragOverFolder: (event: ReactDragEvent, node: StudyNode) => void;
+  onDragLeaveFolder: (event: ReactDragEvent, node: StudyNode) => void;
+  onDropOnFolder: (event: ReactDragEvent, node: StudyNode) => void;
+  draggedNodeId: string | null;
+  dropTargetParentId: string | null | undefined;
   forceExpanded: boolean;
 }) {
   const children = nodes.filter((item) => item.parentId === node.id).sort((a, b) => a.order - b.order);
   const isFolder = node.type === 'folder';
   const isExpanded = forceExpanded || node.isExpanded !== false;
   const isActive = selectedNodeId === node.id;
+  const isDragging = draggedNodeId === node.id;
+  const isDropTarget = isFolder && dropTargetParentId === node.id;
 
   return (
     <div className="study-tree-node">
-      <div className={`study-tree-item ${isActive ? 'active' : ''}`} onContextMenu={(event) => onContextMenu(event, node)}>
+      <div
+        className={`study-tree-item ${isActive ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isDropTarget ? 'drop-target' : ''}`}
+        draggable
+        onContextMenu={(event) => onContextMenu(event, node)}
+        onDragStart={(event) => onDragStart(event, node)}
+        onDragEnd={onDragEnd}
+        onDragOver={(event) => onDragOverFolder(event, node)}
+        onDragLeave={(event) => onDragLeaveFolder(event, node)}
+        onDrop={(event) => onDropOnFolder(event, node)}
+      >
         {isFolder ? (
           <button
             className="study-tree-toggle"
@@ -833,6 +964,13 @@ function StudyTreeNode({
               onSelect={onSelect}
               onToggle={onToggle}
               onContextMenu={onContextMenu}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onDragOverFolder={onDragOverFolder}
+              onDragLeaveFolder={onDragLeaveFolder}
+              onDropOnFolder={onDropOnFolder}
+              draggedNodeId={draggedNodeId}
+              dropTargetParentId={dropTargetParentId}
               forceExpanded={forceExpanded}
             />
           ))}
@@ -840,61 +978,6 @@ function StudyTreeNode({
       ) : null}
     </div>
   );
-}
-
-function migrateLegacyInlineTables(content: unknown, materialTitle: string) {
-  const sourceDocument = content as { blocks?: unknown[] } | null;
-  const sourceBlocks = Array.isArray(content) ? content : Array.isArray(sourceDocument?.blocks) ? sourceDocument.blocks : null;
-
-  if (!sourceBlocks) {
-    return {
-      content,
-      tables: [],
-    };
-  }
-
-  let tableNumber = 1;
-  const tables: ReturnType<typeof createTableItem>[] = [];
-  const blocks = sourceBlocks.map((block) => {
-    const sourceBlock = block as { id?: unknown; type?: unknown; table?: unknown; tableId?: unknown; title?: unknown } | null;
-
-    if (
-      !sourceBlock ||
-      sourceBlock.type !== 'table' ||
-      !sourceBlock.table ||
-      (typeof sourceBlock.tableId === 'string' && sourceBlock.tableId.trim())
-    ) {
-      return block;
-    }
-
-    const title =
-      typeof sourceBlock.title === 'string' && sourceBlock.title.trim()
-        ? sourceBlock.title.trim()
-        : `${materialTitle || 'Материал'} — таблица ${tableNumber}`;
-    tableNumber += 1;
-
-    const table = createTableItem(title, undefined, sourceBlock.table);
-    tables.push(table);
-
-    return {
-      id: typeof sourceBlock.id === 'string' ? sourceBlock.id : undefined,
-      type: 'table',
-      tableId: table.id,
-      title: table.title,
-    };
-  });
-
-  if (tables.length === 0) {
-    return {
-      content,
-      tables,
-    };
-  }
-
-  return {
-    content: Array.isArray(content) ? blocks : { ...(content as object), blocks },
-    tables,
-  };
 }
 
 function getStudyNodePath(nodes: StudyNode[], selectedNode: StudyNode | null) {

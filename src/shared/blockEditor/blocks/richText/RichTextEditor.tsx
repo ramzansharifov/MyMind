@@ -411,7 +411,8 @@ export function RichTextEditor({
   }
 
   const toolbar = (
-      <div className="rich-text-toolbar" aria-label="Панель форматирования текста">
+    <div className="rich-text-toolbar" aria-label="Панель форматирования текста">
+      <ToolbarGroup title="Начертание">
         <ToolbarButton label="Жирный" active={selectionState.bold} onClick={() => runCommand("bold")}>
           <Bold size={16} />
         </ToolbarButton>
@@ -431,7 +432,9 @@ export function RichTextEditor({
         <ToolbarButton label="Моноширный" active={selectionState.code} onClick={() => runCommand("code")}>
           <Code2 size={16} />
         </ToolbarButton>
+      </ToolbarGroup>
 
+      <ToolbarGroup title="Ссылка">
         <ToolbarButton label="Ссылка" active={selectionState.link || linkEditorOpen} onClick={openLinkEditor}>
           <Link size={16} />
         </ToolbarButton>
@@ -466,9 +469,9 @@ export function RichTextEditor({
             </ToolbarButton>
           </div>
         ) : null}
+      </ToolbarGroup>
 
-        <span className="rich-text-toolbar-divider" />
-
+      <ToolbarGroup title="Цвет и размер">
         <label className="rich-text-color-control" title="Цвет текста">
           <Palette size={15} />
           <input
@@ -498,9 +501,9 @@ export function RichTextEditor({
             ))}
           </select>
         </label>
+      </ToolbarGroup>
 
-        <span className="rich-text-toolbar-divider" />
-
+      <ToolbarGroup title="Списки">
         <ToolbarButton label="Маркированный список" active={selectionState.unorderedList} onClick={() => runCommand("unorderedList")}>
           <List size={16} />
         </ToolbarButton>
@@ -516,9 +519,9 @@ export function RichTextEditor({
         <ToolbarButton label="Увеличить вложенность" onClick={() => runCommand("indent")}>
           <Indent size={16} />
         </ToolbarButton>
+      </ToolbarGroup>
 
-        <span className="rich-text-toolbar-divider" />
-
+      <ToolbarGroup title="Выравнивание">
         <ToolbarButton label="По левому краю" active={selectionState.align === "left"} onClick={() => runCommand("alignLeft")}>
           <AlignLeft size={16} />
         </ToolbarButton>
@@ -530,7 +533,8 @@ export function RichTextEditor({
         <ToolbarButton label="По правому краю" active={selectionState.align === "right"} onClick={() => runCommand("alignRight")}>
           <AlignRight size={16} />
         </ToolbarButton>
-      </div>
+      </ToolbarGroup>
+    </div>
   );
 
   return (
@@ -576,6 +580,15 @@ export function RichTextViewer({ value, fallback = "Материал пока п
   }
 
   return <div className="rich-text-viewer" dangerouslySetInnerHTML={{ __html: safeHtml }} />;
+}
+
+function ToolbarGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="rich-text-toolbar-group">
+      <span className="rich-text-toolbar-group-title">{title}</span>
+      <div className="rich-text-toolbar-group-controls">{children}</div>
+    </div>
+  );
 }
 
 function ToolbarButton({

@@ -1523,7 +1523,6 @@ function studyEditorContentToPlainText(content: unknown): string {
         const source = block as {
           type?: unknown;
           content?: unknown;
-          table?: { rows?: Array<{ cells?: Array<{ content?: unknown }> }> };
         };
 
         if (source.type === "text") {
@@ -1534,20 +1533,6 @@ function studyEditorContentToPlainText(content: unknown): string {
           return typeof (source as { text?: unknown }).text === "string"
             ? ((source as { text: string }).text.trim())
             : "";
-        }
-
-        if (source.type === "table") {
-          return (
-            source.table?.rows
-              ?.map((row) =>
-                row.cells
-                  ?.map((cell) => studyEditorContentToPlainText(cell.content))
-                  .filter(Boolean)
-                  .join(" | "),
-              )
-              .filter(Boolean)
-              .join("\n") ?? ""
-          );
         }
 
         if (source.type === "markdown" || source.type === "latex" || source.type === "code") {

@@ -2,18 +2,16 @@ import {
   ArrowDown,
   ArrowUp,
   Code2,
-  ExternalLink,
   Eye,
   Plus,
   GripVertical,
   Heading,
   Sigma,
-  Table2,
   Trash2,
   Type,
   type LucideIcon,
 } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { CodeBlockEditor, CODE_LANGUAGE_OPTIONS } from "../blocks/code/CodeBlockEditor";
 import { HeadingBlockEditor } from "../blocks/heading/HeadingBlockEditor";
@@ -26,27 +24,19 @@ import {
   createStudyHeadingBlock,
   createStudyLatexBlock,
   createStudyMarkdownBlock,
-  createStudyTableBlock,
   createStudyTextBlock,
   normalizeStudyBlockDocument,
   type StudyBlockDocument,
   type StudyContentBlock,
   type StudyHeadingLevel,
-  type StudyTableBlock,
 } from "../core/blockCore";
 import { StudyReadTree } from "./readMode";
-
-export interface StudyExternalTableLink {
-  id: string;
-  title: string;
-}
 
 interface StudyBlockEditorProps {
   value: unknown;
   mode: "edit" | "read";
   onChange: (document: StudyBlockDocument, plainText: string) => void;
-  onCreateTable?: () => StudyExternalTableLink | Promise<StudyExternalTableLink>;
-  onOpenTable?: (tableId: string) => void | Promise<void>;
+  sidebarFooter?: ReactNode;
 }
 
 const HEADING_LEVEL_OPTIONS = [1, 2, 3, 4, 5] as const;
@@ -54,13 +44,12 @@ const END_INSERT_SLOT_ID = "__study-block-end__";
 const BLOCK_INSERT_OPTIONS: Array<{ type: StudyContentBlock["type"]; label: string; icon: LucideIcon }> = [
   { type: "text", label: "Текст", icon: Type },
   { type: "heading", label: "Заголовок", icon: Heading },
-  { type: "table", label: "Таблица", icon: Table2 },
   { type: "markdown", label: "Markdown", icon: Code2 },
   { type: "latex", label: "LaTeX", icon: Sigma },
   { type: "code", label: "Code", icon: Code2 },
 ];
 
-export function StudyBlockEditor({ value, mode, onChange, onCreateTable, onOpenTable }: StudyBlockEditorProps) {
+export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: StudyBlockEditorProps) {
   const document = useMemo(() => normalizeStudyBlockDocument(value), [value]);
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const [activeTextEditorId, setActiveTextEditorId] = useState<string | null>(null);
@@ -70,6 +59,7 @@ export function StudyBlockEditor({ value, mode, onChange, onCreateTable, onOpenT
   const [blockPendingDelete, setBlockPendingDelete] = useState<StudyContentBlock | null>(null);
   const [textToolbarTarget, setTextToolbarTarget] = useState<HTMLDivElement | null>(null);
   const activeBlock = document.blocks.find((block) => block.id === activeBlockId) ?? null;
+  const ActiveBlockIcon = activeBlock ? blockTypeIcon(activeBlock.type) : Type;
 
   function emitBlocks(blocks: StudyContentBlock[]) {
     const nextDocument = createStudyBlockDocument(blocks);
@@ -90,18 +80,9 @@ export function StudyBlockEditor({ value, mode, onChange, onCreateTable, onOpenT
     setActiveTextEditorId(type === "text" ? `text:${block.id}` : null);
     setInsertSlotAfterId(null);
     setInsertMenuAfterId(null);
-
-    if (block.type === "table" && block.tableId) {
-      void onOpenTable?.(block.tableId);
-    }
   }
 
   async function createBlock(type: StudyContentBlock["type"]): Promise<StudyContentBlock> {
-    if (type === "table") {
-      const table = await onCreateTable?.();
-      return createStudyTableBlock(table?.title ?? "Новая таблица", table?.id ?? null);
-    }
-
     if (type === "heading") return createStudyHeadingBlock();
     if (type === "markdown") return createStudyMarkdownBlock();
     if (type === "latex") return createStudyLatexBlock();
@@ -143,267 +124,272 @@ export function StudyBlockEditor({ value, mode, onChange, onCreateTable, onOpenT
   }
 
   if (mode === "read") {
-    return <StudyReadTree blocks={document.blocks} onOpenTable={onOpenTable} />;
+    return <StudyReadTree blocks={document.blocks} />;
   }
 
   return (
     <div className="study-block-editor">
-      <div className="study-block-sticky-header">
-        <div className="study-block-header-row">
-          <div className="study-block-header-group study-block-header-toolbar-group">
-            <span className="study-block-header-label">Текст</span>
-            <div className="study-block-toolbar-slot" ref={setTextToolbarTarget}>
-              {!activeTextEditorId ? <span className="muted-text">Выбери текстовый блок</span> : null}
-            </div>
+      <div className="study-block-editor-layout">
+        <div className="study-block-main">
+          <div className="study-block-list">
+            {document.blocks.map((block, index) => (
+              <Fragment key={block.id}>
+                <section
+                  className={`study-content-block ${activeBlockId === block.id ? "active" : ""}`}
+                  onMouseDown={() => {
+                    setActiveBlockId(block.id);
+                    setInsertSlotAfterId(null);
+                    setInsertMenuAfterId(null);
+                    if (block.type !== "text") {
+                      setActiveTextEditorId(null);
+                    }
+                  }}
+                >
+                  <div className="study-block-controls">
+                    <GripVertical size={16} />
+                    <span>{blockTypeLabel(block.type)}</span>
+                    {isPreviewableBlock(block.type) ? (
+                      <button
+                        className={`icon-button ${previewBlockIds[block.id] ? "active" : ""}`}
+                        type="button"
+                        onClick={() => toggleBlockPreview(block.id)}
+                        aria-label="Предпросмотр блока"
+                        title="Предпросмотр"
+                      >
+                        <Eye size={16} />
+                      </button>
+                    ) : null}
+                    <button
+                      className="icon-button"
+                      type="button"
+                      onClick={() => moveBlock(block.id, -1)}
+                      disabled={index === 0}
+                      aria-label="Переместить блок вверх"
+                    >
+                      <ArrowUp size={16} />
+                    </button>
+                    <button
+                      className="icon-button"
+                      type="button"
+                      onClick={() => moveBlock(block.id, 1)}
+                      disabled={index === document.blocks.length - 1}
+                      aria-label="Переместить блок вниз"
+                    >
+                      <ArrowDown size={16} />
+                    </button>
+                  <button
+                    className="icon-button danger"
+                    type="button"
+                    onClick={() => setBlockPendingDelete(block)}
+                    aria-label="Удалить блок"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+
+                  {block.type === "heading" ? (
+                    <HeadingBlockEditor
+                      block={block}
+                      onChange={(text) =>
+                        updateBlock(block.id, (current) =>
+                          current.type === "heading"
+                            ? {
+                                ...current,
+                                text,
+                              }
+                            : current,
+                        )
+                      }
+                    />
+                  ) : block.type === "text" ? (
+                    <RichTextEditor
+                      value={block.content}
+                      showToolbar={activeTextEditorId === `text:${block.id}` && Boolean(textToolbarTarget)}
+                      toolbarTarget={textToolbarTarget}
+                      onEditorFocus={() => {
+                        setActiveBlockId(block.id);
+                        setActiveTextEditorId(`text:${block.id}`);
+                      }}
+                      onChange={(html, plainText) =>
+                        updateBlock(block.id, (current) =>
+                          current.type === "text"
+                            ? {
+                                ...current,
+                                content: createRichTextDocument(html, plainText),
+                              }
+                            : current,
+                        )
+                      }
+                    />
+                  ) : block.type === "markdown" ? (
+                    <MarkupBlockEditor
+                      label="Markdown"
+                      value={block.source}
+                      placeholder="# Заголовок&#10;&#10;- пункт списка&#10;- **важный** текст"
+                      preview={<MarkdownPreview source={block.source} />}
+                      previewMode={Boolean(previewBlockIds[block.id])}
+                      onChange={(source) =>
+                        updateBlock(block.id, (current) =>
+                          current.type === "markdown"
+                            ? {
+                                ...current,
+                                source,
+                              }
+                            : current,
+                        )
+                      }
+                    />
+                  ) : block.type === "latex" ? (
+                    <MarkupBlockEditor
+                      label="LaTeX"
+                      value={block.source}
+                      placeholder="E = mc^2"
+                      preview={<LatexPreview source={block.source} displayMode={block.displayMode} />}
+                      previewMode={Boolean(previewBlockIds[block.id])}
+                      onChange={(source) =>
+                        updateBlock(block.id, (current) =>
+                          current.type === "latex"
+                            ? {
+                                ...current,
+                                source,
+                              }
+                            : current,
+                        )
+                      }
+                    />
+                  ) : (
+                    <CodeBlockEditor
+                      block={block}
+                      previewMode={Boolean(previewBlockIds[block.id])}
+                      onChangeSource={(source) =>
+                        updateBlock(block.id, (current) =>
+                          current.type === "code"
+                            ? {
+                                ...current,
+                                source,
+                              }
+                            : current,
+                        )
+                      }
+                    />
+                  )}
+                </section>
+
+                {index < document.blocks.length - 1 ? (
+                  <BlockInsertDivider
+                    isActive={insertSlotAfterId === block.id || insertMenuAfterId === block.id}
+                    isOpen={insertMenuAfterId === block.id}
+                    onActivate={() => {
+                      setInsertSlotAfterId(block.id);
+                      setInsertMenuAfterId(null);
+                    }}
+                    onToggle={() => {
+                      setInsertSlotAfterId(block.id);
+                      setInsertMenuAfterId((current) => (current === block.id ? null : block.id));
+                    }}
+                    onPick={(type) => void addBlock(type, block.id)}
+                  />
+                ) : null}
+              </Fragment>
+            ))}
           </div>
-          {activeBlock?.type === "heading" ? (
-            <div className="study-block-header-group study-heading-toolbar-group">
-              <span className="study-block-header-label">Заголовок</span>
-              <label className="study-top-heading-setting">
-                <span>Уровень</span>
-                <select
-                  value={activeBlock.level}
-                  onChange={(event) =>
-                    updateBlock(activeBlock.id, (current) =>
-                      current.type === "heading"
-                        ? {
-                            ...current,
-                            level: Number(event.target.value) as StudyHeadingLevel,
-                          }
-                        : current,
-                    )
-                  }
-                >
-                  {HEADING_LEVEL_OPTIONS.map((level) => (
-                    <option value={level} key={level}>
-                      H{level}
-                    </option>
-                  ))}
-                </select>
-              </label>
+
+          <BlockInsertDivider
+            isActive={insertSlotAfterId === END_INSERT_SLOT_ID || insertMenuAfterId === END_INSERT_SLOT_ID}
+            isOpen={insertMenuAfterId === END_INSERT_SLOT_ID}
+            onActivate={() => {
+              setInsertSlotAfterId(END_INSERT_SLOT_ID);
+              setInsertMenuAfterId(null);
+            }}
+            onToggle={() => {
+              setInsertSlotAfterId(END_INSERT_SLOT_ID);
+              setInsertMenuAfterId((current) => (current === END_INSERT_SLOT_ID ? null : END_INSERT_SLOT_ID));
+            }}
+            onPick={(type) => void addBlock(type)}
+          />
+        </div>
+
+        <div className="study-block-side">
+          <aside className="study-block-settings-sidebar" aria-label="Настройки активного блока">
+            <div className="study-block-settings-head">
+              <strong>Настройки</strong>
             </div>
-          ) : null}
-          {activeBlock?.type === "code" ? (
-            <div className="study-block-header-group study-code-toolbar-group">
-              <span className="study-block-header-label">Код</span>
-              <label className="study-top-code-setting">
-                <span>Язык</span>
-                <select
-                  value={activeBlock.language || "auto"}
-                  onChange={(event) =>
-                    updateBlock(activeBlock.id, (current) =>
-                      current.type === "code"
-                        ? {
-                            ...current,
-                            language: event.target.value,
-                          }
-                        : current,
-                    )
-                  }
-                >
-                  {CODE_LANGUAGE_OPTIONS.map((option) => (
-                    <option value={option.value} key={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+
+            <div className="study-block-settings-section study-block-settings-type">
+              <span className="study-block-settings-title">Тип</span>
+              <div className="study-block-type-chip">
+                <ActiveBlockIcon size={16} />
+                <span>{activeBlock ? blockTypeLabel(activeBlock.type) : "Блок не выбран"}</span>
+              </div>
             </div>
-          ) : null}
+
+            <div className="study-block-settings-section study-block-settings-text">
+              <span className="study-block-settings-title">Форматирование</span>
+              <div className="study-block-toolbar-slot" ref={setTextToolbarTarget}>
+                {!activeTextEditorId ? <span className="muted-text">Выбери текстовый блок</span> : null}
+              </div>
+            </div>
+
+            {activeBlock?.type === "heading" || activeBlock?.type === "code" ? (
+              <div className="study-block-settings-section study-block-settings-markup">
+                <span className="study-block-settings-title">Разметка</span>
+
+                {activeBlock.type === "heading" ? (
+                  <label className="study-top-heading-setting">
+                    <span>Уровень</span>
+                    <select
+                      value={activeBlock.level}
+                      onChange={(event) =>
+                        updateBlock(activeBlock.id, (current) =>
+                          current.type === "heading"
+                            ? {
+                                ...current,
+                                level: Number(event.target.value) as StudyHeadingLevel,
+                              }
+                            : current,
+                        )
+                      }
+                    >
+                      {HEADING_LEVEL_OPTIONS.map((level) => (
+                        <option value={level} key={level}>
+                          H{level}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+
+                {activeBlock.type === "code" ? (
+                  <label className="study-top-code-setting">
+                    <span>Язык</span>
+                    <select
+                      value={activeBlock.language || "auto"}
+                      onChange={(event) =>
+                        updateBlock(activeBlock.id, (current) =>
+                          current.type === "code"
+                            ? {
+                                ...current,
+                                language: event.target.value,
+                              }
+                            : current,
+                        )
+                      }
+                    >
+                      {CODE_LANGUAGE_OPTIONS.map((option) => (
+                        <option value={option.value} key={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
+          </aside>
+
+          {sidebarFooter ? <div className="study-block-side-footer">{sidebarFooter}</div> : null}
         </div>
       </div>
-
-      <div className="study-block-list">
-        {document.blocks.map((block, index) => (
-          <Fragment key={block.id}>
-            <section
-              className={`study-content-block ${activeBlockId === block.id ? "active" : ""}`}
-              onMouseDown={() => {
-                setActiveBlockId(block.id);
-                setInsertSlotAfterId(null);
-                setInsertMenuAfterId(null);
-                if (block.type !== "text") {
-                  setActiveTextEditorId(null);
-                }
-              }}
-            >
-              <div className="study-block-controls">
-                <GripVertical size={16} />
-                <span>{blockTypeLabel(block.type)}</span>
-                {isPreviewableBlock(block.type) ? (
-                  <button
-                    className={`icon-button ${previewBlockIds[block.id] ? "active" : ""}`}
-                    type="button"
-                    onClick={() => toggleBlockPreview(block.id)}
-                    aria-label="Предпросмотр блока"
-                    title="Предпросмотр"
-                  >
-                    <Eye size={16} />
-                  </button>
-                ) : null}
-                <button
-                  className="icon-button"
-                  type="button"
-                  onClick={() => moveBlock(block.id, -1)}
-                  disabled={index === 0}
-                  aria-label="Переместить блок вверх"
-                >
-                  <ArrowUp size={16} />
-                </button>
-                <button
-                  className="icon-button"
-                  type="button"
-                  onClick={() => moveBlock(block.id, 1)}
-                  disabled={index === document.blocks.length - 1}
-                  aria-label="Переместить блок вниз"
-                >
-                  <ArrowDown size={16} />
-                </button>
-                <button
-                  className="icon-button danger"
-                  type="button"
-                  onClick={() => setBlockPendingDelete(block)}
-                  aria-label="Удалить блок"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-
-              {block.type === "heading" ? (
-                <HeadingBlockEditor
-                  block={block}
-                  onChange={(text) =>
-                    updateBlock(block.id, (current) =>
-                      current.type === "heading"
-                        ? {
-                            ...current,
-                            text,
-                          }
-                        : current,
-                    )
-                  }
-                />
-              ) : block.type === "text" ? (
-                <RichTextEditor
-                  value={block.content}
-                  showToolbar={activeTextEditorId === `text:${block.id}` && Boolean(textToolbarTarget)}
-                  toolbarTarget={textToolbarTarget}
-                  onEditorFocus={() => {
-                    setActiveBlockId(block.id);
-                    setActiveTextEditorId(`text:${block.id}`);
-                  }}
-                  onChange={(html, plainText) =>
-                    updateBlock(block.id, (current) =>
-                      current.type === "text"
-                        ? {
-                            ...current,
-                            content: createRichTextDocument(html, plainText),
-                          }
-                        : current,
-                    )
-                  }
-                />
-              ) : block.type === "table" ? (
-                <StudyTableLinkBlock
-                  block={block}
-                  onOpenTable={onOpenTable}
-                  onChangeTitle={(title) =>
-                    updateBlock(block.id, (current) =>
-                      current.type === "table"
-                        ? {
-                            ...current,
-                            title,
-                          }
-                        : current,
-                    )
-                  }
-                />
-              ) : block.type === "markdown" ? (
-                <MarkupBlockEditor
-                  label="Markdown"
-                  value={block.source}
-                  placeholder="# Заголовок&#10;&#10;- пункт списка&#10;- **важный** текст"
-                  preview={<MarkdownPreview source={block.source} />}
-                  previewMode={Boolean(previewBlockIds[block.id])}
-                  onChange={(source) =>
-                    updateBlock(block.id, (current) =>
-                      current.type === "markdown"
-                        ? {
-                            ...current,
-                            source,
-                          }
-                        : current,
-                    )
-                  }
-                />
-              ) : block.type === "latex" ? (
-                <MarkupBlockEditor
-                  label="LaTeX"
-                  value={block.source}
-                  placeholder="E = mc^2"
-                  preview={<LatexPreview source={block.source} displayMode={block.displayMode} />}
-                  previewMode={Boolean(previewBlockIds[block.id])}
-                  onChange={(source) =>
-                    updateBlock(block.id, (current) =>
-                      current.type === "latex"
-                        ? {
-                            ...current,
-                            source,
-                          }
-                        : current,
-                    )
-                  }
-                />
-              ) : (
-                <CodeBlockEditor
-                  block={block}
-                  previewMode={Boolean(previewBlockIds[block.id])}
-                  onChangeSource={(source) =>
-                    updateBlock(block.id, (current) =>
-                      current.type === "code"
-                        ? {
-                            ...current,
-                            source,
-                          }
-                        : current,
-                    )
-                  }
-                />
-              )}
-            </section>
-
-            {index < document.blocks.length - 1 ? (
-              <BlockInsertDivider
-                isActive={insertSlotAfterId === block.id || insertMenuAfterId === block.id}
-                isOpen={insertMenuAfterId === block.id}
-                onActivate={() => {
-                  setInsertSlotAfterId(block.id);
-                  setInsertMenuAfterId(null);
-                }}
-                onToggle={() => {
-                  setInsertSlotAfterId(block.id);
-                  setInsertMenuAfterId((current) => (current === block.id ? null : block.id));
-                }}
-                onPick={(type) => void addBlock(type, block.id)}
-              />
-            ) : null}
-          </Fragment>
-        ))}
-      </div>
-
-      <BlockInsertDivider
-        isActive={insertSlotAfterId === END_INSERT_SLOT_ID || insertMenuAfterId === END_INSERT_SLOT_ID}
-        isOpen={insertMenuAfterId === END_INSERT_SLOT_ID}
-        onActivate={() => {
-          setInsertSlotAfterId(END_INSERT_SLOT_ID);
-          setInsertMenuAfterId(null);
-        }}
-        onToggle={() => {
-          setInsertSlotAfterId(END_INSERT_SLOT_ID);
-          setInsertMenuAfterId((current) => (current === END_INSERT_SLOT_ID ? null : END_INSERT_SLOT_ID));
-        }}
-        onPick={(type) => void addBlock(type)}
-      />
 
       {blockPendingDelete ? (
         <ConfirmDialog
@@ -489,46 +475,18 @@ function BlockTypeButtons({
   );
 }
 
-function StudyTableLinkBlock({
-  block,
-  onOpenTable,
-  onChangeTitle,
-}: {
-  block: StudyTableBlock;
-  onOpenTable?: (tableId: string) => void | Promise<void>;
-  onChangeTitle: (title: string) => void;
-}) {
-  return (
-    <div className="study-table-link-card">
-      <span className="study-table-link-icon">
-        <Table2 size={20} />
-      </span>
-      <label className="study-table-link-title">
-        <span>Ссылка на таблицу</span>
-        <input value={block.title} onChange={(event) => onChangeTitle(event.target.value)} placeholder="Название таблицы" />
-      </label>
-      <button
-        className="button ghost"
-        type="button"
-        disabled={!block.tableId || !onOpenTable}
-        onClick={() => block.tableId && void onOpenTable?.(block.tableId)}
-      >
-        <ExternalLink size={16} />
-        Открыть
-      </button>
-    </div>
-  );
-}
-
 function isPreviewableBlock(type: StudyContentBlock["type"]) {
   return type === "markdown" || type === "latex" || type === "code";
 }
 
 function blockTypeLabel(type: StudyContentBlock["type"]) {
   if (type === "heading") return "Заголовок";
-  if (type === "table") return "Таблица";
   if (type === "markdown") return "Markdown";
   if (type === "latex") return "LaTeX";
   if (type === "code") return "Code";
   return "Текст";
+}
+
+function blockTypeIcon(type: StudyContentBlock["type"]) {
+  return BLOCK_INSERT_OPTIONS.find((option) => option.type === type)?.icon ?? Type;
 }

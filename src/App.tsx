@@ -9,7 +9,6 @@ import { moduleCollections } from './shared/app/appData';
 import { useAppData } from './shared/app/useAppData';
 import { useAppReminders, type AppReminder } from './shared/app/useAppReminders';
 import { normalizeBoardsData } from './modules/boards/boardsUtils';
-import { normalizeTablesData } from './modules/tables/tablesUtils';
 
 const DashboardPage = lazy(() => import('./modules/dashboard/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const MoviesPage = lazy(() => import('./modules/movies/MoviesPage').then((module) => ({ default: module.MoviesPage })));
@@ -23,7 +22,6 @@ const NotesPage = lazy(() => import('./modules/notes/NotesPage').then((module) =
 const TemplatesPage = lazy(() => import('./modules/templates/TemplatesPage').then((module) => ({ default: module.TemplatesPage })));
 const StudyPage = lazy(() => import('./modules/study/StudyPage').then((module) => ({ default: module.StudyPage })));
 const BoardsPage = lazy(() => import('./modules/boards/BoardsPage').then((module) => ({ default: module.BoardsPage })));
-const TablesPage = lazy(() => import('./modules/tables/TablesPage').then((module) => ({ default: module.TablesPage })));
 const SettingsPage = lazy(() => import('./modules/settings/SettingsPage').then((module) => ({ default: module.SettingsPage })));
 const ProjectsPage = lazy(() => import('./modules/projects/ProjectsPage').then((module) => ({ default: module.ProjectsPage })));
 const ContactsPage = lazy(() => import('./modules/contacts/ContactsPage').then((module) => ({ default: module.ContactsPage })));
@@ -199,10 +197,8 @@ export function App() {
           <StudyPage
             data={data.study}
             boards={data.boards}
-            tables={data.tables}
             onChange={(study) => setData((current) => ({ ...current, study }))}
             onBoardsChange={(boards) => setData((current) => ({ ...current, boards }))}
-            onTablesChange={(tables) => setData((current) => ({ ...current, tables }))}
             onOpenBoards={(boardId) => {
               setData((current) => ({
                 ...current,
@@ -210,19 +206,10 @@ export function App() {
               }));
               requestNavigate('boards');
             }}
-            onOpenTable={(tableId) => {
-              setData((current) => ({
-                ...current,
-                tables: normalizeTablesData({ ...current.tables, activeTableId: tableId }),
-              }));
-              requestNavigate('tables');
-            }}
           />
         );
       case 'boards':
         return <BoardsPage data={data.boards} onChange={(boards) => setData((current) => ({ ...current, boards }))} />;
-      case 'tables':
-        return <TablesPage data={data.tables} onChange={(tables) => setData((current) => ({ ...current, tables }))} />;
       case 'projects':
         return <ProjectsPage projects={data.projects} onChange={(projects) => setData((current) => ({ ...current, projects }))} />;
       case 'contacts':

@@ -1,6 +1,5 @@
 import type { AppData } from '../app/appData';
 import { emptyBoardsData } from '../../modules/boards/boardsUtils';
-import { emptyTablesData } from '../../modules/tables/tablesUtils';
 import { createId } from "../utils/idGenerator";
 
 function now() {
@@ -38,7 +37,6 @@ export function isAppDataEmpty(data: AppData) {
     data.study.nodes.length === 0 &&
     data.boards.boards.length === 0 &&
     data.boards.folders.length === 0 &&
-    data.tables.tables.length === 0 &&
     data.projects.length === 0 &&
     data.contacts.items.length === 0 &&
     data.health.entries.length === 0 &&
@@ -891,7 +889,6 @@ export function createDemoData(): AppData {
       nodes: [],
     },
     boards: emptyBoardsData,
-    tables: emptyTablesData,
     projects: [
       {
         id: createId("project"),

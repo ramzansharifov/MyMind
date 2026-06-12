@@ -5,19 +5,12 @@ import {
 } from "../blocks/richText/richTextCore";
 
 export type StudyHeadingLevel = 1 | 2 | 3 | 4 | 5;
-export type StudyBlockType = "text" | "heading" | "table" | "markdown" | "latex" | "code";
+export type StudyBlockType = "text" | "heading" | "markdown" | "latex" | "code";
 
 export interface StudyTextBlock {
   id: string;
   type: "text";
   content: RichTextDocument;
-}
-
-export interface StudyTableBlock {
-  id: string;
-  type: "table";
-  tableId: string | null;
-  title: string;
 }
 
 export interface StudyHeadingBlock {
@@ -50,7 +43,6 @@ export interface StudyCodeBlock {
 export type StudyContentBlock =
   | StudyTextBlock
   | StudyHeadingBlock
-  | StudyTableBlock
   | StudyMarkdownBlock
   | StudyLatexBlock
   | StudyCodeBlock;
@@ -89,15 +81,6 @@ export function createStudyTextBlock(content: unknown = ""): StudyTextBlock {
     id: createStudyBlockId("text"),
     type: "text",
     content: createRichTextDocument(content),
-  };
-}
-
-export function createStudyTableBlock(title = "Новая таблица", tableId: string | null = null): StudyTableBlock {
-  return {
-    id: createStudyBlockId("table"),
-    type: "table",
-    tableId,
-    title,
   };
 }
 
@@ -141,7 +124,6 @@ export function studyBlocksToPlainText(blocks: StudyContentBlock[]) {
     .map((block) => {
       if (block.type === "text") return richTextHtmlToPlainText(block.content);
       if (block.type === "heading") return block.text.trim();
-      if (block.type === "table") return block.title.trim();
       if (block.type === "markdown" || block.type === "latex" || block.type === "code") return block.source.trim();
       return "";
     })
@@ -175,16 +157,6 @@ function normalizeStudyBlock(value: unknown): StudyContentBlock | null {
   const source = value as Partial<StudyContentBlock> | null;
 
   if (!source || typeof source !== "object") return null;
-
-  if (source.type === "table") {
-    const tableBlock = source as Partial<StudyTableBlock>;
-    return {
-      id: typeof source.id === "string" ? source.id : createStudyBlockId("table"),
-      type: "table",
-      tableId: typeof tableBlock.tableId === "string" && tableBlock.tableId.trim() ? tableBlock.tableId : null,
-      title: typeof tableBlock.title === "string" && tableBlock.title.trim() ? tableBlock.title : "Таблица",
-    };
-  }
 
   if (source.type === "text") {
     return {
