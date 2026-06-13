@@ -1,3 +1,7 @@
+export function isRemotePosterUrl(path: string) {
+  return /^https?:\/\/\S+/i.test(path.trim());
+}
+
 export function posterPathToSrc(path: string) {
   const trimmed = path.trim();
   if (!trimmed) {

@@ -13,6 +13,30 @@
   align-items: end;
 }
 
+.dashboard-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.dashboard-brand-mark {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  place-items: center;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: white;
+  font-weight: 800;
+  box-shadow: 0 14px 30px var(--accent-glow);
+}
+
+.dashboard-brand h1 {
+  margin: 0;
+}
+
 .eyebrow {
   display: inline-flex;
   margin-bottom: 8px;

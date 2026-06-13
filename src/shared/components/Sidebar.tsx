@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { appModules, getModuleGroupIcon, type AppModuleDefinition } from '../app/moduleRegistry';
 import { normalizeSidebarSettings } from '../app/appData';
 import type { ModuleKey, SidebarModuleGroup, SidebarSettings } from '../types/common';
@@ -14,6 +14,7 @@ interface SidebarProps {
   isCollapsed: boolean;
   onNavigate: (key: ModuleKey) => void;
   onToggleCollapse: () => void;
+  canToggleCollapse?: boolean;
   sidebarSettings: SidebarSettings;
   onSidebarSettingsChange: (settings: SidebarSettings) => void;
   reminderBadges?: Partial<Record<ModuleKey, number>>;
@@ -24,6 +25,7 @@ export function Sidebar({
   isCollapsed,
   onNavigate,
   onToggleCollapse,
+  canToggleCollapse = true,
   sidebarSettings,
   onSidebarSettingsChange,
   reminderBadges,
@@ -41,20 +43,18 @@ export function Sidebar({
 
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
-      <Tooltip content={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')} position="bottom">
-        <button
-          className="brand"
-          type="button"
-          aria-label={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
-          onClick={onToggleCollapse}
-        >
-          <span className="brand-mark">M</span>
-          <span className="brand-copy">
-            <strong>MyMind</strong>
-            <small>{t('Personal OS')}</small>
-          </span>
-        </button>
-      </Tooltip>
+      {canToggleCollapse ? (
+        <Tooltip className="sidebar-collapse-tooltip" content={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')} position="bottom">
+          <button
+            className="sidebar-collapse-handle"
+            type="button"
+            aria-label={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
+            onClick={onToggleCollapse}
+          >
+            {isCollapsed ? <ChevronRight size={16} aria-hidden="true" /> : <ChevronLeft size={16} aria-hidden="true" />}
+          </button>
+        </Tooltip>
+      ) : null}
       <nav>
         {entries.map((entry) =>
           entry.type === 'module' ? (

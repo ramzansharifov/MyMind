@@ -22,6 +22,7 @@ export function AppShell({ active, onNavigate, sidebarSettings, onSidebarSetting
       <Sidebar
         active={active}
         isCollapsed={isEffectiveSidebarCollapsed}
+        canToggleCollapse={!isStudyMode}
         onNavigate={onNavigate}
         onToggleCollapse={() => {
           if (!isStudyMode) {

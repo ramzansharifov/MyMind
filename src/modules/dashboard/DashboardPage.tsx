@@ -61,8 +61,13 @@ export function DashboardPage({
       <GlobalSearch data={data} onNavigate={onNavigate} />
       <header className="dashboard-hero dashboard-hero-grid">
         <div>
-          <span className="eyebrow">{t('Personal OS')}</span>
-          <h1>MyMind</h1>
+          <div className="dashboard-brand">
+            <span className="dashboard-brand-mark">M</span>
+            <div>
+              <span className="eyebrow">{t('Personal OS')}</span>
+              <h1>MyMind</h1>
+            </div>
+          </div>
           <p>{t('A local personal operating system for plans, records, routines, and quiet review.')}</p>
         </div>
         <div className="quick-actions">

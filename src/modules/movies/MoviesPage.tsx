@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { AddButton, BackButton, EditButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EmptyState } from '../../shared/components/EmptyState';
@@ -24,6 +24,7 @@ export function MoviesPage({ movies, onChange }: MoviesPageProps) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [editing, setEditing] = useState<Movie | null | undefined>(undefined);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
+  const [previewPoster, setPreviewPoster] = useState<{ src: string; title: string } | null>(null);
   const activeMovies = movies.filter((movie) => !isHiddenFromRegularLists(movie));
   const searched = filterMovies(activeMovies, query, 'all', '', 0);
   const filtered = searched.filter((movie) => {
@@ -37,9 +38,27 @@ export function MoviesPage({ movies, onChange }: MoviesPageProps) {
   const availableGenres = movieGenres(activeMovies);
   const activeFilterCount = statuses.length + genres.length + (minRating > 0 ? 1 : 0);
 
+  useEffect(() => {
+    if (!previewPoster) {
+      return undefined;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setPreviewPoster(null);
+      }
+    }
+
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [previewPoster]);
+
   function saveMovie(movie: Movie) {
     const exists = movies.some((item) => item.id === movie.id);
     onChange(exists ? movies.map((item) => (item.id === movie.id ? movie : item)) : [movie, ...movies]);
+    if (selectedMovie?.id === movie.id) {
+      setSelectedMovie(movie);
+    }
     setEditing(undefined);
   }
 
@@ -57,22 +76,56 @@ export function MoviesPage({ movies, onChange }: MoviesPageProps) {
     setMinRating(0);
   }
 
+  if (editing !== undefined) {
+    return <MovieForm movie={editing} onCancel={() => setEditing(undefined)} onSave={saveMovie} />;
+  }
+
   if (selectedMovie) {
     const currentMovie = movies.find((movie) => movie.id === selectedMovie.id) ?? selectedMovie;
     const posterSrc = posterPathToSrc(currentMovie.posterPath);
-    const shouldShowPosterPath = currentMovie.posterPath && !currentMovie.posterPath.trim().startsWith('data:image/');
+    const backdropStyle = posterSrc
+      ? ({ backgroundImage: `url("${posterSrc.replace(/"/g, '\\"')}")` } satisfies CSSProperties)
+      : undefined;
+
     return (
-      <section>
+      <section className={`movie-detail-shell${posterSrc ? ' has-backdrop' : ''}`}>
+        {posterSrc ? (
+          <div className="movie-detail-backdrop" aria-hidden="true">
+            <div className="movie-detail-backdrop-image" style={backdropStyle} />
+          </div>
+        ) : null}
         <div className="movie-detail-header">
-          <BackButton label="Back to movies" onClick={() => setSelectedMovie(null)} />
+          <BackButton
+            label="Back to movies"
+            onClick={() => {
+              setPreviewPoster(null);
+              setSelectedMovie(null);
+            }}
+          />
           <div className="card-actions">
-            <EditButton label="Edit" onClick={() => setEditing(currentMovie)} />
+            <EditButton
+              className="movie-detail-edit-button"
+              label="Edit movie"
+              iconOnly={false}
+              onClick={() => setEditing(currentMovie)}
+            />
           </div>
         </div>
         <article className="movie-detail-page">
-          <div className="movie-detail-poster">
-            {posterSrc ? <img src={posterSrc} alt={currentMovie.title} /> : <span>{t('No poster')}</span>}
-          </div>
+          {posterSrc ? (
+            <button
+              className="movie-detail-poster movie-detail-poster-button"
+              type="button"
+              aria-label={t('Open poster')}
+              onClick={() => setPreviewPoster({ src: posterSrc, title: currentMovie.title })}
+            >
+              <img src={posterSrc} alt={currentMovie.title} />
+            </button>
+          ) : (
+            <div className="movie-detail-poster">
+              <span>{t('No poster')}</span>
+            </div>
+          )}
           <div className="movie-detail-content">
             <h1>{currentMovie.title}</h1>
             <p>{currentMovie.originalTitle || currentMovie.title}</p>
@@ -100,10 +153,23 @@ export function MoviesPage({ movies, onChange }: MoviesPageProps) {
                 <span className="chip" key={genre}>{genre}</span>
               ))}
             </div>
-            {shouldShowPosterPath ? <code>{currentMovie.posterPath}</code> : null}
           </div>
         </article>
-        {editing !== undefined ? <MovieForm movie={editing} onCancel={() => setEditing(undefined)} onSave={saveMovie} /> : null}
+        {previewPoster ? (
+          <div
+            className="movie-poster-lightbox"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('Full size poster')}
+            onClick={() => setPreviewPoster(null)}
+          >
+            <img
+              src={previewPoster.src}
+              alt={previewPoster.title}
+              onClick={(event) => event.stopPropagation()}
+            />
+          </div>
+        ) : null}
       </section>
     );
   }
@@ -186,7 +252,6 @@ export function MoviesPage({ movies, onChange }: MoviesPageProps) {
           ))}
         </div>
       )}
-      {editing !== undefined ? <MovieForm movie={editing} onCancel={() => setEditing(undefined)} onSave={saveMovie} /> : null}
     </section>
   );
 }
