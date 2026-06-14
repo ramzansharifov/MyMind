@@ -20,8 +20,7 @@ export function FormModal({ title, saveLabel, children, onCancel, onSubmit, wide
     <Modal
       title={title}
       size={wide ? 'lg' : 'md'}
-      className="form-modal-backdrop"
-      panelClassName={['form-panel app-form-modal', wide ? 'wide-form-panel' : '', className].filter(Boolean).join(' ')}
+      panelClassName={className}
       onClose={onCancel}
       footer={
         footer ?? (
@@ -32,7 +31,7 @@ export function FormModal({ title, saveLabel, children, onCancel, onSubmit, wide
         )
       }
     >
-      <form className="entity-form app-form-modal-form" id={formId} onSubmit={onSubmit}>
+      <form className="grid min-w-0 gap-3.5" id={formId} data-entity-form="true" onSubmit={onSubmit}>
         {children}
       </form>
     </Modal>

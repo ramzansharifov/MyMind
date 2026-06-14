@@ -5,6 +5,11 @@ import { createId } from '../../shared/utils/idGenerator';
 import { exerciseName } from './workoutUtils';
 import type { ExerciseDefinition, WorkoutPlan } from './types';
 
+const formSectionClass = 'grid gap-3 rounded-panel border border-app-border bg-app-surface-soft p-4';
+const checkboxListClass = 'grid gap-2';
+const checkboxLineClass =
+  'flex min-h-control cursor-pointer items-center gap-3 rounded-control border border-app-border bg-app-surface-soft px-3 py-2 text-app-text transition hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:bg-[var(--control-bg-hover)]';
+
 interface WorkoutPlanFormProps {
   plan?: WorkoutPlan | null;
   exercises: ExerciseDefinition[];
@@ -48,16 +53,17 @@ export function WorkoutPlanForm({ plan, exercises, onCancel, onSave }: WorkoutPl
         <textarea rows={4} value={description} onChange={(event) => setDescription(event.target.value)} />
       </label>
       
-      <div className="form-section">
+      <div className={formSectionClass}>
         <strong>{t('Select Exercises')}</strong>
         {exercises.length === 0 ? (
-          <p className="muted-text">{t('Create exercises before building a plan.')}</p>
+          <p className="text-sm text-app-muted">{t('Create exercises before building a plan.')}</p>
         ) : (
-          <div className="workout-exercise-selection-list">
+          <div className={checkboxListClass}>
             {exercises.map((exercise) => (
-              <label className="checkbox-line" key={exercise.id}>
+              <label className={checkboxLineClass} key={exercise.id}>
                 <input
                   type="checkbox"
+                  className="h-4 min-h-0 w-4 accent-[var(--accent)]"
                   checked={selectedExerciseIds.includes(exercise.id)}
                   onChange={() => toggleExercise(exercise.id)}
                 />

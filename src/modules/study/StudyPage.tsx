@@ -23,6 +23,7 @@ import {
   type StudyBlockDocument,
 } from '../../shared/blockEditor';
 import { ConfirmDialog } from '../../shared/components/ConfirmDialog';
+import { cn } from '../../shared/utils/classNames';
 import { studyStorageClient } from './storage/studyStorageClient';
 import {
   collectDescendantIds,
@@ -33,7 +34,6 @@ import {
   nowIso,
 } from './studyUtils';
 import type { StudyData, StudyMaterial, StudyNode } from './types';
-import '../../styles/modules/study.css';
 
 interface StudyPageProps {
   data: StudyData;
@@ -613,54 +613,54 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
   const rootNodes = visibleNodes.filter((node) => !node.parentId).sort((a, b) => a.order - b.order);
 
   return (
-    <section className="study-page">
-      <aside className="study-sidebar">
-        <div className="study-sidebar-head">
+    <section className="grid min-h-[calc(100vh-48px)] grid-cols-[300px_minmax(0,1fr)] gap-0 bg-app-bg text-app-text max-[980px]:grid-cols-1">
+      <aside className="sticky top-0 flex h-[calc(100vh-48px)] flex-col overflow-hidden border-r border-app-border bg-[linear-gradient(180deg,color-mix(in_srgb,var(--surface)_94%,var(--accent)_6%),var(--surface))] p-4 max-[980px]:static max-[980px]:h-auto">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <span className="study-sidebar-eyebrow">Библиотека</span>
-            <strong>Обучение</strong>
+            <span className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-muted">Библиотека</span>
+            <strong className="block text-base font-extrabold text-app-text">Обучение</strong>
           </div>
 
-          <div className="study-sidebar-actions">
-            <button className="icon-button" type="button" onClick={() => void createNode('folder')} aria-label="Создать папку" title="Создать папку">
+          <div className="flex items-center gap-2">
+            <button className={iconButtonClass} type="button" onClick={() => void createNode('folder')} aria-label="Создать папку" title="Создать папку">
               <FolderPlus size={18} />
             </button>
 
-            <button className="icon-button primary" type="button" onClick={() => void createNode('material')} aria-label="Создать материал" title="Создать материал">
+            <button className={primaryIconButtonClass} type="button" onClick={() => void createNode('material')} aria-label="Создать материал" title="Создать материал">
               <Plus size={18} />
             </button>
           </div>
         </div>
 
-        <div className="study-sidebar-stats" aria-label="Статистика обучения">
-          <span className="study-stat-pill">
+        <div className="mb-3 grid grid-cols-2 gap-2" aria-label="Статистика обучения">
+          <span className={statPillClass}>
             <Folder size={14} />
             {folderCount}
           </span>
-          <span className="study-stat-pill">
+          <span className={statPillClass}>
             <FileText size={14} />
             {materialCount}
           </span>
         </div>
 
-        <label className="study-search">
+        <label className="mb-3 flex min-h-control items-center gap-2 rounded-control border border-app-border bg-app-surface-soft px-3 text-app-muted focus-within:border-[color-mix(in_srgb,var(--accent)_56%,var(--border))]">
           <Search size={16} />
-          <input value={search} placeholder="Поиск по материалам" onChange={(event) => setSearch(event.target.value)} />
+          <input className="min-w-0 flex-1 border-0 bg-transparent px-0 shadow-none outline-none focus:border-0 focus:shadow-none" value={search} placeholder="Поиск по материалам" onChange={(event) => setSearch(event.target.value)} />
         </label>
 
-        <div className="study-tree-meta">
+        <div className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-app-muted">
           <span>{isSearchActive ? `Найдено: ${visibleNodes.length}` : 'Структура'}</span>
           {isSearchActive ? (
-            <button type="button" onClick={() => setSearch('')}>
+            <button className="text-app-accent-strong hover:text-app-text" type="button" onClick={() => setSearch('')}>
               Сбросить
             </button>
           ) : null}
         </div>
 
-        <div className="study-tree">
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           {draggedNodeId ? (
             <div
-              className={`study-tree-root-drop ${treeDropTarget?.parentId === null ? 'active' : ''}`}
+              className={cn(rootDropClass, treeDropTarget?.parentId === null && rootDropActiveClass)}
               onDragOver={handleRootDragOver}
               onDragLeave={handleRootDragLeave}
               onDrop={handleRootDrop}
@@ -670,7 +670,7 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
           ) : null}
 
           {rootNodes.length === 0 ? (
-            <div className="study-empty-tree">{isSearchActive ? 'Ничего не найдено.' : 'Создай папку или материал.'}</div>
+            <div className="grid min-h-[120px] place-items-center rounded-panel border border-dashed border-app-border p-4 text-center text-sm text-app-muted">{isSearchActive ? 'Ничего не найдено.' : 'Создай папку или материал.'}</div>
           ) : (
             rootNodes.map((node) => (
               <StudyTreeNode
@@ -695,24 +695,24 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
         </div>
 
         {treeMenuNode ? (
-          <div className="study-tree-menu" style={{ left: treeMenu?.x ?? 0, top: treeMenu?.y ?? 0 }} role="menu" onClick={(event) => event.stopPropagation()}>
+          <div className="fixed z-50 grid min-w-[190px] gap-1 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-1.5 text-sm text-app-text [backdrop-filter:var(--glass-blur)] shadow-modal" style={{ left: treeMenu?.x ?? 0, top: treeMenu?.y ?? 0 }} role="menu" onClick={(event) => event.stopPropagation()}>
             {treeMenuNode.type === 'folder' ? (
               <>
-                <button type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => createNode('material', treeMenuNode.id))}>
+                <button className={treeMenuButtonClass} type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => createNode('material', treeMenuNode.id))}>
                   <FilePlus2 size={15} />
                   Материал
                 </button>
-                <button type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => createNode('folder', treeMenuNode.id))}>
+                <button className={treeMenuButtonClass} type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => createNode('folder', treeMenuNode.id))}>
                   <FolderPlus size={15} />
                   Папка
                 </button>
               </>
             ) : null}
-            <button type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => renameNode(treeMenuNode))}>
+            <button className={treeMenuButtonClass} type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => renameNode(treeMenuNode))}>
               <Pencil size={15} />
               Переименовать
             </button>
-            <button className="danger" type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => requestDeleteNode(treeMenuNode))}>
+            <button className={cn(treeMenuButtonClass, 'text-app-danger hover:border-[color-mix(in_srgb,var(--danger)_42%,var(--border))] hover:bg-[color-mix(in_srgb,var(--danger)_12%,var(--surface-strong))]')} type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => requestDeleteNode(treeMenuNode))}>
               <Trash2 size={15} />
               Удалить
             </button>
@@ -720,58 +720,58 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
         ) : null}
       </aside>
 
-      <main className="study-workspace">
-        <div className="study-material-header">
-          <div className="study-material-heading">
-            <nav className="study-breadcrumbs" aria-label="Путь">
+      <main className="min-w-0 overflow-y-auto p-6">
+        <div className="mb-4 flex items-start justify-between gap-4 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-5 [backdrop-filter:var(--glass-blur)] shadow-panel max-[900px]:flex-col">
+          <div className="min-w-0">
+            <nav className="mb-3 flex flex-wrap items-center gap-1.5 text-xs text-app-muted" aria-label="Путь">
               <span>Обучение</span>
               {selectedPath.map((node) => (
-                <button key={node.id} type="button" onClick={() => void selectNode(node)}>
+                <button className="after:ml-1.5 after:text-app-muted after:content-['/'] last:after:hidden hover:text-app-accent-strong" key={node.id} type="button" onClick={() => void selectNode(node)}>
                   {node.title}
                 </button>
               ))}
             </nav>
 
-            <span className="eyebrow">{selectedNode?.type === 'folder' ? 'Папка' : 'Материал'}</span>
-            <h1>{selectedNode?.title ?? 'Обучение'}</h1>
+            <span className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-accent-strong">{selectedNode?.type === 'folder' ? 'Папка' : 'Материал'}</span>
+            <h1 className="mt-2 truncate text-[34px] font-extrabold leading-tight text-app-text">{selectedNode?.title ?? 'Обучение'}</h1>
 
-            <div className={`study-save-status ${saveStatusTone}`}>
-              <span aria-hidden="true" />
+            <div className={cn(saveStatusClass, saveStatusTone === 'dirty' && 'text-app-warning', saveStatusTone === 'saving' && 'text-app-accent-strong')}>
+              <span className={cn("h-2 w-2 rounded-full bg-app-positive", saveStatusTone === 'dirty' && 'bg-app-warning', saveStatusTone === 'saving' && 'bg-app-accent-strong')} aria-hidden="true" />
               {saveStatusLabel}
             </div>
           </div>
 
-          <div className="study-header-actions">
-            <div className="study-mode-toggle">
-              <button className={mode === 'edit' ? 'active' : ''} type="button" onClick={() => setMode('edit')}>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="inline-flex rounded-control border border-app-border bg-app-surface-soft p-1">
+              <button className={cn(modeToggleButtonClass, mode === 'edit' && modeToggleActiveClass)} type="button" onClick={() => setMode('edit')}>
                 <Edit3 size={16} />
                 Правка
               </button>
 
-              <button className={mode === 'read' ? 'active' : ''} type="button" onClick={() => setMode('read')}>
+              <button className={cn(modeToggleButtonClass, mode === 'read' && modeToggleActiveClass)} type="button" onClick={() => setMode('read')}>
                 <BookOpen size={16} />
                 Чтение
               </button>
             </div>
 
-            <button className="button ghost" type="button" onClick={() => void renameNode(selectedNode)} disabled={!selectedNode}>
+            <button className={ghostButtonClass} type="button" onClick={() => void renameNode(selectedNode)} disabled={!selectedNode}>
               <Pencil size={16} />
               Переименовать
             </button>
 
-            <button className="icon-button danger" type="button" onClick={() => requestDeleteNode(selectedNode)} disabled={!selectedNode} aria-label="Удалить" title="Удалить">
+            <button className={dangerIconButtonClass} type="button" onClick={() => requestDeleteNode(selectedNode)} disabled={!selectedNode} aria-label="Удалить" title="Удалить">
               <Trash2 size={18} />
             </button>
           </div>
         </div>
 
-        {errorMessage ? <div className="study-error">{errorMessage}</div> : null}
+        {errorMessage ? <div className="mb-4 rounded-panel border border-[color-mix(in_srgb,var(--danger)_42%,var(--border))] bg-[color-mix(in_srgb,var(--danger)_10%,var(--surface))] p-3 text-sm text-app-danger">{errorMessage}</div> : null}
 
         {selectedNode?.type === 'material' && activeMaterial ? (
-          <div className="study-editor-layout">
-            <section className="study-editor-panel">
+          <div>
+            <section className="min-w-0">
               {isLoading ? (
-                <div className="study-loading-state">Загрузка материала...</div>
+                <div className="grid min-h-[260px] place-items-center rounded-panel border border-app-border bg-app-surface-soft p-6 text-app-muted">Загрузка материала...</div>
               ) : mode === 'edit' ? (
                 <>
                   <StudyBlockEditor
@@ -779,10 +779,10 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
                     mode="edit"
                     onChange={handleEditorChange}
                     sidebarFooter={
-                      <div className="study-editor-footer">
+                      <div className="flex items-center justify-between gap-3 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-3 text-app-muted [backdrop-filter:var(--glass-blur)] shadow-panel">
                         <span>{draftPlainText.trim().length} символов</span>
 
-                        <button className="button primary" type="button" onClick={() => void saveMaterial()} disabled={isSaving}>
+                        <button className={primaryButtonClass} type="button" onClick={() => void saveMaterial()} disabled={isSaving}>
                           <Save size={18} />
                           {isSaving ? 'Сохранение...' : 'Сохранить'}
                         </button>
@@ -791,7 +791,7 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
                   />
                 </>
               ) : (
-                <article className="study-read-panel">
+                <article className="rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel">
                   <StudyBlockEditor
                     value={draftContent}
                     mode="read"
@@ -803,19 +803,19 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
 
           </div>
         ) : selectedNode?.type === 'folder' ? (
-          <div className="study-folder-state study-folder-overview">
-            <div className="study-folder-overview-head">
-              <FolderOpen size={34} />
+          <div className="rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-5 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel">
+            <div className="mb-4 flex items-center gap-3 max-[720px]:flex-col max-[720px]:items-start">
+              <FolderOpen className="text-app-accent-strong" size={34} />
               <div>
-                <strong>{selectedNode.title}</strong>
-                <span>{selectedFolderChildren.length ? `${selectedFolderChildren.length} элементов внутри` : 'Папка пока пустая'}</span>
+                <strong className="block text-xl font-extrabold">{selectedNode.title}</strong>
+                <span className="text-sm text-app-muted">{selectedFolderChildren.length ? `${selectedFolderChildren.length} элементов внутри` : 'Папка пока пустая'}</span>
               </div>
-              <div className="study-folder-actions">
-                <button className="button ghost" type="button" onClick={() => void createNode('folder', selectedNode.id)}>
+              <div className="ml-auto flex flex-wrap gap-2 max-[720px]:ml-0">
+                <button className={ghostButtonClass} type="button" onClick={() => void createNode('folder', selectedNode.id)}>
                   <FolderPlus size={17} />
                   Папка
                 </button>
-                <button className="button primary" type="button" onClick={() => void createNode('material', selectedNode.id)}>
+                <button className={primaryButtonClass} type="button" onClick={() => void createNode('material', selectedNode.id)}>
                   <FilePlus2 size={17} />
                   Материал
                 </button>
@@ -823,25 +823,25 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
             </div>
 
             {selectedFolderChildren.length ? (
-              <div className="study-folder-grid">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
                 {selectedFolderChildren.map((child) => (
-                  <button className="study-folder-card" type="button" key={child.id} onClick={() => void selectNode(child)}>
+                  <button className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-panel border border-app-border bg-app-surface-soft p-3 text-left text-app-text transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:bg-app-surface-strong" type="button" key={child.id} onClick={() => void selectNode(child)}>
                     {child.type === 'folder' ? <Folder size={19} /> : <FileText size={19} />}
-                    <span>{child.title}</span>
+                    <span className="truncate text-sm font-bold">{child.title}</span>
                     <ChevronRight size={16} />
                   </button>
                 ))}
               </div>
             ) : (
-              <div className="study-folder-empty">
+              <div className="grid min-h-[180px] place-items-center rounded-panel border border-dashed border-app-border p-6 text-center text-app-muted">
                 <span>Добавь материал или вложенную папку, чтобы собрать структуру обучения.</span>
               </div>
             )}
           </div>
         ) : (
-          <div className="study-folder-state">
-            <FileText size={32} />
-            <strong>Нет выбранного материала</strong>
+          <div className="grid min-h-[320px] place-items-center gap-2 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-6 text-center text-app-muted [backdrop-filter:var(--glass-blur)] shadow-panel">
+            <FileText className="text-app-accent-strong" size={32} />
+            <strong className="text-app-text">Нет выбранного материала</strong>
             <span>Создай папку или материал в левом сайдбаре.</span>
           </div>
         )}
@@ -919,9 +919,9 @@ function StudyTreeNode({
   const isDropTarget = isFolder && dropTargetParentId === node.id;
 
   return (
-    <div className="study-tree-node">
+    <div className="grid gap-1">
       <div
-        className={`study-tree-item ${isActive ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${isDropTarget ? 'drop-target' : ''}`}
+        className={cn(treeItemClass, isActive && treeItemActiveClass, isDragging && 'opacity-45', isDropTarget && 'border-[color-mix(in_srgb,var(--accent)_64%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_14%,var(--surface-strong))]')}
         draggable
         onContextMenu={(event) => onContextMenu(event, node)}
         onDragStart={(event) => onDragStart(event, node)}
@@ -932,7 +932,7 @@ function StudyTreeNode({
       >
         {isFolder ? (
           <button
-            className="study-tree-toggle"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-control text-app-muted transition-colors hover:bg-app-surface-strong hover:text-app-accent-strong disabled:opacity-30"
             type="button"
             onClick={(event) => {
               event.stopPropagation();
@@ -944,17 +944,17 @@ function StudyTreeNode({
             {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
           </button>
         ) : (
-          <span className="study-tree-spacer" />
+          <span className="h-7 w-7 shrink-0" />
         )}
 
-        <button className="study-tree-main" type="button" onClick={() => void onSelect(node)}>
+        <button className="flex min-w-0 flex-1 items-center gap-2 rounded-control px-1 py-1 text-left text-app-text" type="button" onClick={() => void onSelect(node)}>
           {isFolder ? <Folder size={17} /> : <FileText size={17} />}
-          <span>{node.title}</span>
+          <span className="truncate text-sm font-bold">{node.title}</span>
         </button>
       </div>
 
       {children.length > 0 && isExpanded ? (
-        <div className="study-tree-children">
+        <div className="ml-4 grid gap-1 border-l border-app-border pl-2">
           {children.map((child) => (
             <StudyTreeNode
               key={child.id}
@@ -996,3 +996,32 @@ function getStudyNodePath(nodes: StudyNode[], selectedNode: StudyNode | null) {
 
   return path;
 }
+
+const iconButtonClass =
+  'inline-flex h-10 w-10 items-center justify-center rounded-control border border-app-border bg-app-surface-strong text-app-muted transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:text-app-accent-strong disabled:cursor-not-allowed disabled:opacity-45';
+const primaryIconButtonClass =
+  'inline-flex h-10 w-10 items-center justify-center rounded-control border border-[color-mix(in_srgb,var(--accent)_58%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))] text-app-accent-strong transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_22%,var(--surface-strong))]';
+const dangerIconButtonClass =
+  'inline-flex h-10 w-10 items-center justify-center rounded-control border border-[color-mix(in_srgb,var(--danger)_46%,var(--border))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--surface-strong))] text-app-danger transition-colors hover:border-app-danger hover:bg-[color-mix(in_srgb,var(--danger)_18%,var(--surface-strong))] disabled:cursor-not-allowed disabled:opacity-45';
+const statPillClass =
+  'inline-flex min-h-9 items-center justify-center gap-2 rounded-control border border-app-border bg-app-surface-soft px-3 text-sm font-bold text-app-muted';
+const rootDropClass =
+  'mb-2 rounded-panel border border-dashed border-app-border bg-app-surface-soft p-3 text-center text-sm font-bold text-app-muted transition-colors';
+const rootDropActiveClass =
+  'border-[color-mix(in_srgb,var(--accent)_62%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_14%,var(--surface-strong))] text-app-accent-strong';
+const treeMenuButtonClass =
+  'flex w-full items-center gap-2 rounded-control border border-transparent px-3 py-2 text-left transition-colors hover:border-app-border hover:bg-app-surface-strong';
+const saveStatusClass =
+  'mt-3 inline-flex w-fit items-center gap-2 rounded-full border border-app-border bg-app-surface-soft px-3 py-1.5 text-xs font-bold text-app-muted';
+const modeToggleButtonClass =
+  'inline-flex min-h-9 items-center gap-2 rounded-control px-3 py-2 text-sm font-bold text-app-muted transition-colors hover:text-app-text';
+const modeToggleActiveClass =
+  'bg-[color-mix(in_srgb,var(--accent)_18%,var(--surface-strong))] text-app-accent-strong shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_38%,transparent)]';
+const ghostButtonClass =
+  'inline-flex min-h-control items-center justify-center gap-2 rounded-control border border-[color-mix(in_srgb,var(--accent)_36%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-strong))] px-3.5 py-2.5 text-sm font-bold text-[color-mix(in_srgb,var(--accent-strong)_86%,var(--text))] transition-colors hover:border-[color-mix(in_srgb,var(--accent-strong)_72%,var(--border))] hover:bg-[var(--control-bg-hover)] disabled:cursor-not-allowed disabled:opacity-45';
+const primaryButtonClass =
+  'inline-flex min-h-control items-center justify-center gap-2 rounded-control border border-[color-mix(in_srgb,var(--accent)_72%,var(--border))] bg-[var(--button-bg-primary)] px-3.5 py-2.5 text-sm font-bold text-app-accent-strong transition-colors hover:bg-[var(--button-bg-primary-hover)] disabled:cursor-not-allowed disabled:opacity-55';
+const treeItemClass =
+  'flex min-w-0 items-center gap-1 rounded-panel border border-transparent px-1.5 py-1.5 transition-colors hover:border-app-border hover:bg-app-surface-soft';
+const treeItemActiveClass =
+  'border-[color-mix(in_srgb,var(--accent)_46%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))] text-app-accent-strong';

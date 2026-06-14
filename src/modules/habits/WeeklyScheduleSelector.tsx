@@ -1,4 +1,5 @@
 import { useI18n } from '../../shared/i18n/I18nProvider';
+import { cn } from '../../shared/utils/classNames';
 
 const days = [
   { value: 1, label: 'Mon' },
@@ -23,10 +24,10 @@ export function WeeklyScheduleSelector({ selectedDays, onChange }: WeeklySchedul
   }
 
   return (
-    <div className="day-selector">
+    <div className="grid grid-cols-7 gap-2 max-[640px]:grid-cols-4">
       {days.map((day) => (
         <button
-          className={selectedDays.includes(day.value) ? 'active' : ''}
+          className={cn(dayButtonClass, selectedDays.includes(day.value) && dayButtonActiveClass)}
           key={day.value}
           type="button"
           onClick={() => toggle(day.value)}
@@ -37,3 +38,9 @@ export function WeeklyScheduleSelector({ selectedDays, onChange }: WeeklySchedul
     </div>
   );
 }
+
+const dayButtonClass =
+  'min-h-10 rounded-control border border-app-border bg-app-surface px-2 text-sm font-extrabold text-app-text transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:bg-app-surface-strong';
+
+const dayButtonActiveClass =
+  'border-[color-mix(in_srgb,var(--accent)_68%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))] text-app-accent-strong';

@@ -4,6 +4,8 @@ import { useI18n } from '../../shared/i18n/I18nProvider';
 import { createId } from '../../shared/utils/idGenerator';
 import type { MealRecord } from './types';
 
+const formGridClass = 'grid grid-cols-2 gap-3 max-[640px]:grid-cols-1';
+
 interface NutritionMealFormProps {
     meal?: MealRecord | null;
     onCancel: () => void;
@@ -36,7 +38,7 @@ export function NutritionMealForm({ meal, onCancel, onSave }: NutritionMealFormP
 
     return (
         <EntityForm title={meal ? 'Edit meal' : 'Add meal'} saveLabel="Save meal" onCancel={onCancel} onSubmit={submit}>
-            <div className="form-grid">
+            <div className={formGridClass}>
                 <label>
                     {t('Meal Type')}
                     <select value={mealType} onChange={(event) => setMealType(event.target.value as any)}>
@@ -57,7 +59,7 @@ export function NutritionMealForm({ meal, onCancel, onSave }: NutritionMealFormP
                 <textarea rows={3} value={customDescription} onChange={(event) => setCustomDescription(event.target.value)} placeholder={t('What did you eat?')} />
             </label>
 
-            <div className="form-grid">
+            <div className={formGridClass}>
                 <label>
                     {t('Protein (g)')}
                     <input type="number" step="0.1" value={protein} onChange={(event) => setProtein(event.target.value)} />

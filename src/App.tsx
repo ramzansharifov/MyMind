@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from './shared/components/AppShell';
+import { CancelButton, SaveButton } from './shared/components/ActionButtons';
 import { LoadingState } from './shared/components/LoadingState';
 import { Modal } from './shared/components/Modal';
 import { storageClient } from './shared/storage/storageClient';
@@ -116,12 +117,12 @@ export function App() {
 
   useEffect(() => {
     function handleFormShortcuts(event: KeyboardEvent) {
-      const form = document.querySelector<HTMLFormElement>('.entity-form');
+      const form = document.querySelector<HTMLFormElement>('form[data-entity-form="true"]');
       if (!form) {
         return;
       }
       if (event.key === 'Escape') {
-        const closeButton = document.querySelector<HTMLButtonElement>('.app-modal-panel .form-heading .icon-button');
+        const closeButton = document.querySelector<HTMLButtonElement>('button[data-modal-close="true"]');
         closeButton?.click();
       }
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
@@ -304,13 +305,19 @@ function UnsavedNoteChangesDialog({ onCancel, onDiscard, onSave }: { onCancel: (
       onClose={onCancel}
       footer={
         <>
-          <button className="button ghost" type="button" onClick={onCancel}>Cancel</button>
-          <button className="button danger" type="button" onClick={onDiscard}>Discard</button>
-          <button className="button primary" type="button" onClick={onSave}>Save</button>
+          <CancelButton onClick={onCancel}>Cancel</CancelButton>
+          <button
+            className="inline-flex min-h-control items-center justify-center gap-2 whitespace-nowrap rounded-control border border-[color-mix(in_srgb,var(--danger)_72%,var(--border))] bg-[var(--button-bg-danger)] px-3.5 py-2.5 text-app-danger transition-[border-color,box-shadow,transform,background,color] duration-150 hover:-translate-y-px hover:border-[color-mix(in_srgb,var(--danger)_88%,var(--border))] hover:bg-[var(--button-bg-danger-hover)] hover:text-[color-mix(in_srgb,var(--danger)_92%,white)] hover:shadow-[0_8px_22px_var(--shadow)]"
+            type="button"
+            onClick={onDiscard}
+          >
+            Discard
+          </button>
+          <SaveButton label="Save" type="button" onClick={onSave} />
         </>
       }
     >
-      <p className="muted-text">The note editor has unsaved changes.</p>
+      <p className="text-app-muted">The note editor has unsaved changes.</p>
     </Modal>
   );
 }
@@ -338,18 +345,20 @@ function ReminderModal({ reminder, onDismiss, onSnooze }: { reminder: AppReminde
       onClose={onDismiss}
       footer={
         <>
-          <button className="button ghost" type="button" onClick={onSnooze}>
+          <button
+            className="inline-flex min-h-control items-center justify-center gap-2 whitespace-nowrap rounded-control border border-[color-mix(in_srgb,var(--accent)_36%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-strong))] px-3.5 py-2.5 text-[color-mix(in_srgb,var(--accent-strong)_86%,var(--text))] transition-[border-color,box-shadow,transform,background,color] duration-150 hover:-translate-y-px hover:border-[color-mix(in_srgb,var(--accent-strong)_82%,var(--border))] hover:bg-[var(--control-bg-hover)] hover:text-[color-mix(in_srgb,var(--accent-strong)_92%,white)] hover:shadow-[0_8px_22px_var(--shadow)]"
+            type="button"
+            onClick={onSnooze}
+          >
             {t('Snooze 15 min')}
           </button>
-          <button className="button primary" type="button" onClick={onDismiss}>
-            {t('OK')}
-          </button>
+          <SaveButton label="OK" type="button" onClick={onDismiss} />
         </>
       }
     >
-        <span className="reminder-kicker">{t('Reminder')}</span>
+        <span className="inline-flex text-xs font-extrabold uppercase tracking-[0.08em] text-app-danger">{t('Reminder')}</span>
         <h2 id="app-reminder-title">{reminder.title}</h2>
-        <p>{reminder.body}</p>
+        <p className="text-app-muted">{reminder.body}</p>
     </Modal>
   );
 }

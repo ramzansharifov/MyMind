@@ -6,6 +6,7 @@ import { GroupedCollectionLayout } from '../../shared/components/GroupedCollecti
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
+import { cn } from '../../shared/utils/classNames';
 import { countItemsByContentGroup, matchesContentGroup } from '../../shared/utils/contentGroupUtils';
 import { filterEntries, journalMoods, journalTags } from './journalUtils';
 import { JournalEntryCard } from './JournalEntryCard';
@@ -111,33 +112,33 @@ export function JournalPage({ data, onChange }: JournalPageProps) {
             onQueryChange={setQuery}
             onToggle={() => setFiltersOpen((current) => !current)}
           >
-            <div className="filter-choice-group">
-              <div className="filter-choice-heading">
-                <strong>{t('Tag')}</strong>
-                {tags.length > 0 ? <button type="button" onClick={() => setTags([])}>{t('Clear')}</button> : null}
+            <div className={filterChoiceGroupClass}>
+              <div className={filterChoiceHeadingClass}>
+                <strong className="text-app-text">{t('Tag')}</strong>
+                {tags.length > 0 ? <button className={filterClearInlineClass} type="button" onClick={() => setTags([])}>{t('Clear')}</button> : null}
               </div>
-              <div className="filter-chip-row">
+              <div className="flex flex-wrap gap-2">
                 {availableTags.length > 0 ? availableTags.map((item) => (
-                  <button className={`filter-chip${tags.includes(item) ? ' active' : ''}`} type="button" key={item} onClick={() => toggleTag(item)}>
+                  <button className={cn(filterChipClass, tags.includes(item) && filterChipActiveClass)} type="button" key={item} onClick={() => toggleTag(item)}>
                     {item}
                   </button>
-                )) : <span className="muted-text">{t('No tags yet.')}</span>}
+                )) : <span className="text-sm text-app-muted">{t('No tags yet.')}</span>}
               </div>
             </div>
-            <div className="filter-choice-group">
-              <div className="filter-choice-heading">
-                <strong>{t('Mood')}</strong>
-                {moods.length > 0 ? <button type="button" onClick={() => setMoods([])}>{t('Clear')}</button> : null}
+            <div className={filterChoiceGroupClass}>
+              <div className={filterChoiceHeadingClass}>
+                <strong className="text-app-text">{t('Mood')}</strong>
+                {moods.length > 0 ? <button className={filterClearInlineClass} type="button" onClick={() => setMoods([])}>{t('Clear')}</button> : null}
               </div>
-              <div className="filter-chip-row">
+              <div className="flex flex-wrap gap-2">
                 {availableMoods.length > 0 ? availableMoods.map((item) => (
-                  <button className={`filter-chip${moods.includes(item) ? ' active' : ''}`} type="button" key={item} onClick={() => toggleMood(item)}>
+                  <button className={cn(filterChipClass, moods.includes(item) && filterChipActiveClass)} type="button" key={item} onClick={() => toggleMood(item)}>
                     {item}
                   </button>
-                )) : <span className="muted-text">{t('No moods yet.')}</span>}
+                )) : <span className="text-sm text-app-muted">{t('No moods yet.')}</span>}
               </div>
             </div>
-            {activeFilterCount > 0 ? <button className="button ghost filter-clear-button" type="button" onClick={clearFilters}>{t('Clear filters')}</button> : null}
+            {activeFilterCount > 0 ? <button className={ghostButtonClass} type="button" onClick={clearFilters}>{t('Clear filters')}</button> : null}
           </CollapsibleFilters>
         }
         groups={groups}
@@ -157,7 +158,7 @@ export function JournalPage({ data, onChange }: JournalPageProps) {
           {filtered.length === 0 ? (
             <EmptyState title="No diary entries" message="Write local notes that stay on this machine." />
           ) : (
-            <div className="card-grid">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3.5">
               {filtered.map((entry) => (
                 <JournalEntryCard
                   entry={entry}
@@ -183,3 +184,18 @@ export function JournalPage({ data, onChange }: JournalPageProps) {
     </section>
   );
 }
+
+const filterChoiceGroupClass = 'grid gap-2';
+
+const filterChoiceHeadingClass = 'flex items-center justify-between gap-3 text-sm';
+
+const filterClearInlineClass = 'text-xs font-bold text-app-accent-strong transition-colors hover:text-app-text';
+
+const filterChipClass =
+  'inline-flex min-h-9 items-center gap-2 rounded-full border border-app-border bg-app-chip px-3 py-1.5 text-sm font-bold text-app-chip-text transition-colors hover:border-[color-mix(in_srgb,var(--accent)_46%,var(--border))] hover:bg-app-surface-strong';
+
+const filterChipActiveClass =
+  'border-[color-mix(in_srgb,var(--accent)_70%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_18%,var(--surface-strong))] text-app-accent-strong';
+
+const ghostButtonClass =
+  'inline-flex min-h-control w-fit items-center justify-center rounded-control border border-[color-mix(in_srgb,var(--accent)_36%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-strong))] px-3.5 py-2.5 text-sm font-bold text-[color-mix(in_srgb,var(--accent-strong)_86%,var(--text))] transition-colors hover:border-[color-mix(in_srgb,var(--accent-strong)_82%,var(--border))] hover:bg-[var(--control-bg-hover)]';

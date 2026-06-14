@@ -11,10 +11,10 @@ export function FormField({ label, hint, children }: BaseFieldProps) {
   const { t } = useI18n();
 
   return (
-    <label className="form-field">
-      <span className="form-field-label">{t(label)}</span>
+    <label className="grid gap-[7px] text-[13px] text-app-muted">
+      <span className="font-bold text-app-muted">{t(label)}</span>
       {children}
-      {hint ? <small className="form-field-hint">{t(hint)}</small> : null}
+      {hint ? <small className="text-app-muted leading-snug">{t(hint)}</small> : null}
     </label>
   );
 }

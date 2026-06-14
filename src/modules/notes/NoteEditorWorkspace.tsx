@@ -1,8 +1,8 @@
 import { ArrowLeft, BookOpen, Edit3, Save, Tags, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { ContentGroup } from '../../shared/types/common';
+import { cn } from '../../shared/utils/classNames';
 import type { Note } from './types';
-import '../../styles/modules/notes.css';
 
 export type NoteMode = 'read' | 'edit';
 
@@ -106,45 +106,45 @@ export function NoteEditorWorkspace({
   }
 
   return (
-    <section className="note-editor-page">
-      <div className="note-topbar">
-        <div className="note-topbar-leading">
-          <button className="button ghost note-topbar-back" type="button" onClick={onCancel}>
+    <section className="min-h-[calc(100vh-48px)] p-6 max-[760px]:p-4">
+      <div className="mb-[18px] flex items-center justify-between gap-3 max-[760px]:items-stretch max-[760px]:flex-col">
+        <div className="flex items-center gap-3">
+          <button className={ghostButtonClass} type="button" onClick={onCancel}>
             <ArrowLeft size={18} />
             Назад к заметкам
           </button>
-          <span className={`note-save-status-dot${dirty ? ' dirty' : ' saved'}`} aria-label={dirty ? 'Есть несохранённые изменения' : `Последнее сохранение: ${lastSavedLabel}`} />
+          <span className={cn(statusDotClass, dirty ? statusDirtyClass : statusSavedClass)} aria-label={dirty ? 'Есть несохранённые изменения' : `Последнее сохранение: ${lastSavedLabel}`} />
         </div>
-        <div className="note-topbar-actions">
-          <button className={`button ghost${mode === 'read' ? ' active' : ''}`} type="button" onClick={() => setMode('read')}>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <button className={cn(ghostButtonClass, mode === 'read' && activeButtonClass)} type="button" onClick={() => setMode('read')}>
             <BookOpen size={18} />
             Чтение
           </button>
-          <button className={`button ghost${mode === 'edit' ? ' active' : ''}`} type="button" onClick={() => setMode('edit')}>
+          <button className={cn(ghostButtonClass, mode === 'edit' && activeButtonClass)} type="button" onClick={() => setMode('edit')}>
             <Edit3 size={18} />
             Редактирование
           </button>
-          <button className="button accent note-save-button" type="button" onClick={saveNote}>
+          <button className={accentButtonClass} type="button" onClick={saveNote}>
             <Save size={18} />
             Сохранить
           </button>
         </div>
       </div>
 
-      <div className="note-editor-shell plain-note-editor">
-        <main className="note-editor-main">
+      <div className="flex justify-center">
+        <main className="w-[min(100%,1040px)] rounded-panel border border-app-border bg-app-surface p-7 text-app-text shadow-panel max-[760px]:p-[18px]">
           <input
-            className="note-title-input"
+            className="mb-4 w-full px-4 py-3.5 text-[2rem] font-extrabold"
             value={title}
             placeholder="Untitled note"
             readOnly={mode === 'read'}
             onChange={(event) => setTitle(event.target.value)}
           />
 
-          <div className="note-metadata">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
             {groups.length > 0 ? (
-              <label className="note-group-select">
-                <span>Группа</span>
+              <label className={metadataLabelClass}>
+                <span className="text-xs text-app-muted">Группа</span>
                 <select value={groupId ?? ''} disabled={mode === 'read'} onChange={(event) => setGroupId(event.target.value || null)}>
                   <option value="">Без группы</option>
                   {groups.map((group) => (
@@ -154,22 +154,22 @@ export function NoteEditorWorkspace({
               </label>
             ) : null}
 
-            <label className="note-group-select">
-              <span>Категория</span>
+            <label className={metadataLabelClass}>
+              <span className="text-xs text-app-muted">Категория</span>
               <input value={category} readOnly={mode === 'read'} onChange={(event) => setCategory(event.target.value)} />
             </label>
 
-            <div className="note-tag-row">
-              <Tags size={17} />
+            <div className="flex min-w-[260px] flex-1 flex-wrap items-center gap-3">
+              <Tags className="text-app-muted" size={17} />
               {tags.map((tag) => (
-                <button className="note-chip removable" type="button" key={tag} onClick={() => removeTag(tag)} disabled={mode === 'read'}>
+                <button className={noteChipClass} type="button" key={tag} onClick={() => removeTag(tag)} disabled={mode === 'read'}>
                   {tag}
                   <X size={14} />
                 </button>
               ))}
               {mode === 'edit' ? (
                 <input
-                  className="note-tag-input"
+                  className="min-h-[34px] min-w-[150px] flex-1 px-2.5"
                   value={tagInput}
                   placeholder="+ Добавить тег"
                   onChange={(event) => setTagInput(event.target.value)}
@@ -187,16 +187,16 @@ export function NoteEditorWorkspace({
 
           {mode === 'edit' ? (
             <textarea
-              className="note-plain-textarea"
+              className="min-h-[420px] w-full resize-y p-[18px] leading-[1.65]"
               value={content}
               placeholder="Старый notebook-редактор удалён. Здесь временный plain-text редактор до новой реализации."
               onChange={(event) => setContent(event.target.value)}
             />
           ) : (
-            <article className="note-read-panel">
+            <article className="min-h-[360px] rounded-panel border border-app-border bg-app-surface-soft p-[18px] text-app-text">
               {content.trim() ? content.split(/\n{2,}/).map((paragraph, index) => (
-                <p key={`${paragraph}-${index}`}>{paragraph}</p>
-              )) : <p className="muted-text">Заметка пока пустая.</p>}
+                <p className="mb-4 leading-[1.7] last:mb-0" key={`${paragraph}-${index}`}>{paragraph}</p>
+              )) : <p className="text-app-muted">Заметка пока пустая.</p>}
             </article>
           )}
         </main>
@@ -239,3 +239,17 @@ function createEditableNote(note: Note | null | undefined, defaultGroupId: strin
     updatedAt: timestamp,
   };
 }
+
+const ghostButtonClass =
+  'inline-flex min-h-control items-center justify-center gap-2 rounded-control border border-[color-mix(in_srgb,var(--accent)_36%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-strong))] px-3.5 py-2.5 font-bold text-[color-mix(in_srgb,var(--accent-strong)_86%,var(--text))] transition-colors hover:border-[color-mix(in_srgb,var(--accent-strong)_72%,var(--border))] hover:bg-[var(--control-bg-hover)]';
+const activeButtonClass =
+  'border-[color-mix(in_srgb,var(--accent)_62%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_18%,var(--surface-strong))] text-app-accent-strong';
+const accentButtonClass =
+  'inline-flex min-h-control items-center justify-center gap-2 rounded-control border border-[color-mix(in_srgb,var(--accent)_72%,var(--border))] bg-[var(--button-bg-primary)] px-3.5 py-2.5 font-bold text-app-accent-strong transition-colors hover:bg-[var(--button-bg-primary-hover)]';
+const statusDotClass = 'h-2.5 w-2.5 rounded-full';
+const statusDirtyClass = 'bg-app-warning shadow-[0_0_0_4px_color-mix(in_srgb,var(--warning)_18%,transparent)]';
+const statusSavedClass = 'bg-app-positive shadow-[0_0_0_4px_color-mix(in_srgb,var(--positive)_18%,transparent)]';
+const metadataLabelClass =
+  'flex min-w-[180px] flex-col gap-1.5 text-sm text-app-muted [&_input]:min-h-[38px] [&_input]:px-2.5 [&_select]:min-h-[38px] [&_select]:px-2.5';
+const noteChipClass =
+  'inline-flex min-h-[30px] items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--accent)_24%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] px-2.5 text-sm text-app-text transition-opacity disabled:opacity-60';

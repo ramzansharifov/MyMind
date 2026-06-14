@@ -119,24 +119,24 @@ export function HabitsPage({ data, onChange }: HabitsPageProps) {
         ariaLabel="Habit sections"
         onChange={setActiveTab}
       />
-      <div className="habit-tab-actions">
-        <div className="habit-today-label">
-          <span>{t('Today')}</span>
-          <strong>{todayLabel}</strong>
+      <div className="mb-[18px] flex flex-wrap items-center justify-between gap-3 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-3 [backdrop-filter:var(--glass-blur)] shadow-panel">
+        <div className="grid gap-0.5">
+          <span className="text-xs font-bold uppercase tracking-[0.08em] text-app-muted">{t('Today')}</span>
+          <strong className="text-app-text">{todayLabel}</strong>
         </div>
-        <div className="habit-tab-action-buttons">
+        <div className="flex flex-wrap items-center gap-2">
           {activeTab === 'routine' ? <AddButton label="Add habit" onClick={() => setEditing(null)} /> : null}
         </div>
       </div>
 
       {activeTab === 'routine' ? (
-        <section className="panel habits-panel today-habits-panel">
-          <div className="section-heading">
-            <h2>{t('Daily routine')}</h2>
-            <span className="rating-pill">{completedToday}/{habitsForToday.length}</span>
+        <section className={panelClass}>
+          <div className="mb-4 flex items-center justify-between gap-3 border-b border-[var(--line-soft)] pb-3">
+            <h2 className="text-xl font-extrabold text-app-text">{t('Daily routine')}</h2>
+            <span className={countPillClass}>{completedToday}/{habitsForToday.length}</span>
           </div>
           {habitsForToday.length === 0 ? <EmptyState title="No active habits" message="Create habits, then mark them every day." /> : null}
-          <div className="habit-card-grid">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3.5">
             {habitsForToday.map((habit) => {
               const log = todayLog(habit.id, data.logs, todayKey);
               return (
@@ -158,34 +158,34 @@ export function HabitsPage({ data, onChange }: HabitsPageProps) {
       ) : null}
 
       {activeTab === 'history' ? (
-        <section className="panel habits-panel all-habits-panel">
-          <div className="section-heading">
+        <section className={panelClass}>
+          <div className="mb-4 border-b border-[var(--line-soft)] pb-3">
             <div>
-              <h2>{t('Habit history')}</h2>
-              <p className="muted-text">{t('Recent habit records grouped by day.')}</p>
+              <h2 className="text-xl font-extrabold text-app-text">{t('Habit history')}</h2>
+              <p className="text-app-muted">{t('Recent habit records grouped by day.')}</p>
             </div>
           </div>
-          <div className="habit-history-list">
+          <div className="grid gap-3.5">
             {historyDays.map((day) => (
-              <article className="card habit-history-day" key={day.date}>
-                <div className="section-heading">
-                  <h3>{formatDate(day.date)} / {weekdayFormatter.format(new Date(`${day.date}T00:00:00`))}</h3>
-                  <span className="rating-pill">{day.items.filter((item) => item.isCompleted).length}/{day.items.length}</span>
+              <article className="grid gap-3 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel" key={day.date}>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-extrabold text-app-text">{formatDate(day.date)} / {weekdayFormatter.format(new Date(`${day.date}T00:00:00`))}</h3>
+                  <span className={countPillClass}>{day.items.filter((item) => item.isCompleted).length}/{day.items.length}</span>
                 </div>
-                <div className="habit-history-grid">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2.5">
                   {day.items.map((item) => (
-                    <div className="habit-history-card" key={item.id}>
-                      <span className={`habit-history-status ${item.isCompleted ? 'completed' : ''}`} aria-hidden="true" />
-                      <div>
-                        <strong>{item.title || t('Deleted habit')}</strong>
-                        <span>{item.notes || t('No notes yet.')}</span>
+                    <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2.5 rounded-panel border border-app-border bg-app-surface-soft p-3" key={item.id}>
+                      <span className={`mt-1 h-2.5 w-2.5 rounded-full ${item.isCompleted ? 'bg-app-success' : 'bg-[var(--muted)]'}`} aria-hidden="true" />
+                      <div className="min-w-0">
+                        <strong className="block truncate text-sm text-app-text">{item.title || t('Deleted habit')}</strong>
+                        <span className="mt-0.5 block truncate text-xs text-app-muted">{item.notes || t('No notes yet.')}</span>
                       </div>
                     </div>
                   ))}
                 </div>
               </article>
             ))}
-            {historyDays.length === 0 ? <p className="muted-text">{t('No habit history yet.')}</p> : null}
+            {historyDays.length === 0 ? <p className="text-sm text-app-muted">{t('No habit history yet.')}</p> : null}
           </div>
         </section>
       ) : null}
@@ -271,3 +271,9 @@ function isHabitTrackedOnDate(habit: Habit, dateKey: string) {
   const archivedDate = archivedAt && !Number.isNaN(archivedAt.getTime()) ? localDateOnly(archivedAt) : null;
   return createdDate <= dateKey && (!archivedDate || archivedDate >= dateKey);
 }
+
+const panelClass =
+  'rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel';
+
+const countPillClass =
+  'inline-flex w-fit shrink-0 items-center rounded-full border border-app-border bg-app-chip px-2.5 py-1 text-xs font-extrabold text-app-chip-text';

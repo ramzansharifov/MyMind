@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
+import { cn } from '../utils/classNames';
 
 interface TooltipProps {
   content?: ReactNode;
@@ -101,7 +102,7 @@ export function Tooltip({ content, children, className = '', position = 'bottom'
   return (
     <span
       ref={triggerRef}
-      className={['ui-tooltip', `ui-tooltip-${position}`, className].filter(Boolean).join(' ')}
+      className={cn('relative inline-flex w-fit max-w-full', className)}
       onBlur={() => setIsOpen(false)}
       onFocus={() => setIsOpen(true)}
       onMouseEnter={() => setIsOpen(true)}
@@ -112,9 +113,13 @@ export function Tooltip({ content, children, className = '', position = 'bottom'
         ? createPortal(
             <span
               ref={tooltipRef}
-              className={`ui-tooltip-content ui-tooltip-content-${coordinates.placement}${
-                coordinates.ready ? ' visible' : ''
-              }`}
+              className={cn(
+                'pointer-events-none fixed z-[10000] w-max max-w-[min(320px,70vw)] rounded-panel border',
+                'border-[color-mix(in_srgb,var(--accent)_26%,var(--border))] bg-[color-mix(in_srgb,var(--surface)_96%,black_4%)]',
+                'px-2.5 py-2 text-xs font-bold leading-snug text-app-text shadow-[0_16px_38px_color-mix(in_srgb,var(--shadow)_78%,transparent)]',
+                'transition-[opacity,transform] duration-150 ease-out',
+                coordinates.ready ? 'translate-y-0 opacity-100' : coordinates.placement === 'top' ? 'translate-y-1 opacity-0' : '-translate-y-1 opacity-0',
+              )}
               role="tooltip"
               style={{
                 left: coordinates.left,

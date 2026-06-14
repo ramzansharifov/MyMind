@@ -6,6 +6,7 @@ import { GroupedCollectionLayout } from '../../shared/components/GroupedCollecti
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
+import { cn } from '../../shared/utils/classNames';
 import { countItemsByContentGroup, matchesContentGroup } from '../../shared/utils/contentGroupUtils';
 import { filterTemplates, templateCategories } from './templateUtils';
 import { TemplateBuilder } from './TemplateBuilder';
@@ -87,25 +88,25 @@ export function TemplatesPage({ data, onChange }: TemplatesPageProps) {
             onQueryChange={setQuery}
             onToggle={() => setFiltersOpen((current) => !current)}
           >
-            <div className="filter-choice-group">
-              <div className="filter-choice-heading">
-                <strong>{t('Category')}</strong>
-                {category ? <button type="button" onClick={() => setCategory('')}>{t('Clear')}</button> : null}
+            <div className={filterChoiceGroupClass}>
+              <div className={filterChoiceHeadingClass}>
+                <strong className="text-app-text">{t('Category')}</strong>
+                {category ? <button className={filterClearInlineClass} type="button" onClick={() => setCategory('')}>{t('Clear')}</button> : null}
               </div>
-              <div className="filter-chip-row">
+              <div className="flex flex-wrap gap-2">
                 {categories.length > 0 ? categories.map((item) => (
-                  <button className={`filter-chip${category === item ? ' active' : ''}`} type="button" key={item} onClick={() => setCategory(item)}>
+                  <button className={cn(filterChipClass, category === item && filterChipActiveClass)} type="button" key={item} onClick={() => setCategory(item)}>
                     {item}
                   </button>
-                )) : <span className="muted-text">{t('No categories yet.')}</span>}
+                )) : <span className="text-sm text-app-muted">{t('No categories yet.')}</span>}
               </div>
             </div>
-            <div className="filter-choice-group">
-              <div className="filter-choice-heading">
-                <strong>{t('Variables')}</strong>
+            <div className={filterChoiceGroupClass}>
+              <div className={filterChoiceHeadingClass}>
+                <strong className="text-app-text">{t('Variables')}</strong>
               </div>
-              <div className="filter-chip-row">
-                <button className={`filter-chip${variablesOnly ? ' active' : ''}`} type="button" onClick={() => setVariablesOnly((current) => !current)}>
+              <div className="flex flex-wrap gap-2">
+                <button className={cn(filterChipClass, variablesOnly && filterChipActiveClass)} type="button" onClick={() => setVariablesOnly((current) => !current)}>
                   {t('With variables')}
                 </button>
               </div>
@@ -129,7 +130,7 @@ export function TemplatesPage({ data, onChange }: TemplatesPageProps) {
           {filtered.length === 0 ? (
             <EmptyState title="No templates found" message="Add a template or relax the filters." />
           ) : (
-            <div className="card-grid template-grid">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3.5">
               {filtered.map((template) => (
                 <TemplateCard
                   key={template.id}
@@ -160,3 +161,15 @@ export function TemplatesPage({ data, onChange }: TemplatesPageProps) {
     </section>
   );
 }
+
+const filterChoiceGroupClass = 'grid gap-2';
+
+const filterChoiceHeadingClass = 'flex items-center justify-between gap-3 text-sm';
+
+const filterClearInlineClass = 'text-xs font-bold text-app-accent-strong transition-colors hover:text-app-text';
+
+const filterChipClass =
+  'inline-flex min-h-9 items-center gap-2 rounded-full border border-app-border bg-app-chip px-3 py-1.5 text-sm font-bold text-app-chip-text transition-colors hover:border-[color-mix(in_srgb,var(--accent)_46%,var(--border))] hover:bg-app-surface-strong';
+
+const filterChipActiveClass =
+  'border-[color-mix(in_srgb,var(--accent)_70%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_18%,var(--surface-strong))] text-app-accent-strong';

@@ -2,10 +2,27 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { EntityForm } from '../../shared/components/EntityForm';
 import { useI18n } from '../../shared/i18n/I18nProvider';
+import { cn } from '../../shared/utils/classNames';
 import { createId } from '../../shared/utils/idGenerator';
 import { weekdayNumber } from '../../shared/utils/dateUtils';
 import { exerciseName, planExerciseIds } from './workoutUtils';
 import type { ExerciseDefinition, WorkoutPlan, WorkoutResultExercise, WorkoutSession } from './types';
+
+const formSectionClass = 'grid gap-3 rounded-panel border border-app-border bg-app-surface-soft p-4';
+const titleRowClass = 'flex items-center justify-between gap-3 max-[720px]:items-start max-[720px]:flex-col';
+const inlineControlsClass = 'flex items-center gap-2 max-[720px]:w-full max-[720px]:flex-col';
+const resultListClass = 'grid gap-3';
+const resultRowClass = 'grid grid-cols-[minmax(180px,1.4fr)_repeat(3,minmax(88px,0.7fr))_minmax(160px,1.2fr)] gap-3 rounded-panel border border-app-border bg-app-surface p-3 max-[980px]:grid-cols-2 max-[640px]:grid-cols-1';
+const resultHeaderClass = 'flex items-center';
+const checkboxLineClass = 'flex cursor-pointer items-center gap-3 text-app-text';
+const checkboxInputClass = 'h-4 min-h-0 w-4 accent-[var(--accent)]';
+const ratingGridClass = 'grid grid-cols-2 gap-3 max-[720px]:grid-cols-1';
+const ratingScaleClass = 'grid gap-3 rounded-panel border border-app-border bg-app-surface-soft p-4';
+const ratingOptionsClass = 'grid grid-cols-10 gap-2 max-[640px]:grid-cols-5';
+const ratingOptionClass =
+  'min-h-control rounded-control border border-app-border bg-app-surface-soft px-2 text-sm font-extrabold text-app-muted transition hover:border-[color-mix(in_srgb,var(--accent)_45%,var(--border))] hover:text-app-text';
+const ratingSelectedClass = 'border-[var(--accent-border)] bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))] text-app-accent-strong';
+const ratingCurrentClass = 'shadow-[0_0_0_2px_color-mix(in_srgb,var(--accent)_25%,transparent)]';
 
 interface WorkoutSessionFormProps {
   plan?: WorkoutPlan | null;
@@ -78,10 +95,10 @@ export function WorkoutSessionForm({ plan, exercises, onCancel, onSave }: Workou
       onSubmit={submit}
       wide
     >
-      <div className="form-section">
-        <div className="card-title-row">
+      <div className={formSectionClass}>
+        <div className={titleRowClass}>
           <strong>{t('Workout results')}</strong>
-          <div className="inline-controls">
+          <div className={inlineControlsClass}>
             <select value={selectedExerciseId} onChange={(event) => setSelectedExerciseId(event.target.value)}>
               {exercises.map((exercise) => (
                 <option value={exercise.id} key={exercise.id}>
@@ -92,13 +109,14 @@ export function WorkoutSessionForm({ plan, exercises, onCancel, onSave }: Workou
             <AddButton label="Add exercise" onClick={addExercise} disabled={!selectedExerciseId} />
           </div>
         </div>
-        {rows.length === 0 ? <p className="muted-text">{t('Add exercises to log this workout.')}</p> : null}
-        <div className="workout-result-list">
+        {rows.length === 0 ? <p className="text-sm text-app-muted">{t('Add exercises to log this workout.')}</p> : null}
+        <div className={resultListClass}>
           {rows.map((row) => (
-            <article className="workout-result-row" key={row.id}>
-              <div className="workout-result-header">
-                <label className="checkbox-line">
+            <article className={resultRowClass} key={row.id}>
+              <div className={resultHeaderClass}>
+                <label className={checkboxLineClass}>
                   <input 
+                    className={checkboxInputClass}
                     type="checkbox" 
                     checked={row.status === 'completed'} 
                     onChange={(e) => updateRow(row.id, { status: e.target.checked ? 'completed' : 'skipped' })} 
@@ -118,7 +136,7 @@ export function WorkoutSessionForm({ plan, exercises, onCancel, onSave }: Workou
                 {t('Reps')}
                 <input type="number" min="0" value={row.reps} disabled={row.status === 'skipped'} onChange={(event) => updateRow(row.id, { reps: Number(event.target.value) })} />
               </label>
-              <label className="workout-result-notes">
+              <label>
                 {t('Notes')}
                 <input value={row.notes} onChange={(event) => updateRow(row.id, { notes: event.target.value })} />
               </label>
@@ -127,7 +145,7 @@ export function WorkoutSessionForm({ plan, exercises, onCancel, onSave }: Workou
         </div>
       </div>
 
-      <div className="workout-rating-grid">
+      <div className={ratingGridClass}>
         <RatingScale label={t('Mood')} value={mood} onChange={setMood} />
         <RatingScale label={t('Energy')} value={energyLevel} onChange={setEnergyLevel} />
       </div>
@@ -142,19 +160,19 @@ export function WorkoutSessionForm({ plan, exercises, onCancel, onSave }: Workou
 
 function RatingScale({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return (
-    <fieldset className="workout-rating-scale">
-      <legend>
+    <fieldset className={ratingScaleClass}>
+      <legend className="flex w-full items-center justify-between gap-3 text-sm text-app-muted">
         <span>{label}</span>
         <strong>{value}/10</strong>
       </legend>
-      <div className="workout-rating-options" role="radiogroup" aria-label={label}>
+      <div className={ratingOptionsClass} role="radiogroup" aria-label={label}>
         {Array.from({ length: 10 }, (_, index) => {
           const rating = index + 1;
           return (
             <button
               key={rating}
               type="button"
-              className={`workout-rating-option${rating <= value ? ' selected' : ''}${rating === value ? ' current' : ''}`}
+              className={cn(ratingOptionClass, rating <= value && ratingSelectedClass, rating === value && ratingCurrentClass)}
               aria-pressed={rating === value}
               onClick={() => onChange(rating)}
             >

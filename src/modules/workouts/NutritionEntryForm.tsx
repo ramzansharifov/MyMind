@@ -12,6 +12,15 @@ interface NutritionEntryFormProps {
 }
 
 const mealTypes: MealRecord['mealType'][] = ['breakfast', 'lunch', 'dinner', 'snack'];
+const formGridClass = 'grid grid-cols-2 gap-3 max-[640px]:grid-cols-1';
+const formSectionClass = 'grid gap-3 rounded-panel border border-app-border bg-app-surface-soft p-4';
+const titleRowClass = 'flex items-center justify-between gap-3 max-[640px]:items-start max-[640px]:flex-col';
+const mealEditorClass = 'grid gap-3';
+const mealRowClass = 'grid gap-3 rounded-panel border border-app-border bg-app-surface p-3 shadow-panel [backdrop-filter:var(--glass-blur)]';
+const macroGridClass = 'grid grid-cols-4 gap-3 max-[900px]:grid-cols-2 max-[520px]:grid-cols-1';
+const actionRowClass = 'flex flex-wrap justify-end gap-2';
+const dangerButtonClass =
+  'inline-flex min-h-control items-center justify-center gap-2 rounded-control border border-[color-mix(in_srgb,var(--danger)_72%,var(--border))] bg-[var(--button-bg-danger)] px-3.5 py-2.5 text-sm font-bold text-app-danger transition hover:border-[color-mix(in_srgb,var(--danger)_88%,var(--border))] hover:bg-[var(--button-bg-danger-hover)]';
 
 export function NutritionEntryForm({ entry, onCancel, onSave }: NutritionEntryFormProps) {
   const [date, setDate] = useState(entry.date);
@@ -66,7 +75,7 @@ export function NutritionEntryForm({ entry, onCancel, onSave }: NutritionEntryFo
 
   return (
     <EntityForm title="Edit nutrition day" saveLabel="Save food day" onCancel={onCancel} onSubmit={submit} wide>
-      <div className="form-grid">
+      <div className={formGridClass}>
         <label>
           {t('Date')}
           <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
@@ -77,15 +86,15 @@ export function NutritionEntryForm({ entry, onCancel, onSave }: NutritionEntryFo
         </label>
       </div>
 
-      <div className="form-section">
-        <div className="card-title-row">
+      <div className={formSectionClass}>
+        <div className={titleRowClass}>
           <strong>{t('Meals')}</strong>
           <AddButton label="Add meal" onClick={addMeal} />
         </div>
-        <div className="nutrition-entry-meal-editor">
+        <div className={mealEditorClass}>
           {meals.map((meal) => (
-            <article className="nutrition-entry-meal-row" key={meal.id}>
-              <div className="form-grid">
+            <article className={mealRowClass} key={meal.id}>
+              <div className={formGridClass}>
                 <label>
                   {t('Meal Type')}
                   <select value={meal.mealType} onChange={(event) => updateMeal(meal.id, { mealType: event.target.value as MealRecord['mealType'] })}>
@@ -109,7 +118,7 @@ export function NutritionEntryForm({ entry, onCancel, onSave }: NutritionEntryFo
                   onChange={(event) => updateMeal(meal.id, { customDescription: event.target.value })}
                 />
               </label>
-              <div className="nutrition-entry-macro-editor">
+              <div className={macroGridClass}>
                 <label>
                   {t('Protein (g)')}
                   <input type="number" min="0" step="0.1" value={meal.protein} onChange={(event) => updateMeal(meal.id, { protein: Number(event.target.value) })} />
@@ -127,14 +136,14 @@ export function NutritionEntryForm({ entry, onCancel, onSave }: NutritionEntryFo
                   <input type="number" min="0" step="1" value={meal.calories} onChange={(event) => updateMeal(meal.id, { calories: Number(event.target.value) })} />
                 </label>
               </div>
-              <div className="card-actions">
-                <button className="button danger" type="button" onClick={() => removeMeal(meal.id)}>
+              <div className={actionRowClass}>
+                <button className={dangerButtonClass} type="button" onClick={() => removeMeal(meal.id)}>
                   {t('Remove')}
                 </button>
               </div>
             </article>
           ))}
-          {meals.length === 0 ? <p className="muted-text">{t('No meals recorded.')}</p> : null}
+          {meals.length === 0 ? <p className="text-sm text-app-muted">{t('No meals recorded.')}</p> : null}
         </div>
       </div>
 

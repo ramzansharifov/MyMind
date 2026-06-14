@@ -6,6 +6,7 @@ import { LoadingState } from '../../shared/components/LoadingState';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { SegmentedTabs } from '../../shared/components/SegmentedTabs';
 import { useI18n } from '../../shared/i18n/I18nProvider';
+import { cn } from '../../shared/utils/classNames';
 import { formatDate } from '../../shared/utils/dateUtils';
 import { createId } from '../../shared/utils/idGenerator';
 import { ExerciseForm } from './ExerciseForm';
@@ -30,6 +31,47 @@ import type {
 } from './types';
 
 const ChartsSection = lazy(() => import('./ChartsSection').then((module) => ({ default: module.ChartsSection })));
+
+const sectionPanelClass =
+  'grid gap-4 rounded-panel border border-app-border bg-[var(--panel-bg)] p-4 text-app-text shadow-panel [backdrop-filter:var(--glass-blur)]';
+const sectionHeadingClass = 'flex items-start justify-between gap-4 border-b border-[var(--line-soft)] pb-3 max-[760px]:flex-col';
+const mutedTextClass = 'text-sm text-app-muted';
+const contentGridClass = 'grid grid-cols-[minmax(210px,260px)_1fr] gap-4 max-[900px]:grid-cols-1';
+const groupPanelClass = 'grid content-start gap-3 rounded-panel border border-app-border bg-app-surface-soft p-3';
+const groupHeaderClass = 'flex items-center justify-between gap-3 border-b border-[var(--line-soft)] pb-3';
+const groupTabListClass = 'grid gap-2';
+const groupTabClass =
+  'flex min-h-control items-center justify-between gap-3 rounded-control border border-app-border bg-app-surface-soft px-3 py-2 text-left text-sm font-bold text-app-text transition hover:border-[color-mix(in_srgb,var(--accent)_45%,var(--border))] hover:bg-[var(--control-bg-hover)]';
+const groupTabActiveClass = 'border-[var(--accent-border)] bg-[var(--selected-bg)] text-app-accent-strong';
+const itemGridClass = 'grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] content-start gap-3';
+const cardGridClass = 'grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4';
+const stackClass = 'grid gap-3';
+const cardClass = 'grid gap-3 rounded-panel border border-app-border bg-app-surface p-4 shadow-panel [backdrop-filter:var(--glass-blur)]';
+const kickerClass = 'text-[11px] font-extrabold uppercase tracking-[0.12em] text-app-accent-strong';
+const pillClass =
+  'inline-flex w-fit shrink-0 items-center rounded-full border border-app-border bg-app-chip px-2.5 py-1 text-xs font-extrabold text-app-chip-text';
+const headingRowClass = 'flex items-start justify-between gap-3 max-[640px]:flex-col';
+const actionRowClass = 'flex flex-wrap items-center justify-end gap-2';
+const metricGridClass = 'grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2.5';
+const metricTileClass = 'grid gap-1 rounded-control border border-app-border bg-app-surface-soft p-3';
+const chipRowClass = 'flex flex-wrap gap-2';
+const chipClass = 'inline-flex w-fit items-center rounded-full border border-app-border bg-app-chip px-2.5 py-1 text-xs font-bold text-app-chip-text';
+const skippedChipClass =
+  'border-[color-mix(in_srgb,var(--danger)_45%,var(--border))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--surface-strong))] text-app-danger';
+const detailCardClass = 'grid gap-4 rounded-panel border border-app-border bg-app-surface p-4 shadow-panel [backdrop-filter:var(--glass-blur)]';
+const detailBodyClass = 'grid gap-4';
+const detailSectionClass = 'grid gap-3';
+const photoGridSmallClass = 'grid grid-cols-[repeat(auto-fit,minmax(92px,120px))] gap-2.5';
+const photoThumbClass = 'aspect-square w-full rounded-control border border-app-border object-cover';
+const photoGridLargeClass = 'grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3';
+const photoLargeClass = 'h-64 w-full rounded-panel border border-app-border object-cover';
+const noteLineClass = 'whitespace-pre-wrap text-sm leading-6 text-app-muted';
+const mealAccentByType: Record<string, string> = {
+  breakfast: 'bg-[var(--meal-breakfast)]',
+  lunch: 'bg-[var(--meal-lunch)]',
+  dinner: 'bg-[var(--meal-dinner)]',
+  snack: 'bg-[var(--meal-snack)]',
+};
 
 interface WorkoutsPageProps {
   data: WorkoutData;
@@ -213,18 +255,18 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
   const latestProgress = [...progressRecords].sort((a, b) => b.date.localeCompare(a.date))[0];
 
   return (
-    <section>
+    <section className="grid gap-5">
       <PageHeader title="Training & Nutrition" subtitle="Manage exercises, workouts, nutrition, and track your progress." />
 
       <SegmentedTabs tabs={SECTION_TABS} activeTab={activeSection} ariaLabel="Training and nutrition sections" onChange={setActiveSection} />
 
       {/* Exercises Section */}
       {activeSection === 'exercises' && (
-        <section className="panel section-block workout-section-panel">
-          <div className="section-heading">
+        <section className={sectionPanelClass}>
+          <div className={sectionHeadingClass}>
             <div>
               <h2>{t('Exercise Library')}</h2>
-              <p className="muted-text">{t('Create base exercises. These are the foundation for workout plans.')}</p>
+              <p className={mutedTextClass}>{t('Create base exercises. These are the foundation for workout plans.')}</p>
             </div>
             <AddButton label="Add exercise" onClick={() => setOpenForm({ kind: 'exercise' })} />
           </div>
@@ -240,16 +282,16 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
             onDeleteGroup={deleteExerciseGroup}
             canManageGroup={(group) => Boolean(exerciseGroups.some((item) => item.id === group.id))}
           />
-          <div className="exercise-library-layout">
-            <aside className="exercise-groups-panel">
-              <div className="section-heading content-groups-heading">
-                <div className="content-groups-heading-main">
+          <div className={contentGridClass}>
+            <aside className={groupPanelClass}>
+              <div className={groupHeaderClass}>
+                <div className="flex items-center gap-2">
                   <h2>{t('Groups')}</h2>
-                  <span className="rating-pill">{exercises.length}</span>
+                  <span className={pillClass}>{exercises.length}</span>
                 </div>
-                <AddButton className="content-group-add-button" iconOnly label="Add exercise group" onClick={() => setIsCreatingExerciseGroup(true)} />
+                <AddButton iconOnly label="Add exercise group" onClick={() => setIsCreatingExerciseGroup(true)} />
               </div>
-              <div className="exercise-group-tabs" role="tablist" aria-label={t('Exercise groups')}>
+              <div className={groupTabListClass} role="tablist" aria-label={t('Exercise groups')}>
                 {[
                   { id: 'all', title: t('All'), count: exercises.length, group: null },
                   { id: 'ungrouped', title: t('No group'), count: exercises.filter((exercise) => !exercise.groupId).length, group: null },
@@ -261,13 +303,13 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
                   })),
                 ].map((group) => (
                   <button
-                    className={`exercise-group-tab ${activeExerciseGroupId === group.id ? 'active' : ''}`}
+                    className={cn(groupTabClass, activeExerciseGroupId === group.id && groupTabActiveClass)}
                     key={group.id}
                     type="button"
                     onClick={() => setActiveExerciseGroupId(group.id)}
                   >
                     <span>{group.title}</span>
-                    <small>{group.count}</small>
+                    <small className="text-xs font-extrabold text-app-muted">{group.count}</small>
                   </button>
                 ))}
               </div>
@@ -285,15 +327,15 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
                 />
               ) : null}
             </aside>
-            <div className="workout-exercise-grid">
+            <div className={itemGridClass}>
             {visibleExercises.map((exercise) => (
-                <article className="card workout-exercise-card" key={exercise.id}>
-                  <div>
-                    <span className="panel-kicker">{exerciseGroups.find((group) => group.id === exercise.groupId)?.title ?? t('No group')}</span>
-                    <h3>{exercise.name}</h3>
-                    <p>{exercise.description || t('No description.')}</p>
+                <article className={cardClass} key={exercise.id}>
+                  <div className="grid gap-2">
+                    <span className={kickerClass}>{exerciseGroups.find((group) => group.id === exercise.groupId)?.title ?? t('No group')}</span>
+                    <h3 className="text-base font-extrabold text-app-text">{exercise.name}</h3>
+                    <p className={mutedTextClass}>{exercise.description || t('No description.')}</p>
                   </div>
-                  <div className="card-actions">
+                  <div className={actionRowClass}>
                     <EditButton onClick={() => setOpenForm({ kind: 'exercise', exercise })} />
                     <DeleteButton
                       onConfirm={() => deleteExercise(exercise)}
@@ -316,18 +358,18 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
 
       {/* Workout Plans Section */}
       {activeSection === 'plans' && (
-        <section className="panel section-block workout-section-panel">
-          <div className="section-heading">
+        <section className={sectionPanelClass}>
+          <div className={sectionHeadingClass}>
             <div>
               <h2>{t('Training Plans')}</h2>
-              <p className="muted-text">{t('Create structured workout plans from your exercises.')}</p>
+              <p className={mutedTextClass}>{t('Create structured workout plans from your exercises.')}</p>
             </div>
             <AddButton label="Add plan" onClick={() => setOpenForm({ kind: 'plan' })} />
           </div>
           {plans.length === 0 ? (
             <EmptyState title="No workout plans" message="Create exercises first, then build a plan from them." />
           ) : (
-            <div className="card-grid">
+            <div className={cardGridClass}>
               {plans.map((plan) => (
                 <WorkoutCard
                   exercises={exercises}
@@ -345,111 +387,111 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
 
       {/* Workout Sessions Section */}
       {activeSection === 'sessions' && (
-        <section className="panel section-block workout-section-panel">
-          <div className="section-heading">
+        <section className={sectionPanelClass}>
+          <div className={sectionHeadingClass}>
             <div>
               <h2>{t('Workout History')}</h2>
-              <p className="muted-text">{t('Log your completed workouts.')}</p>
+              <p className={mutedTextClass}>{t('Log your completed workouts.')}</p>
             </div>
             <AddButton label="Log workout" onClick={() => setOpenForm({ kind: 'session' })} />
           </div>
-          <div className="stack">
+          <div className={stackClass}>
             {recentSessions(sessions).map((session) => {
               const plan = plans.find((item) => item.id === session.planId);
               const summary = resultSummary(session.exercises ?? session.completedExercises ?? []);
               return (
-                <article className="card workout-history-card" key={session.id}>
-                  <div className="workout-card-heading">
+                <article className={cardClass} key={session.id}>
+                  <div className={headingRowClass}>
                     <div>
-                      <span className="panel-kicker">{t(weekdayLabels[session.dayOfWeek])} {session.time}</span>
-                      <h3>{formatDate(session.date)}</h3>
-                      <p className="workout-card-description">{session.planTitle || plan?.title || t('Free workout')}</p>
+                      <span className={kickerClass}>{t(weekdayLabels[session.dayOfWeek])} {session.time}</span>
+                      <h3 className="text-base font-extrabold text-app-text">{formatDate(session.date)}</h3>
+                      <p className={mutedTextClass}>{session.planTitle || plan?.title || t('Free workout')}</p>
                     </div>
-                    <span className="rating-pill">{summary.completed} / {summary.completed + summary.skipped}</span>
+                    <span className={pillClass}>{summary.completed} / {summary.completed + summary.skipped}</span>
                   </div>
-                  <div className="workout-card-metrics">
-                    <div className="workout-card-metric">
+                  <div className={metricGridClass}>
+                    <div className={metricTileClass}>
                       <span>{t('Completed')}</span>
                       <strong>{summary.completed}</strong>
                     </div>
-                    <div className="workout-card-metric">
+                    <div className={metricTileClass}>
                       <span>{t('Skipped')}</span>
                       <strong>{summary.skipped}</strong>
                     </div>
-                    <div className="workout-card-metric">
+                    <div className={metricTileClass}>
                       <span>{t('Energy')}</span>
                       <strong>{session.energyLevel}/10</strong>
                     </div>
-                    <div className="workout-card-metric">
+                    <div className={metricTileClass}>
                       <span>{t('Mood')}</span>
                       <strong>{session.mood}/10</strong>
                     </div>
                   </div>
-                  <div className="chip-row">
+                  <div className={chipRowClass}>
                     {(session.exercises ?? session.completedExercises ?? []).slice(0, 8).map((exercise) => (
-                      <span className={exercise.status === 'skipped' ? 'chip skipped-chip' : 'chip'} key={exercise.id}>
+                      <span className={cn(chipClass, exercise.status === 'skipped' && skippedChipClass)} key={exercise.id}>
                         {exercise.name} {exercise.status === 'completed' ? `${exercise.sets}x${exercise.reps} ${exercise.weight ? `${exercise.weight}kg` : ''}` : t('Skipped')}
                       </span>
                     ))}
                   </div>
-                  {session.notes ? <p className="workout-note-line">{session.notes}</p> : null}
+                  {session.notes ? <p className={noteLineClass}>{session.notes}</p> : null}
                 </article>
               );
             })}
-            {sessions.length === 0 ? <p className="muted-text">{t('No workout sessions yet.')}</p> : null}
+            {sessions.length === 0 ? <p className={mutedTextClass}>{t('No workout sessions yet.')}</p> : null}
           </div>
         </section>
       )}
 
       {/* Starting Position Section */}
       {activeSection === 'starting-position' && (
-        <section className="panel section-block workout-section-panel">
-          <div className="section-heading">
+        <section className={sectionPanelClass}>
+          <div className={sectionHeadingClass}>
             <div>
               <h2>{t('Starting Position')}</h2>
-              <p className="muted-text">{t('Set your baseline metrics to track progress.')}</p>
+              <p className={mutedTextClass}>{t('Set your baseline metrics to track progress.')}</p>
             </div>
             <AddButton label={startingPosition ? 'Update position' : 'Set position'} onClick={() => setOpenForm({ kind: 'starting-position', position: startingPosition })} />
           </div>
           {startingPosition ? (
-            <div className="workout-detail-card workout-baseline-block">
-              <div className="workout-card-heading">
+            <div className={detailCardClass}>
+              <div className={headingRowClass}>
                 <div>
-                  <span className="panel-kicker">{t('Baseline')}</span>
-                  <h3>{formatDate(startingPosition.date)}</h3>
+                  <span className={kickerClass}>{t('Baseline')}</span>
+                  <h3 className="text-base font-extrabold text-app-text">{formatDate(startingPosition.date)}</h3>
                 </div>
-                <span className="rating-pill">{(startingPosition.metrics ?? []).length} {t('Metrics')}</span>
+                <span className={pillClass}>{(startingPosition.metrics ?? []).length} {t('Metrics')}</span>
               </div>
-              <div className="workout-detail-body">
-                <section className="workout-detail-section">
-                  <h4>{t('Metrics')}</h4>
+              <div className={detailBodyClass}>
+                <section className={detailSectionClass}>
+                  <h4 className="text-sm font-extrabold text-app-text">{t('Metrics')}</h4>
                   {(startingPosition.metrics ?? []).length > 0 ? (
-                    <div className="workout-metric-grid">
+                    <div className={metricGridClass}>
                       {(startingPosition.metrics ?? []).map((metric) => (
-                        <div className="workout-metric-tile" key={metric.key}>
+                        <div className={metricTileClass} key={metric.key}>
                           <span>{metric.label}</span>
                           <strong>{metric.value} {metric.unit}</strong>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="muted-text">{t('No metrics recorded.')}</p>
+                    <p className={mutedTextClass}>{t('No metrics recorded.')}</p>
                   )}
                 </section>
                 {startingPosition.images && startingPosition.images.length > 0 ? (
-                  <section className="workout-detail-section">
-                    <h4>{t('Photos')}</h4>
-                    <div className="photo-grid-small">
+                  <section className={detailSectionClass}>
+                    <h4 className="text-sm font-extrabold text-app-text">{t('Photos')}</h4>
+                    <div className={photoGridSmallClass}>
                       {startingPosition.images.map((img, i) => (
-                        <img key={i} src={img} alt="Starting position" className="progress-photo-thumb" />
+                        <img key={i} src={img} alt="Starting position" className={photoThumbClass} />
                       ))}
                     </div>
                   </section>
                 ) : null}
                 {startingPosition.notes ? (
-                  <section className="workout-detail-section">
-                    <h4>{t('Description')}</h4>
-                    <p className="workout-note-line">{startingPosition.notes}</p>
+                  <section className={detailSectionClass}>
+                    <h4 className="text-sm font-extrabold text-app-text">{t('Description')}</h4>
+                    <p className={noteLineClass}>{startingPosition.notes}</p>
                   </section>
                 ) : null}
               </div>
@@ -462,30 +504,30 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
 
       {/* Progress Records Section */}
       {activeSection === 'progress' && (
-        <section className="panel section-block workout-section-panel">
-          <div className="section-heading">
+        <section className={sectionPanelClass}>
+          <div className={sectionHeadingClass}>
             <div>
               <h2>{t('Progress History')}</h2>
-              <p className="muted-text">{t('Track your progress metrics over time.')}</p>
+              <p className={mutedTextClass}>{t('Track your progress metrics over time.')}</p>
             </div>
             <AddButton label="Add progress record" onClick={() => setOpenForm({ kind: 'progress-record' })} />
           </div>
-          <div className="stack">
+          <div className={stackClass}>
             {progressRecords.map((record) => (
-              <article className="card workout-record-card" key={record.id}>
-                <div className="workout-record-layout">
-                  <div className="workout-record-main">
-                    <div className="workout-card-heading">
+              <article className={cardClass} key={record.id}>
+                <div className="grid grid-cols-[1fr_auto] gap-4 max-[760px]:grid-cols-1">
+                  <div className="grid gap-3">
+                    <div className={headingRowClass}>
                       <div>
-                        <span className="panel-kicker">{t('Progress record')}</span>
-                        <h3>{formatDate(record.date)}</h3>
+                        <span className={kickerClass}>{t('Progress record')}</span>
+                        <h3 className="text-base font-extrabold text-app-text">{formatDate(record.date)}</h3>
                       </div>
-                      <span className="rating-pill">{(record.metrics ?? []).length} {t('Metrics')}</span>
+                      <span className={pillClass}>{(record.metrics ?? []).length} {t('Metrics')}</span>
                     </div>
                     {(record.metrics ?? []).length > 0 && (
-                      <div className="workout-record-metrics">
+                      <div className={metricGridClass}>
                         {(record.metrics ?? []).map((metric) => (
-                          <div className="workout-card-metric" key={metric.key}>
+                          <div className={metricTileClass} key={metric.key}>
                             <span>{metric.label}</span>
                             <strong>{metric.value} {metric.unit}</strong>
                           </div>
@@ -493,63 +535,63 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
                       </div>
                     )}
                     {record.images && record.images.length > 0 && (
-                        <div className="photo-grid-small">
+                        <div className={photoGridSmallClass}>
                             {record.images.map((img, i) => (
-                                <img key={i} src={img} alt="Progress" className="progress-photo-thumb" />
+                                <img key={i} src={img} alt="Progress" className={photoThumbClass} />
                             ))}
                         </div>
                     )}
-                    {record.notes && <p className="workout-note-line">{record.notes}</p>}
+                    {record.notes && <p className={noteLineClass}>{record.notes}</p>}
                   </div>
-                  <div className="card-actions compact">
+                  <div className={cn(actionRowClass, 'self-start')}>
                     <EditButton onClick={() => setOpenForm({ kind: 'progress-record', record })} />
                     <DeleteButton onConfirm={() => deleteProgressRecord(record.id)} confirmTitle="Delete this record?" />
                   </div>
                 </div>
               </article>
             ))}
-            {progressRecords.length === 0 ? <p className="muted-text">{t('No progress records yet.')}</p> : null}
+            {progressRecords.length === 0 ? <p className={mutedTextClass}>{t('No progress records yet.')}</p> : null}
           </div>
         </section>
       )}
 
       {/* Latest Progress Section */}
       {activeSection === 'latest-progress' && (
-          <section className="panel section-block workout-section-panel">
-              <div className="section-heading">
+          <section className={sectionPanelClass}>
+              <div className={sectionHeadingClass}>
                 <div>
                   <h2>{t('Latest Progress')}</h2>
-                  <p className="muted-text">{t('View your most recent measurements.')}</p>
+                  <p className={mutedTextClass}>{t('View your most recent measurements.')}</p>
                 </div>
                 {latestProgress && <EditButton onClick={() => setOpenForm({ kind: 'progress-record', record: latestProgress })} />}
               </div>
               {latestProgress ? (
-                  <article className="card workout-detail-card">
-                      <div className="workout-card-heading">
+                  <article className={detailCardClass}>
+                      <div className={headingRowClass}>
                         <div>
-                          <span className="panel-kicker">{t('Latest Progress')}</span>
-                          <h3>{formatDate(latestProgress.date)}</h3>
+                          <span className={kickerClass}>{t('Latest Progress')}</span>
+                          <h3 className="text-base font-extrabold text-app-text">{formatDate(latestProgress.date)}</h3>
                         </div>
-                        <span className="rating-pill">{latestProgress.metrics.length} {t('Metrics')}</span>
+                        <span className={pillClass}>{latestProgress.metrics.length} {t('Metrics')}</span>
                       </div>
-                      <div className="workout-detail-body">
-                          <div className="workout-metric-grid">
+                      <div className={detailBodyClass}>
+                          <div className={metricGridClass}>
                               {latestProgress.metrics.map((metric) => (
-                                  <div className="workout-metric-tile" key={metric.key}>
+                                  <div className={metricTileClass} key={metric.key}>
                                       <span>{metric.label}</span>
                                       <strong>{metric.value} {metric.unit}</strong>
                                   </div>
                               ))}
                           </div>
                           {latestProgress.images && latestProgress.images.length > 0 && (
-                              <div className="photo-grid-large">
+                              <div className={photoGridLargeClass}>
                                   {latestProgress.images.map((img, i) => (
-                                      <img key={i} src={img} alt="Latest progress" className="progress-photo-large" />
+                                      <img key={i} src={img} alt="Latest progress" className={photoLargeClass} />
                                   ))}
                               </div>
                           )}
                       </div>
-                      {latestProgress.notes && <p className="workout-note-line">{latestProgress.notes}</p>}
+                      {latestProgress.notes && <p className={noteLineClass}>{latestProgress.notes}</p>}
                   </article>
               ) : (
                   <EmptyState title="No progress recorded" message="Add your first progress record to see it here." />
@@ -559,15 +601,15 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
 
       {/* Nutrition - Meals Section */}
       {activeSection === 'nutrition-meals' && (
-        <section className="panel section-block workout-section-panel">
-          <div className="section-heading">
+        <section className={sectionPanelClass}>
+          <div className={sectionHeadingClass}>
             <div>
               <h2>{t('Daily Nutrition')}</h2>
-              <p className="muted-text">{t('Track your meals and daily nutritional intake.')}</p>
+              <p className={mutedTextClass}>{t('Track your meals and daily nutritional intake.')}</p>
             </div>
             <AddButton label="Add today's meal" onClick={() => setOpenForm({ kind: 'nutrition-meal' })} />
           </div>
-          <div className="stack">
+          <div className={stackClass}>
             {(nutritionEntries || []).filter(Boolean).map((entry) => {
               const meals = (Array.isArray(entry.meals) ? entry.meals : []).filter(Boolean);
               const totals = {
@@ -583,38 +625,38 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
                 { label: t('kcal'), value: String(Math.round(totals.calories)) },
               ];
               return (
-                <article className="card nutrition-row-card" key={entry.id}>
-                  <div className="nutrition-day-layout">
-                    <div className="nutrition-day-main">
-                      <div className="nutrition-day-heading">
+                <article className={cardClass} key={entry.id}>
+                  <div className="grid grid-cols-[1fr_auto] gap-4 max-[760px]:grid-cols-1">
+                    <div className="grid gap-3">
+                      <div className={headingRowClass}>
                         <div>
-                          <span className="panel-kicker">{t('Daily totals')}</span>
-                          <h3>{formatDate(entry.date)}</h3>
+                          <span className={kickerClass}>{t('Daily totals')}</span>
+                          <h3 className="text-base font-extrabold text-app-text">{formatDate(entry.date)}</h3>
                         </div>
-                        {entry.water > 0 ? <span className="nutrition-water-pill">{t('Water')} {entry.water}L</span> : null}
+                        {entry.water > 0 ? <span className={pillClass}>{t('Water')} {entry.water}L</span> : null}
                       </div>
-                      <div className="nutrition-total-grid">
+                      <div className={metricGridClass}>
                         {totalMetrics.map((metric) => (
-                          <div className="nutrition-total-tile" key={metric.label}>
+                          <div className={metricTileClass} key={metric.label}>
                             <span>{metric.label}</span>
                             <strong>{metric.value}</strong>
                           </div>
                         ))}
                       </div>
-                      <div className="nutrition-meal-list">
+                      <div className="grid gap-2">
                         {meals.map((meal) => (
-                          <section className={`nutrition-meal-card ${meal.mealType || 'snack'}`} key={meal.id}>
-                            <div className="nutrition-meal-accent" aria-hidden="true" />
-                            <div className="nutrition-meal-content">
-                              <div className="nutrition-meal-heading">
+                          <section className="grid grid-cols-[4px_1fr] overflow-hidden rounded-control border border-app-border bg-app-surface-soft" key={meal.id}>
+                            <div className={cn(mealAccentByType[meal.mealType || 'snack'] ?? mealAccentByType.snack)} aria-hidden="true" />
+                            <div className="grid gap-2 p-3">
+                              <div className={headingRowClass}>
                                 <div>
-                                  <strong>{t(meal.mealType || 'snack')}</strong>
-                                  <span>{meal.time || t('Any time')}</span>
+                                  <strong className="block text-sm text-app-text">{t(meal.mealType || 'snack')}</strong>
+                                  <span className="text-xs text-app-muted">{meal.time || t('Any time')}</span>
                                 </div>
-                                <span className="nutrition-calorie-pill">{Math.round(meal.calories ?? 0)} {t('kcal')}</span>
+                                <span className={pillClass}>{Math.round(meal.calories ?? 0)} {t('kcal')}</span>
                               </div>
-                              <p>{meal.customDescription || t('Detailed meal')}</p>
-                              <div className="nutrition-macro-row">
+                              <p className={mutedTextClass}>{meal.customDescription || t('Detailed meal')}</p>
+                              <div className={chipRowClass}>
                                 <span><strong>{meal.protein ?? 0}g</strong> {t('protein')}</span>
                                 <span><strong>{meal.carbs ?? 0}g</strong> {t('carbs')}</span>
                                 <span><strong>{meal.fats ?? 0}g</strong> {t('fats')}</span>
@@ -622,11 +664,11 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
                             </div>
                           </section>
                         ))}
-                        {meals.length === 0 ? <div className="nutrition-empty-meals">{t('No meals recorded.')}</div> : null}
+                        {meals.length === 0 ? <div className="rounded-control border border-dashed border-app-border p-3 text-sm text-app-muted">{t('No meals recorded.')}</div> : null}
                       </div>
-                      {entry.notes ? <p className="nutrition-day-notes">{entry.notes}</p> : null}
+                      {entry.notes ? <p className={noteLineClass}>{entry.notes}</p> : null}
                     </div>
-                    <div className="card-actions compact">
+                    <div className={cn(actionRowClass, 'self-start')}>
                       <EditButton onClick={() => setOpenForm({ kind: 'nutrition-entry', entry })} />
                       <DeleteButton onConfirm={() => deleteNutritionEntry(entry.id)} confirmTitle="Delete this day's record?" />
                     </div>

@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useState } from 'react';
 import type { ModuleKey, SidebarSettings } from '../types/common';
 import { Sidebar } from './Sidebar';
+import { cn } from '../utils/classNames';
 
 interface AppShellProps {
   active: ModuleKey;
@@ -16,9 +17,13 @@ export function AppShell({ active, onNavigate, sidebarSettings, onSidebarSetting
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const isStudyMode = active === 'study';
   const isEffectiveSidebarCollapsed = isStudyMode || isSidebarCollapsed;
+  const sidebarWidth = isEffectiveSidebarCollapsed ? '76px' : '260px';
 
   return (
-    <div className={`app-shell ${isEffectiveSidebarCollapsed ? 'sidebar-collapsed' : ''} ${isStudyMode ? 'study-shell' : ''}`}>
+    <div
+      className="grid min-h-screen grid-cols-[var(--sidebar-width)_minmax(0,1fr)] transition-[grid-template-columns] duration-200 ease-out"
+      style={{ '--sidebar-width': sidebarWidth } as CSSProperties}
+    >
       <Sidebar
         active={active}
         isCollapsed={isEffectiveSidebarCollapsed}
@@ -33,7 +38,9 @@ export function AppShell({ active, onNavigate, sidebarSettings, onSidebarSetting
         onSidebarSettingsChange={onSidebarSettingsChange}
         reminderBadges={reminderBadges}
       />
-      <main className="main-content">{children}</main>
+      <main className={cn('h-screen min-w-0 overflow-y-auto overflow-x-hidden bg-transparent', isStudyMode ? 'p-0' : 'p-8')}>
+        {children}
+      </main>
     </div>
   );
 }

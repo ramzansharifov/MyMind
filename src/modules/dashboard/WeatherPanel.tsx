@@ -277,15 +277,15 @@ export function WeatherPanel({ settings, onSettingsChange }: WeatherPanelProps) 
   // Rendering setup screen
   if (!city || isSearching) {
     return (
-      <section className="panel weather-panel">
-        <div className="weather-header">
-          <h3>
+      <section className={weatherPanelClass}>
+        <div className={weatherHeaderClass}>
+          <h3 className={weatherTitleClass}>
             <MapPin size={18} aria-hidden="true" />
             {t('Configure Weather')}
           </h3>
           {city && (
             <button
-              className="icon-button ghost"
+              className={iconGhostButtonClass}
               type="button"
               onClick={() => setIsSearching(false)}
               aria-label={t('Close')}
@@ -294,37 +294,37 @@ export function WeatherPanel({ settings, onSettingsChange }: WeatherPanelProps) 
             </button>
           )}
         </div>
-        <div className="weather-setup">
-          <p>{t('Enter city name')}:</p>
-          <form onSubmit={handleSearch} className="weather-search-box">
+        <div className="grid gap-3 py-2.5">
+          <p className="text-sm text-app-muted">{t('Enter city name')}:</p>
+          <form onSubmit={handleSearch} className="flex gap-2">
             <input
               type="text"
               placeholder={t('Search city...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="text-input"
+              className="min-w-0 flex-1"
               required
             />
-            <button className="button primary" type="submit" disabled={isSearchingApi}>
-              {isSearchingApi ? <Loader2 size={16} className="weather-spinner" /> : <Search size={16} />}
+            <button className={primaryButtonClass} type="submit" disabled={isSearchingApi}>
+              {isSearchingApi ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
               <span>{t('Search')}</span>
             </button>
           </form>
 
-          {searchError && <p className="muted-text">{searchError}</p>}
+          {searchError && <p className="text-sm text-app-muted">{searchError}</p>}
 
           {searchResults.length > 0 && (
-            <div className="weather-search-results-list">
-              <p>{t('Select your city')}:</p>
+            <div className="mt-2 grid max-h-[200px] gap-1.5 overflow-y-auto">
+              <p className="text-sm text-app-muted">{t('Select your city')}:</p>
               {searchResults.map((res) => (
                 <button
                   key={res.id}
-                  className="weather-search-result-item"
+                  className="grid gap-0.5 rounded-panel border border-app-border bg-app-surface-soft px-3 py-2.5 text-left transition-colors hover:border-[color-mix(in_srgb,var(--accent)_48%,var(--border))] hover:bg-app-surface-strong"
                   type="button"
                   onClick={() => void handleSelectCity(res)}
                 >
-                  <strong>{res.name}</strong>
-                  <span>{res.country ? `${res.admin1 ? `${res.admin1}, ` : ''}${res.country}` : ''}</span>
+                  <strong className="text-sm text-app-text">{res.name}</strong>
+                  <span className="text-xs text-app-muted">{res.country ? `${res.admin1 ? `${res.admin1}, ` : ''}${res.country}` : ''}</span>
                 </button>
               ))}
             </div>
@@ -337,15 +337,15 @@ export function WeatherPanel({ settings, onSettingsChange }: WeatherPanelProps) 
   // Rendering error screen
   if (forecastError) {
     return (
-      <section className="panel weather-panel">
-        <div className="weather-header">
-          <h3>
+      <section className={weatherPanelClass}>
+        <div className={weatherHeaderClass}>
+          <h3 className={weatherTitleClass}>
             <MapPin size={18} aria-hidden="true" />
             {city.name}
           </h3>
           <Tooltip content={t('Change city')} position="bottom-end">
             <button
-              className="icon-button ghost"
+              className={iconGhostButtonClass}
               type="button"
               aria-label={t('Change city')}
               onClick={() => setIsSearching(true)}
@@ -354,9 +354,9 @@ export function WeatherPanel({ settings, onSettingsChange }: WeatherPanelProps) 
             </button>
           </Tooltip>
         </div>
-        <div className="stack">
-          <p className="muted-text">{forecastError}</p>
-          <button className="button" type="button" onClick={() => setIsSearching(true)}>
+        <div className="grid gap-2.5">
+          <p className="text-sm text-app-muted">{forecastError}</p>
+          <button className={defaultButtonClass} type="button" onClick={() => setIsSearching(true)}>
             {t('Change city')}
           </button>
         </div>
@@ -367,9 +367,9 @@ export function WeatherPanel({ settings, onSettingsChange }: WeatherPanelProps) 
   // Rendering loading state
   if (isLoadingForecast || !forecastData) {
     return (
-      <section className="panel weather-panel">
-        <div className="weather-header">
-          <h3>
+      <section className={weatherPanelClass}>
+        <div className={weatherHeaderClass}>
+          <h3 className={weatherTitleClass}>
             <MapPin size={18} aria-hidden="true" />
             {city.name}
           </h3>
@@ -385,15 +385,15 @@ export function WeatherPanel({ settings, onSettingsChange }: WeatherPanelProps) 
   const CurrentIcon = currentInfo.icon;
 
   return (
-    <section className="panel weather-panel">
-      <div className="weather-header">
-        <h3>
+    <section className={weatherPanelClass}>
+      <div className={weatherHeaderClass}>
+        <h3 className={weatherTitleClass}>
           <MapPin size={16} aria-hidden="true" />
           <span>{city.name}</span>
         </h3>
         <Tooltip content={t('Change city')} position="bottom-end">
           <button
-            className="icon-button ghost"
+            className={iconGhostButtonClass}
             type="button"
             aria-label={t('Change city')}
             onClick={() => setIsSearching(true)}
@@ -403,30 +403,30 @@ export function WeatherPanel({ settings, onSettingsChange }: WeatherPanelProps) 
         </Tooltip>
       </div>
 
-      <div className="weather-grid">
+      <div className="grid grid-cols-[1fr_1.1fr_1.6fr] items-center gap-5 max-[900px]:grid-cols-1 max-[900px]:gap-4">
         {/* Current Weather Card */}
-        <div className="weather-current">
-          <CurrentIcon size={44} className="weather-icon-large" aria-hidden="true" />
-          <div className="weather-current-temp-block">
-            <span className="weather-current-temp">{Math.round(current.temperature_2m)}°C</span>
-            <span className="weather-current-condition">{currentInfo.text}</span>
-            {city.country && <span className="weather-current-city">{city.country}</span>}
+        <div className="flex items-center gap-3.5">
+          <CurrentIcon size={44} className="text-app-accent-strong drop-shadow-[0_0_22px_var(--accent-glow)]" aria-hidden="true" />
+          <div className="grid gap-0.5">
+            <span className="text-[34px] font-extrabold leading-none text-app-text">{Math.round(current.temperature_2m)}°C</span>
+            <span className="text-sm font-bold text-app-text">{currentInfo.text}</span>
+            {city.country && <span className="text-xs text-app-muted">{city.country}</span>}
           </div>
         </div>
 
         {/* Current Details */}
-        <div className="weather-details-grid">
-          <div className="weather-detail-card">
+        <div className="grid grid-cols-3 gap-2 max-[520px]:grid-cols-1">
+          <div className={weatherDetailCardClass}>
             <Thermometer size={16} aria-hidden="true" />
             <span>{t('Feels like')}</span>
             <strong>{Math.round(current.apparent_temperature)}°C</strong>
           </div>
-          <div className="weather-detail-card">
+          <div className={weatherDetailCardClass}>
             <Wind size={16} aria-hidden="true" />
             <span>{t('Wind')}</span>
             <strong>{Math.round(current.wind_speed_10m)} {language === 'ru' ? 'км/ч' : 'km/h'}</strong>
           </div>
-          <div className="weather-detail-card">
+          <div className={weatherDetailCardClass}>
             <Droplets size={16} aria-hidden="true" />
             <span>{t('Humidity')}</span>
             <strong>{current.relative_humidity_2m}%</strong>
@@ -434,18 +434,18 @@ export function WeatherPanel({ settings, onSettingsChange }: WeatherPanelProps) 
         </div>
 
         {/* 5-day Forecast list */}
-        <div className="weather-forecast-list">
+        <div className="grid grid-cols-5 gap-2 max-[620px]:grid-cols-2">
           {daily.time.slice(0, 5).map((date, idx) => {
             const dayCode = daily.weather_code[idx];
             const dayInfo = getWeatherInfo(dayCode);
             const DayIcon = dayInfo.icon;
             return (
-              <div key={date} className="weather-forecast-day">
-                <span className="weather-forecast-day-name">{idx === 0 ? t('Today') : getDayName(date)}</span>
-                <DayIcon size={20} style={{ color: 'var(--accent-strong)' }} aria-hidden="true" />
-                <div className="weather-forecast-temp">
-                  <span className="weather-forecast-max">{Math.round(daily.temperature_2m_max[idx])}°</span>
-                  <span className="weather-forecast-min">{Math.round(daily.temperature_2m_min[idx])}°</span>
+              <div key={date} className="grid min-h-[92px] place-items-center gap-1 rounded-panel border border-app-border bg-app-surface-soft p-2 text-center">
+                <span className="text-[11px] font-bold uppercase tracking-[0.05em] text-app-muted">{idx === 0 ? t('Today') : getDayName(date)}</span>
+                <DayIcon size={20} className="text-app-accent-strong" aria-hidden="true" />
+                <div className="flex items-center gap-1.5 text-sm font-extrabold">
+                  <span className="text-app-text">{Math.round(daily.temperature_2m_max[idx])}°</span>
+                  <span className="text-app-muted">{Math.round(daily.temperature_2m_min[idx])}°</span>
                 </div>
               </div>
             );
@@ -455,3 +455,16 @@ export function WeatherPanel({ settings, onSettingsChange }: WeatherPanelProps) 
     </section>
   );
 }
+
+const weatherPanelClass =
+  'mb-[18px] relative overflow-hidden rounded-panel border border-[var(--glass-border)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--surface)_95%,var(--accent)_5%),color-mix(in_srgb,var(--surface)_97%,transparent))] p-[18px] text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel';
+const weatherHeaderClass = 'mb-3 flex items-center justify-between gap-3';
+const weatherTitleClass = 'flex items-center gap-2 text-base font-bold text-app-text';
+const iconGhostButtonClass =
+  'inline-flex h-icon min-h-icon w-icon items-center justify-center rounded-control border border-[color-mix(in_srgb,var(--accent)_36%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-strong))] text-[color-mix(in_srgb,var(--accent-strong)_86%,var(--text))] transition-colors hover:border-[color-mix(in_srgb,var(--accent-strong)_82%,var(--border))] hover:bg-[var(--control-bg-hover)]';
+const primaryButtonClass =
+  'inline-flex min-h-control items-center justify-center gap-2 whitespace-nowrap rounded-control border border-[color-mix(in_srgb,var(--accent)_72%,var(--border))] bg-[var(--button-bg-primary)] px-3.5 py-2.5 text-app-accent-strong transition-colors hover:bg-[var(--button-bg-primary-hover)] disabled:opacity-55';
+const defaultButtonClass =
+  'inline-flex min-h-control w-fit items-center justify-center gap-2 rounded-control border border-app-border bg-app-surface-strong px-3.5 py-2.5 text-sm font-bold text-app-text transition-colors hover:border-[color-mix(in_srgb,var(--accent)_44%,var(--border))]';
+const weatherDetailCardClass =
+  'flex flex-col items-center justify-center gap-1 rounded-panel border border-app-border bg-app-surface-strong p-2 text-center [&_svg]:text-app-accent-strong [&_span]:text-[11px] [&_span]:text-app-muted [&_strong]:text-[13px] [&_strong]:text-app-text';

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useI18n } from '../i18n/I18nProvider';
+import { cn } from '../utils/classNames';
 
 export interface SegmentedTab<T extends string> {
   id: T;
@@ -19,10 +20,14 @@ export function SegmentedTabs<T extends string>({ tabs, activeTab, ariaLabel, on
   const { t } = useI18n();
 
   return (
-    <div className={['segmented-tabs', className].filter(Boolean).join(' ')} role="tablist" aria-label={t(ariaLabel)}>
+    <div className={cn('mb-[22px] inline-flex w-fit max-w-full flex-wrap items-center gap-1 rounded-panel border border-app-border bg-app-surface-soft p-1', className)} role="tablist" aria-label={t(ariaLabel)}>
       {tabs.map((tab) => (
         <button
-          className={`segmented-tab${activeTab === tab.id ? ' active' : ''}`}
+          className={cn(
+            'inline-flex min-h-[38px] items-center justify-center gap-2 rounded-md border-0 bg-transparent px-3 font-extrabold text-app-muted',
+            'hover:bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))] hover:text-app-accent-strong',
+            activeTab === tab.id && 'bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))] text-app-accent-strong',
+          )}
           key={tab.id}
           type="button"
           role="tab"

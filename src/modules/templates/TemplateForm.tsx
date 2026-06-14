@@ -120,7 +120,7 @@ export function TemplateForm({ template, groups = [], defaultGroupId = null, onC
         <input required value={title} onChange={(event) => setTitle(event.target.value)} />
       </label>
 
-      <div className="form-grid">
+      <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
         <label>
           {t('Category')}
           <input value={category} onChange={(event) => setCategory(event.target.value)} />
@@ -146,16 +146,16 @@ export function TemplateForm({ template, groups = [], defaultGroupId = null, onC
         </label>
       ) : null}
 
-      <div className="template-variable-toolbar">
-        <button className="button ghost" type="button" onClick={addTextVariable}>
+      <div className="flex flex-wrap gap-2 rounded-panel border border-[var(--line-soft)] bg-app-surface-soft p-3">
+        <button className={ghostButtonClass} type="button" onClick={addTextVariable}>
           {t('Add text variable')}
         </button>
 
-        <button className="button ghost" type="button" onClick={addDateVariable}>
+        <button className={ghostButtonClass} type="button" onClick={addDateVariable}>
           {t('Add date variable')}
         </button>
 
-        <button className="button ghost" type="button" onClick={addNumberedListVariable}>
+        <button className={ghostButtonClass} type="button" onClick={addNumberedListVariable}>
           {t('Add numbered list')}
         </button>
       </div>
@@ -164,7 +164,7 @@ export function TemplateForm({ template, groups = [], defaultGroupId = null, onC
         {t('Template text')}
         <textarea
           ref={textareaRef}
-          className="template-form-body"
+          className="min-h-[260px] font-mono text-sm"
           rows={12}
           value={body}
           onChange={(event) => setBody(event.target.value)}
@@ -172,13 +172,13 @@ export function TemplateForm({ template, groups = [], defaultGroupId = null, onC
         />
       </label>
 
-      <div className="template-variable-panel">
-        <strong>{t('Variables')}</strong>
+      <div className="grid gap-2 rounded-panel border border-[var(--line-soft)] bg-app-surface-soft p-3">
+        <strong className="text-sm font-extrabold text-app-text">{t('Variables')}</strong>
 
         {variables.length > 0 ? (
-          <div className="chip-row">
+          <div className="flex flex-wrap gap-2">
             {variables.map((variable) => (
-              <span className="chip" key={`${variable.type}:${variable.name}`}>
+              <span className={chipClass} key={`${variable.type}:${variable.name}`}>
                 {variable.type === 'date'
                   ? `date: ${variable.name}`
                   : variable.type === 'numberedList'
@@ -188,9 +188,15 @@ export function TemplateForm({ template, groups = [], defaultGroupId = null, onC
             ))}
           </div>
         ) : (
-          <span className="muted-text">{t('No variables detected.')}</span>
+          <span className="text-sm text-app-muted">{t('No variables detected.')}</span>
         )}
       </div>
     </EntityForm>
   );
 }
+
+const ghostButtonClass =
+  'inline-flex min-h-control items-center justify-center rounded-control border border-[color-mix(in_srgb,var(--accent)_36%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-strong))] px-3.5 py-2.5 text-sm font-bold text-[color-mix(in_srgb,var(--accent-strong)_86%,var(--text))] transition-colors hover:border-[color-mix(in_srgb,var(--accent-strong)_82%,var(--border))] hover:bg-[var(--control-bg-hover)]';
+
+const chipClass =
+  'inline-flex w-fit items-center rounded-full border border-[color-mix(in_srgb,var(--accent)_38%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_12%,var(--surface-strong))] px-2.5 py-1 text-xs font-bold text-app-accent-strong';

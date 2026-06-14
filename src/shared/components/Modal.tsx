@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { CloseButton } from './ActionButtons';
 import { ModalPortal } from './ModalPortal';
 import { useI18n } from '../i18n/I18nProvider';
+import { cn } from '../utils/classNames';
 
 type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
@@ -38,7 +39,10 @@ export function Modal({
   return (
     <ModalPortal>
       <div
-        className={['dialog-backdrop app-modal-backdrop', className].filter(Boolean).join(' ')}
+        className={cn(
+          'fixed inset-0 z-50 grid place-items-center bg-[color-mix(in_srgb,var(--backdrop)_86%,transparent)] p-6 [backdrop-filter:blur(14px)_saturate(125%)]',
+          className,
+        )}
         role="presentation"
         onMouseDown={(event) => {
           if (closeOnBackdrop && event.target === event.currentTarget) {
@@ -47,23 +51,31 @@ export function Modal({
         }}
       >
         <section
-          className={['panel app-modal-panel', `app-modal-panel-${size}`, panelClassName].filter(Boolean).join(' ')}
+          className={cn(
+            'grid max-h-[calc(100vh-48px)] gap-3.5 overflow-auto rounded-panel border border-[color-mix(in_srgb,var(--accent)_32%,var(--glass-border))]',
+            'bg-[var(--panel-bg)] p-[18px] text-app-text [backdrop-filter:var(--glass-blur)] shadow-modal',
+            size === 'sm' && 'w-[min(420px,100%)]',
+            size === 'md' && 'w-[min(560px,100%)]',
+            size === 'lg' && 'w-[min(920px,100%)]',
+            size === 'xl' && 'w-[min(1120px,100%)]',
+            panelClassName,
+          )}
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
           onMouseDown={(event) => event.stopPropagation()}
         >
           {(title || showClose) ? (
-            <div className="form-heading app-modal-heading">
+            <div className="flex items-center justify-between gap-3">
               <div>
-                {title ? <h2 id={titleId}>{t(title)}</h2> : null}
-                {subtitle ? <p className="muted-text">{t(subtitle)}</p> : null}
+                {title ? <h2 id={titleId} className="text-lg font-extrabold text-app-text">{t(title)}</h2> : null}
+                {subtitle ? <p className="mt-1 text-app-muted">{t(subtitle)}</p> : null}
               </div>
-              {showClose ? <CloseButton onClick={onClose} /> : null}
+              {showClose ? <CloseButton data-modal-close="true" onClick={onClose} /> : null}
             </div>
           ) : null}
-          <div className="app-modal-body">{children}</div>
-          {footer ? <div className="form-actions app-modal-footer">{footer}</div> : null}
+          <div className="grid min-w-0 gap-3.5">{children}</div>
+          {footer ? <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--line-soft)] pt-3">{footer}</div> : null}
         </section>
       </div>
     </ModalPortal>

@@ -16,22 +16,22 @@ export function FinanceAccountCard({ account, balance, currency, canDelete, onEd
     const { t } = useI18n();
 
     return (
-        <article className="card finance-account-card">
-            <div className="card-title-row">
-                <div>
-                    <h3>{account.title}</h3>
-                    <small>{account.description || t('No description')}</small>
+        <article className="grid gap-3 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <h3 className="truncate text-base font-extrabold text-app-text">{account.title}</h3>
+                    <small className="text-app-muted">{account.description || t('No description')}</small>
                 </div>
-                <span className="rating-pill">{formatCurrency(balance, currency)}</span>
+                <span className="inline-flex w-fit shrink-0 items-center rounded-full border border-app-border bg-app-chip px-2.5 py-1 text-xs font-extrabold text-app-chip-text">{formatCurrency(balance, currency)}</span>
             </div>
 
-            <div className="finance-start-value">
-                <span>{t('Starting balance')}</span>
-                <strong>{formatCurrency(account.startingBalance, currency)}</strong>
-                <small>{t('Current account balance')}</small>
+            <div className="grid gap-0.5 rounded-panel border border-app-border bg-app-surface-soft p-3">
+                <span className="text-xs font-bold uppercase tracking-[0.06em] text-app-muted">{t('Starting balance')}</span>
+                <strong className="text-xl text-app-text">{formatCurrency(account.startingBalance, currency)}</strong>
+                <small className="text-app-muted">{t('Current account balance')}</small>
             </div>
 
-            <div className="card-actions">
+            <div className="flex flex-wrap items-center justify-end gap-2">
                 <EditButton onClick={onEdit} />
                 {canDelete ? (
                     <DeleteButton

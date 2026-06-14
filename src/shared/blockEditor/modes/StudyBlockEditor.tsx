@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { cn } from "../../utils/classNames";
 import { CodeBlockEditor, CODE_LANGUAGE_OPTIONS } from "../blocks/code/CodeBlockEditor";
 import { HeadingBlockEditor } from "../blocks/heading/HeadingBlockEditor";
 import { LatexPreview, MarkdownPreview, MarkupBlockEditor } from "../blocks/markup/MarkupBlock";
@@ -128,14 +129,14 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
   }
 
   return (
-    <div className="study-block-editor">
-      <div className="study-block-editor-layout">
-        <div className="study-block-main">
-          <div className="study-block-list">
+    <div className="min-w-0">
+      <div className="grid grid-cols-[minmax(0,1fr)_340px] items-start gap-4 max-[1100px]:grid-cols-1">
+        <div className="min-w-0">
+          <div className="grid gap-3">
             {document.blocks.map((block, index) => (
               <Fragment key={block.id}>
                 <section
-                  className={`study-content-block ${activeBlockId === block.id ? "active" : ""}`}
+                  className={cn(studyContentBlockClass, activeBlockId === block.id && studyContentBlockActiveClass)}
                   onMouseDown={() => {
                     setActiveBlockId(block.id);
                     setInsertSlotAfterId(null);
@@ -145,12 +146,12 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
                     }
                   }}
                 >
-                  <div className="study-block-controls">
-                    <GripVertical size={16} />
-                    <span>{blockTypeLabel(block.type)}</span>
+                  <div className="mb-3 flex items-center gap-2">
+                    <GripVertical className="text-app-muted" size={16} />
+                    <span className="mr-auto text-sm font-extrabold text-app-text">{blockTypeLabel(block.type)}</span>
                     {isPreviewableBlock(block.type) ? (
                       <button
-                        className={`icon-button ${previewBlockIds[block.id] ? "active" : ""}`}
+                        className={cn(iconButtonClass, previewBlockIds[block.id] && iconButtonActiveClass)}
                         type="button"
                         onClick={() => toggleBlockPreview(block.id)}
                         aria-label="Предпросмотр блока"
@@ -160,7 +161,7 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
                       </button>
                     ) : null}
                     <button
-                      className="icon-button"
+                      className={iconButtonClass}
                       type="button"
                       onClick={() => moveBlock(block.id, -1)}
                       disabled={index === 0}
@@ -169,7 +170,7 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
                       <ArrowUp size={16} />
                     </button>
                     <button
-                      className="icon-button"
+                      className={iconButtonClass}
                       type="button"
                       onClick={() => moveBlock(block.id, 1)}
                       disabled={index === document.blocks.length - 1}
@@ -178,7 +179,7 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
                       <ArrowDown size={16} />
                     </button>
                   <button
-                    className="icon-button danger"
+                    className={dangerIconButtonClass}
                     type="button"
                     onClick={() => setBlockPendingDelete(block)}
                     aria-label="Удалить блок"
@@ -309,33 +310,33 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
           />
         </div>
 
-        <div className="study-block-side">
-          <aside className="study-block-settings-sidebar" aria-label="Настройки активного блока">
-            <div className="study-block-settings-head">
-              <strong>Настройки</strong>
+        <div className="sticky top-4 grid gap-3 max-[1100px]:static">
+          <aside className="grid gap-3 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel" aria-label="Настройки активного блока">
+            <div className="border-b border-app-border pb-3">
+              <strong className="text-base font-extrabold text-app-text">Настройки</strong>
             </div>
 
-            <div className="study-block-settings-section study-block-settings-type">
-              <span className="study-block-settings-title">Тип</span>
-              <div className="study-block-type-chip">
+            <div className="grid gap-2 border-b border-app-border pb-3">
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-muted">Тип</span>
+              <div className="inline-flex w-fit items-center gap-2 rounded-control border border-[color-mix(in_srgb,var(--accent)_28%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-strong))] px-3 py-2 text-sm font-extrabold text-app-accent-strong">
                 <ActiveBlockIcon size={16} />
                 <span>{activeBlock ? blockTypeLabel(activeBlock.type) : "Блок не выбран"}</span>
               </div>
             </div>
 
-            <div className="study-block-settings-section study-block-settings-text">
-              <span className="study-block-settings-title">Форматирование</span>
-              <div className="study-block-toolbar-slot" ref={setTextToolbarTarget}>
-                {!activeTextEditorId ? <span className="muted-text">Выбери текстовый блок</span> : null}
+            <div className="grid gap-2 border-b border-app-border pb-3">
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-muted">Форматирование</span>
+              <div className="min-h-[44px]" ref={setTextToolbarTarget}>
+                {!activeTextEditorId ? <span className="text-sm text-app-muted">Выбери текстовый блок</span> : null}
               </div>
             </div>
 
             {activeBlock?.type === "heading" || activeBlock?.type === "code" ? (
-              <div className="study-block-settings-section study-block-settings-markup">
-                <span className="study-block-settings-title">Разметка</span>
+              <div className="grid gap-2">
+                <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-muted">Разметка</span>
 
                 {activeBlock.type === "heading" ? (
-                  <label className="study-top-heading-setting">
+                  <label className={settingsLabelClass}>
                     <span>Уровень</span>
                     <select
                       value={activeBlock.level}
@@ -360,7 +361,7 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
                 ) : null}
 
                 {activeBlock.type === "code" ? (
-                  <label className="study-top-code-setting">
+                  <label className={settingsLabelClass}>
                     <span>Язык</span>
                     <select
                       value={activeBlock.language || "auto"}
@@ -387,7 +388,7 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
             ) : null}
           </aside>
 
-          {sidebarFooter ? <div className="study-block-side-footer">{sidebarFooter}</div> : null}
+          {sidebarFooter ? <div>{sidebarFooter}</div> : null}
         </div>
       </div>
 
@@ -429,7 +430,7 @@ function BlockInsertDivider({
 }) {
   return (
     <div
-      className={`study-block-insert-divider ${isActive ? "active" : ""} ${isOpen ? "open" : ""}`}
+      className={cn(blockInsertDividerClass, (isActive || isOpen) && blockInsertDividerActiveClass)}
       onClick={() => {
         if (isActive) {
           onToggle();
@@ -440,7 +441,7 @@ function BlockInsertDivider({
       }}
     >
       <span
-        className="study-block-insert-toggle"
+        className={cn(blockInsertToggleClass, (isActive || isOpen) && "opacity-100 scale-100")}
         title="Добавить блок"
         aria-hidden="true"
       >
@@ -448,8 +449,8 @@ function BlockInsertDivider({
       </span>
 
       {isOpen ? (
-        <div className="study-block-insert-menu" onClick={(event) => event.stopPropagation()}>
-          <BlockTypeButtons className="study-block-insert-option" onPick={onPick} />
+        <div className="absolute left-1/2 top-[calc(100%+8px)] z-20 flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-2 [backdrop-filter:var(--glass-blur)] shadow-modal" onClick={(event) => event.stopPropagation()}>
+          <BlockTypeButtons className={blockInsertOptionClass} onPick={onPick} />
         </div>
       ) : null}
     </div>
@@ -490,3 +491,23 @@ function blockTypeLabel(type: StudyContentBlock["type"]) {
 function blockTypeIcon(type: StudyContentBlock["type"]) {
   return BLOCK_INSERT_OPTIONS.find((option) => option.type === type)?.icon ?? Type;
 }
+
+const studyContentBlockClass =
+  "rounded-panel border border-app-border bg-app-surface-soft p-4 text-app-text transition-colors";
+const studyContentBlockActiveClass =
+  "border-[color-mix(in_srgb,var(--accent)_50%,var(--border))] shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent)_28%,transparent)]";
+const iconButtonClass =
+  "inline-flex h-9 w-9 items-center justify-center rounded-control border border-app-border bg-app-surface-strong text-app-muted transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:text-app-accent-strong disabled:cursor-not-allowed disabled:opacity-45";
+const iconButtonActiveClass =
+  "border-[color-mix(in_srgb,var(--accent)_56%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))] text-app-accent-strong";
+const dangerIconButtonClass =
+  "inline-flex h-9 w-9 items-center justify-center rounded-control border border-[color-mix(in_srgb,var(--danger)_46%,var(--border))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--surface-strong))] text-app-danger transition-colors hover:border-app-danger hover:bg-[color-mix(in_srgb,var(--danger)_18%,var(--surface-strong))]";
+const settingsLabelClass =
+  "grid gap-1.5 text-xs font-extrabold uppercase tracking-[0.08em] text-app-muted [&_select]:min-h-control [&_select]:w-full [&_select]:px-3 [&_select]:text-sm [&_select]:font-bold [&_select]:normal-case [&_select]:tracking-normal";
+const blockInsertDividerClass =
+  "group relative my-1 grid h-5 cursor-pointer place-items-center transition-[height] duration-150 hover:h-10";
+const blockInsertDividerActiveClass = "h-10";
+const blockInsertToggleClass =
+  "grid h-7 w-7 scale-90 place-items-center rounded-full border border-[color-mix(in_srgb,var(--accent)_45%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_14%,var(--surface-strong))] text-app-accent-strong opacity-0 shadow-panel transition-all group-hover:opacity-100";
+const blockInsertOptionClass =
+  "inline-flex min-h-control items-center gap-2 rounded-control border border-app-border bg-app-surface-strong px-3 py-2 text-sm font-bold text-app-text transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:text-app-accent-strong";

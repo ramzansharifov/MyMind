@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Tooltip } from './Tooltip';
 import { useI18n } from '../i18n/I18nProvider';
+import { cn } from '../utils/classNames';
 
-type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
+type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger' | 'archive';
 
 interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
@@ -15,13 +16,23 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 function buttonClass(variant: ButtonVariant, iconOnly: boolean, className = '') {
-  const base = iconOnly ? 'icon-button' : 'button';
-  const variantClass = variant === 'default' ? '' : variant;
-  return [base, variantClass, className].filter(Boolean).join(' ');
-}
-
-function mergeClassNames(...classNames: Array<string | undefined>) {
-  return classNames.filter(Boolean).join(' ');
+  return cn(
+    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-control border border-[var(--control-border)]',
+    'bg-[var(--button-bg)] text-app-text [backdrop-filter:var(--glass-blur)]',
+    'transition-[border-color,box-shadow,transform,background,color] duration-150 ease-out',
+    'hover:-translate-y-px hover:border-[color-mix(in_srgb,var(--accent)_44%,var(--border))] hover:shadow-[0_8px_22px_var(--shadow)]',
+    'disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0 disabled:hover:shadow-none',
+    iconOnly ? 'h-icon min-h-icon w-icon p-0' : 'min-h-control px-3.5 py-2.5',
+    variant === 'primary' &&
+      'border-[color-mix(in_srgb,var(--accent)_72%,var(--border))] bg-[var(--button-bg-primary)] text-app-accent-strong shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_8%,transparent)] hover:border-[color-mix(in_srgb,var(--accent)_86%,var(--border))] hover:bg-[var(--button-bg-primary-hover)]',
+    variant === 'ghost' &&
+      'border-[color-mix(in_srgb,var(--accent)_36%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-strong))] text-[color-mix(in_srgb,var(--accent-strong)_86%,var(--text))] hover:border-[color-mix(in_srgb,var(--accent-strong)_82%,var(--border))] hover:bg-[var(--control-bg-hover)] hover:text-[color-mix(in_srgb,var(--accent-strong)_92%,white)]',
+    variant === 'danger' &&
+      'border-[color-mix(in_srgb,var(--danger)_72%,var(--border))] bg-[var(--button-bg-danger)] text-app-danger hover:border-[color-mix(in_srgb,var(--danger)_88%,var(--border))] hover:bg-[var(--button-bg-danger-hover)] hover:text-[color-mix(in_srgb,var(--danger)_92%,white)]',
+    variant === 'archive' &&
+      'border-[color-mix(in_srgb,var(--warning)_72%,var(--border))] bg-[var(--button-bg-warning)] text-app-warning hover:border-[color-mix(in_srgb,var(--warning)_86%,var(--border))] hover:bg-[var(--button-bg-warning-hover)] hover:text-[var(--warning-strong)]',
+    className,
+  );
 }
 
 export function AddButton({ label, iconOnly = false, children, className, ...props }: IconButtonProps) {
@@ -155,7 +166,7 @@ export function ArchiveButton({
     <>
       <Tooltip content={translatedLabel}>
         <button
-          className={buttonClass('ghost', iconOnly, mergeClassNames('archive', className))}
+          className={buttonClass('archive', iconOnly, className)}
           type="button"
           aria-label={translatedLabel}
           onClick={() => setIsConfirming(true)}

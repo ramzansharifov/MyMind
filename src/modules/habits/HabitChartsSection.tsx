@@ -4,7 +4,6 @@ import { StatCard } from '../../shared/components/StatCard';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { formatDate } from '../../shared/utils/dateUtils';
 import type { Habit, HabitLog } from './types';
-import '../../styles/modules/charts.css';
 
 interface HabitChartsSectionProps {
   habits: Habit[];
@@ -20,21 +19,21 @@ export function HabitChartsSection({ habits, logs, completedToday, todayTotal }:
   const activeCount = habits.filter((habit) => habit.isActive).length;
 
   return (
-    <section className="panel section-block workout-section-panel">
-      <div className="section-heading">
+    <section className={chartSectionClass}>
+      <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h2>{t('Habit analytics')}</h2>
-          <p className="muted-text">{t('Completion, streak signals, and history density for your habits.')}</p>
+          <h2 className="text-xl font-extrabold text-app-text">{t('Habit analytics')}</h2>
+          <p className="mt-1 text-sm text-app-muted">{t('Completion, streak signals, and history density for your habits.')}</p>
         </div>
       </div>
 
-      <div className="stats-grid workout-chart-stats">
+      <div className="mb-[18px] grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
         <StatCard label="Active habits" value={activeCount} />
         <StatCard label="Today" value={`${completedToday}/${todayTotal}`} detail="completed today" />
         <StatCard label="History entries" value={logs.length} />
       </div>
 
-      <div className="workout-chart-grid">
+      <div className={chartGridClass}>
         <ChartCard title="Daily completion" description="Completed and pending habits by day.">
           {dailyData.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
@@ -92,10 +91,10 @@ export function HabitChartsSection({ habits, logs, completedToday, todayTotal }:
 function ChartCard({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   const { t } = useI18n();
   return (
-    <article className="card workout-chart-card">
-      <div className="workout-chart-heading">
-        <h3>{t(title)}</h3>
-        <p>{t(description)}</p>
+    <article className={chartCardClass}>
+      <div className="grid gap-1">
+        <h3 className="text-base font-extrabold text-app-text">{t(title)}</h3>
+        <p className="text-sm text-app-muted">{t(description)}</p>
       </div>
       {children}
     </article>
@@ -103,7 +102,7 @@ function ChartCard({ title, description, children }: { title: string; descriptio
 }
 
 function EmptyChart({ label }: { label: string }) {
-  return <div className="workout-chart-empty">{label}</div>;
+  return <div className={emptyChartClass}>{label}</div>;
 }
 
 function buildDailyData(logs: HabitLog[]) {
@@ -143,3 +142,11 @@ const tooltipStyle = {
   borderRadius: 8,
   color: 'var(--text)',
 };
+
+const chartSectionClass =
+  'rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-[18px] text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel';
+const chartGridClass = 'grid grid-cols-[repeat(2,minmax(320px,1fr))] gap-4 max-[980px]:grid-cols-1';
+const chartCardClass =
+  'grid min-h-[360px] min-w-0 gap-3.5 rounded-panel border border-app-border bg-app-surface-soft p-4 [&_.recharts-default-legend]:text-app-muted [&_.recharts-text]:fill-app-muted';
+const emptyChartClass =
+  'grid min-h-[240px] place-items-center rounded-panel border border-dashed border-app-border p-4 text-center text-app-muted';

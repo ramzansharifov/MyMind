@@ -3,6 +3,7 @@ import { Modal } from './Modal';
 import { TextField } from './FormFields';
 import { SaveButton, CancelButton } from './ActionButtons';
 import { useI18n } from '../i18n/I18nProvider';
+import { cn } from '../utils/classNames';
 
 interface ItemSelectionModalProps<T> {
   title: string;
@@ -77,7 +78,7 @@ export function ItemSelectionModal<T extends { id: string }>({
         </>
       }
     >
-      <div className="item-selection-modal-content">
+      <div className="grid gap-3">
         <TextField
           label="Search"
           value={query}
@@ -86,9 +87,10 @@ export function ItemSelectionModal<T extends { id: string }>({
           autoFocus
         />
 
-        <div className="item-selection-list-header" style={{ marginTop: '12px', marginBottom: '8px' }}>
-           <label className="checkbox-line" style={{ cursor: 'pointer' }}>
+        <div className="flex items-center justify-between gap-3">
+           <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-bold text-app-text">
             <input
+              className="h-4 w-4 accent-[var(--accent)]"
               type="checkbox"
               checked={isAllSelected}
               onChange={toggleAll}
@@ -97,25 +99,25 @@ export function ItemSelectionModal<T extends { id: string }>({
           </label>
         </div>
 
-        <div className="item-selection-list" style={{ maxHeight: '400px', overflowY: 'auto', display: 'grid', gap: '8px' }}>
+        <div className="grid max-h-[400px] gap-2 overflow-y-auto">
           {filteredItems.map((item) => (
             <button
               key={item.id}
               type="button"
-              className={`choice-tile ${selectedIds.has(item.id) ? 'active' : ''}`}
+              className={cn(choiceTileClass, selectedIds.has(item.id) && choiceTileActiveClass)}
               onClick={() => toggleSelection(item.id)}
             >
-              <div className="choice-tile-mark">
+              <div className={cn(choiceMarkClass, selectedIds.has(item.id) && choiceMarkActiveClass)}>
                 {selectedIds.has(item.id) ? '✓' : ''}
               </div>
-              <div className="choice-tile-copy">
-                <strong>{getItemLabel(item)}</strong>
-                {getItemDescription && <small>{getItemDescription(item)}</small>}
+              <div className="min-w-0 text-left">
+                <strong className="block truncate text-sm text-app-text">{getItemLabel(item)}</strong>
+                {getItemDescription && <small className="mt-0.5 block truncate text-xs text-app-muted">{getItemDescription(item)}</small>}
               </div>
             </button>
           ))}
           {filteredItems.length === 0 && (
-            <p className="muted-text" style={{ textAlign: 'center', padding: '20px' }}>
+            <p className="rounded-panel border border-dashed border-app-border bg-app-surface-soft p-5 text-center text-sm text-app-muted">
               {t('No items found')}
             </p>
           )}
@@ -124,3 +126,15 @@ export function ItemSelectionModal<T extends { id: string }>({
     </Modal>
   );
 }
+
+const choiceTileClass =
+  'grid w-full grid-cols-[34px_minmax(0,1fr)] items-center gap-3 rounded-panel border border-app-border bg-app-surface-soft p-3 text-left transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:bg-app-surface-strong';
+
+const choiceTileActiveClass =
+  'border-[color-mix(in_srgb,var(--accent)_68%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))]';
+
+const choiceMarkClass =
+  'grid h-[34px] w-[34px] place-items-center rounded-panel border border-app-border bg-app-surface text-sm font-extrabold text-transparent';
+
+const choiceMarkActiveClass =
+  'border-[color-mix(in_srgb,var(--accent)_70%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_18%,var(--surface-soft))] text-app-accent-strong';

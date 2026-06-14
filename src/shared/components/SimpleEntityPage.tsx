@@ -10,6 +10,7 @@ import { CollapsibleFilters } from './CollapsibleFilters';
 import { ModulePageShell } from './ModulePageShell';
 import { useI18n } from '../i18n/I18nProvider';
 import { useCollectionItems } from '../hooks/useCollectionItems';
+import { cn } from '../utils/classNames';
 
 type FieldType = 'text' | 'textarea' | 'date' | 'number' | 'select' | 'card-select' | 'tags';
 
@@ -72,25 +73,31 @@ export function SimpleEntityPage<T extends { id: string; createdAt: string; upda
       {filteredItems.length === 0 ? (
         <EmptyState title={emptyTitle} message={emptyMessage} />
       ) : (
-        <div className="card-grid">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3.5">
           {filteredItems.map((item) => (
-            <article className={`card ${item.pinnedAt ? 'pinned' : ''}`} key={item.id}>
-              <div className="card-title-row">
-                <div>
-                  <h3>{String(item[fields[0].key] ?? 'Untitled')}</h3>
-                  <small>{summary(item).split(' / ').map((part) => t(part)).join(' / ')}</small>
+            <article
+              className={cn(
+                'grid gap-3.5 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel hover:border-[color-mix(in_srgb,var(--accent)_34%,var(--border))]',
+                item.pinnedAt && 'border-[color-mix(in_srgb,var(--accent)_55%,var(--border))] bg-[color-mix(in_srgb,var(--surface)_88%,var(--accent)_12%)]',
+              )}
+              key={item.id}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-app-text">{String(item[fields[0].key] ?? 'Untitled')}</h3>
+                  <small className="text-app-muted">{summary(item).split(' / ').map((part) => t(part)).join(' / ')}</small>
                 </div>
               </div>
               {'tags' in item && item.tags ? (
-                <div className="chip-row">
+                <div className="flex flex-wrap gap-2">
                   {item.tags.map((tag) => (
-                    <span className="chip" key={tag}>
+                    <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-app-border bg-app-chip px-2.5 py-1.5 text-xs leading-tight text-app-chip-text" key={tag}>
                       {tag}
                     </span>
                   ))}
                 </div>
               ) : null}
-              <div className="card-actions">
+              <div className="flex flex-wrap items-center gap-2">
                 <PinButton isPinned={Boolean(item.pinnedAt)} onClick={() => togglePin(item)} />
                 <EditButton onClick={() => setEditing(item)} />
                 <ArchiveButton
@@ -190,20 +197,26 @@ function SimpleEntityForm<T extends { id: string; createdAt: string; updatedAt: 
         }
         if (field.type === 'card-select') {
           return (
-            <section className="form-choice-section" key={key}>
-              <h3>{t(field.label)}</h3>
-              <div className="form-choice-grid">
+            <section className="grid gap-2.5 rounded-panel border border-[var(--line-soft)] bg-app-surface-soft p-3" key={key}>
+              <h3 className="text-base font-bold text-app-text">{t(field.label)}</h3>
+              <div className="grid gap-2.5">
                 {field.options?.map((option) => (
                   <button
-                    className={`form-choice-card${value === option ? ' active' : ''}`}
+                    className={cn(
+                      'grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-panel border border-app-border bg-app-surface p-3 text-left text-app-text transition-colors',
+                      'hover:border-[color-mix(in_srgb,var(--accent)_52%,var(--border))] hover:bg-app-surface-strong',
+                      value === option && 'border-[color-mix(in_srgb,var(--accent)_52%,var(--border))] bg-app-surface-strong',
+                    )}
                     type="button"
                     key={option}
                     onClick={() => setDraft((current) => ({ ...current, [key]: option }))}
                   >
-                    <span className="form-choice-mark">{value === option ? '✓' : ''}</span>
+                    <span className="grid h-[34px] w-[34px] place-items-center rounded-panel border border-[color-mix(in_srgb,var(--accent)_38%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-soft))] font-extrabold text-app-accent-strong">
+                      {value === option ? '✓' : ''}
+                    </span>
                     <span>
-                      <strong>{t(option)}</strong>
-                      {field.optionDescriptions?.[option] ? <small>{t(field.optionDescriptions[option])}</small> : null}
+                      <strong className="min-w-0 break-words">{t(option)}</strong>
+                      {field.optionDescriptions?.[option] ? <small className="mt-0.5 block text-app-muted">{t(field.optionDescriptions[option])}</small> : null}
                     </span>
                   </button>
                 ))}

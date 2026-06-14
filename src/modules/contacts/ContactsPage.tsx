@@ -8,6 +8,7 @@ import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import type { ContentGroup } from '../../shared/types/common';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
+import { cn } from '../../shared/utils/classNames';
 import { countItemsByContentGroup, matchesContentGroup } from '../../shared/utils/contentGroupUtils';
 import { joinCsv, splitCsv } from '../../shared/utils/formatters';
 import { createId } from '../../shared/utils/idGenerator';
@@ -108,30 +109,30 @@ export function ContactsPage({ data, onChange }: ContactsPageProps) {
           {visibleContacts.length === 0 ? (
             <EmptyState title="No contacts" message="Add people you want to remember and follow up with." />
           ) : (
-            <div className="card-grid">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3.5">
               {visibleContacts.map((contact) => (
-                <article className={`card contact-card ${contact.pinnedAt ? 'pinned' : ''}`} key={contact.id}>
-                  <div className="card-title-row">
-                    <div>
-                      <h3>{contact.name}</h3>
-                      <small>{contact.relationship || t('Person')}</small>
+                <article className={cn(cardClass, contact.pinnedAt && pinnedClass)} key={contact.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="truncate text-base font-extrabold text-app-text">{contact.name}</h3>
+                      <small className="text-app-muted">{contact.relationship || t('Person')}</small>
                     </div>
-                    {contact.pinnedAt ? <span className="rating-pill">{t('Pinned')}</span> : null}
+                    {contact.pinnedAt ? <span className={chipClass}>{t('Pinned')}</span> : null}
                   </div>
-                  <section className="contact-block">
-                    <strong>{t('Main contact')}</strong>
-                    <p>{contact.phone || contact.email || t('No contact details')}</p>
-                    {contact.phone ? <small>{contact.phone}</small> : null}
-                    {contact.email ? <small>{contact.email}</small> : null}
+                  <section className={contactBlockClass}>
+                    <strong className="text-sm text-app-text">{t('Main contact')}</strong>
+                    <p className="text-sm text-app-muted">{contact.phone || contact.email || t('No contact details')}</p>
+                    {contact.phone ? <small className="text-xs text-app-muted">{contact.phone}</small> : null}
+                    {contact.email ? <small className="text-xs text-app-muted">{contact.email}</small> : null}
                   </section>
                   <SocialLinks contact={contact} />
-                  {contact.notes ? <p>{contact.notes}</p> : null}
-                  <div className="chip-row">
+                  {contact.notes ? <p className="text-sm text-app-muted">{contact.notes}</p> : null}
+                  <div className="flex flex-wrap gap-2">
                     {(contact.tags ?? []).map((tag) => (
-                      <span className="chip" key={tag}>{tag}</span>
+                      <span className={chipClass} key={tag}>{tag}</span>
                     ))}
                   </div>
-                  <div className="card-actions">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     <PinButton isPinned={Boolean(contact.pinnedAt)} onClick={() => togglePin(contact)} />
                     <EditButton onClick={() => setEditing(contact)} />
                     <ArchiveButton label="Archive" onConfirm={() => onChange({ ...data, items: contacts.map((item) => (item.id === contact.id ? archiveEntity(item) : item)) })} />
@@ -169,11 +170,11 @@ function SocialLinks({ contact }: { contact: Contact }) {
   }
 
   return (
-    <section className="contact-block social-contact-block">
-      <strong>{t('Social networks and messengers')}</strong>
-      <div className="contact-social-list">
+    <section className={contactBlockClass}>
+      <strong className="text-sm text-app-text">{t('Social networks and messengers')}</strong>
+      <div className="flex flex-wrap gap-2">
         {links.map(([label, value]) => (
-          <span className="chip" key={label}>{label}: {value}</span>
+          <span className={chipClass} key={label}>{label}: {value}</span>
         ))}
       </div>
     </section>
@@ -254,13 +255,13 @@ function ContactForm({
           </select>
         </label>
       ) : null}
-      <div className="form-grid">
+      <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
         <label>{t('Phone')}<input value={draft.phone} onChange={(event) => update('phone', event.target.value)} /></label>
         <label>{t('Email')}<input value={draft.email} onChange={(event) => update('email', event.target.value)} /></label>
       </div>
-      <div className="form-section">
-        <strong>{t('Social networks and messengers')}</strong>
-        <div className="form-grid contact-social-fields">
+      <div className="grid gap-3 rounded-panel border border-[var(--line-soft)] bg-app-surface-soft p-3">
+        <strong className="text-sm font-extrabold text-app-text">{t('Social networks and messengers')}</strong>
+        <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
           <label>Facebook<input value={draft.facebook} onChange={(event) => update('facebook', event.target.value)} /></label>
           <label>WhatsApp<input value={draft.whatsapp} onChange={(event) => update('whatsapp', event.target.value)} /></label>
           <label>Telegram<input value={draft.telegram} onChange={(event) => update('telegram', event.target.value)} /></label>
@@ -273,3 +274,14 @@ function ContactForm({
     </EntityForm>
   );
 }
+
+const cardClass =
+  'grid gap-3 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel transition-colors hover:border-[color-mix(in_srgb,var(--accent)_34%,var(--border))]';
+
+const pinnedClass = 'border-[color-mix(in_srgb,var(--accent)_44%,var(--border))] shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent)_12%,transparent)]';
+
+const contactBlockClass =
+  'grid gap-1.5 rounded-panel border border-app-border bg-app-surface-soft p-3';
+
+const chipClass =
+  'inline-flex w-fit items-center rounded-full border border-app-border bg-app-chip px-2.5 py-1 text-xs font-bold text-app-chip-text';

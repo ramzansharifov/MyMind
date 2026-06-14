@@ -3,6 +3,7 @@ import { CalendarDays, Check, Repeat } from 'lucide-react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { EntityForm } from '../../shared/components/EntityForm';
 import { useI18n } from '../../shared/i18n/I18nProvider';
+import { cn } from '../../shared/utils/classNames';
 import { joinCsv, splitCsv } from '../../shared/utils/formatters';
 import { createId } from '../../shared/utils/idGenerator';
 import type { CalendarEvent, CalendarReminder } from './types';
@@ -92,7 +93,7 @@ export function CalendarEventForm({ event, defaultDate, onCancel, onSave }: Cale
         {t('Description')}
         <textarea rows={4} value={description} onChange={(item) => setDescription(item.target.value)} />
       </label>
-      <div className="form-grid">
+      <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
         <label>
           {t('Date')}
           <input type="date" value={date} onChange={(item) => setDate(item.target.value)} />
@@ -106,41 +107,41 @@ export function CalendarEventForm({ event, defaultDate, onCancel, onSave }: Cale
         {t('Tags')}
         <input value={tags} onChange={(item) => setTags(item.target.value)} placeholder={t('Comma-separated tags')} />
       </label>
-      <div className="form-section">
-        <strong>{t('Importance')}</strong>
-        <div className="calendar-importance-picker">
+      <div className={formSectionClass}>
+        <strong className={sectionTitleClass}>{t('Importance')}</strong>
+        <div className="grid grid-cols-3 gap-2 max-[520px]:grid-cols-1">
           {importanceOptions.map((option) => (
             <button
-              className={`calendar-importance-choice ${option.value}${importanceLevel === option.value ? ' active' : ''}`}
+              className={cn(importanceChoiceClass, importanceLevel === option.value && choiceActiveClass)}
               type="button"
               key={option.value}
               onClick={() => setImportanceLevel(option.value)}
             >
-              <span />
+              <span className={cn(importanceDotClass, importanceDotClasses[option.value])} />
               <strong>{t(option.shortLabel)}</strong>
             </button>
           ))}
         </div>
       </div>
-      <div className="form-section">
-        <strong>{t('Event repeat')}</strong>
-        <div className="calendar-recurrence-picker">
+      <div className={formSectionClass}>
+        <strong className={sectionTitleClass}>{t('Event repeat')}</strong>
+        <div className="grid gap-2">
           {recurrenceOptions.map((option) => {
             const Icon = option.icon;
             const isActive = recurrence === option.value;
             return (
               <button
-                className={`calendar-recurrence-choice${isActive ? ' active' : ''}`}
+                className={cn(choiceCardClass, isActive && choiceActiveClass)}
                 type="button"
                 key={option.value}
                 onClick={() => setRecurrence(option.value)}
               >
-                <span className="calendar-recurrence-icon">
+                <span className={choiceIconClass}>
                   <Icon size={18} aria-hidden="true" />
                 </span>
-                <span>
-                  <strong>{t(option.label)}</strong>
-                  <small>{t(option.description)}</small>
+                <span className="min-w-0 text-left">
+                  <strong className="block text-sm text-app-text">{t(option.label)}</strong>
+                  <small className="mt-0.5 block text-xs text-app-muted">{t(option.description)}</small>
                 </span>
                 {isActive ? <Check size={16} aria-hidden="true" /> : null}
               </button>
@@ -150,8 +151,8 @@ export function CalendarEventForm({ event, defaultDate, onCancel, onSave }: Cale
       </div>
       {recurrence === 'yearly' ? (
         <>
-          <label className="checkbox-line">
-            <input type="checkbox" checked={useStartDate} onChange={(item) => setUseStartDate(item.target.checked)} />
+          <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-bold text-app-text">
+            <input className="h-4 w-4 accent-[var(--accent)]" type="checkbox" checked={useStartDate} onChange={(item) => setUseStartDate(item.target.checked)} />
             {t('Use start date')}
           </label>
           {useStartDate ? (
@@ -162,12 +163,12 @@ export function CalendarEventForm({ event, defaultDate, onCancel, onSave }: Cale
           ) : null}
         </>
       ) : null}
-      <div className="form-section">
-        <strong>{t('Reminders')}</strong>
-        <div className="calendar-reminder-builder">
-          <div className="calendar-reminder-builder-item">
-            <span>{t('Before event')}</span>
-            <div className="calendar-reminder-control">
+      <div className={formSectionClass}>
+        <strong className={sectionTitleClass}>{t('Reminders')}</strong>
+        <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
+          <div className="grid gap-2 rounded-panel border border-app-border bg-app-surface p-3">
+            <span className="text-sm font-bold text-app-text">{t('Before event')}</span>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
               <label>
                 {t('Days before')}
                 <input min="0" type="number" value={reminderOffset} onChange={(item) => setReminderOffset(item.target.value)} />
@@ -175,9 +176,9 @@ export function CalendarEventForm({ event, defaultDate, onCancel, onSave }: Cale
               <AddButton iconOnly label="Add reminder" onClick={addRelativeReminder} />
             </div>
           </div>
-          <div className="calendar-reminder-builder-item">
-            <span>{t('Exact date and time')}</span>
-            <div className="calendar-reminder-control">
+          <div className="grid gap-2 rounded-panel border border-app-border bg-app-surface p-3">
+            <span className="text-sm font-bold text-app-text">{t('Exact date and time')}</span>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
               <label>
                 {t('Calendar reminder time')}
                 <input type="datetime-local" value={reminderAt} onChange={(item) => setReminderAt(item.target.value)} />
@@ -186,13 +187,13 @@ export function CalendarEventForm({ event, defaultDate, onCancel, onSave }: Cale
             </div>
           </div>
         </div>
-        <div className="chip-row">
+        <div className="flex flex-wrap gap-2">
           {reminders.map((reminder) => (
-            <button className="chip removable-chip" key={reminder.id} type="button" onClick={() => removeReminder(reminder.id)}>
+            <button className={removableChipClass} key={reminder.id} type="button" onClick={() => removeReminder(reminder.id)}>
               {reminder.remindAt ? formatReminder(reminder.remindAt) : `${t('Before days')}: ${reminder.offsetDays}`}
             </button>
           ))}
-          {reminders.length === 0 ? <span className="muted-text">{t('No reminders')}</span> : null}
+          {reminders.length === 0 ? <span className="text-sm text-app-muted">{t('No reminders')}</span> : null}
         </div>
       </div>
     </EntityForm>
@@ -214,6 +215,33 @@ const recurrenceOptions: Array<{
   { value: 'once', label: 'One-time event', description: 'Only on selected date', icon: CalendarDays },
   { value: 'yearly', label: 'Every year', description: 'Repeat annually', icon: Repeat },
 ];
+
+const formSectionClass = 'grid gap-3 rounded-panel border border-[var(--line-soft)] bg-app-surface-soft p-3';
+
+const sectionTitleClass = 'text-sm font-extrabold text-app-text';
+
+const importanceChoiceClass =
+  'inline-flex min-h-11 items-center justify-center gap-2 rounded-panel border border-app-border bg-app-surface px-3 py-2 text-sm font-extrabold text-app-text transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:bg-app-surface-strong';
+
+const choiceCardClass =
+  'grid w-full grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3 rounded-panel border border-app-border bg-app-surface p-3 text-left transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:bg-app-surface-strong';
+
+const choiceActiveClass =
+  'border-[color-mix(in_srgb,var(--accent)_68%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))] text-app-accent-strong';
+
+const choiceIconClass =
+  'grid h-[34px] w-[34px] place-items-center rounded-panel border border-[color-mix(in_srgb,var(--accent)_38%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-soft))] text-app-accent-strong';
+
+const importanceDotClass = 'h-2.5 w-2.5 rounded-full';
+
+const importanceDotClasses: Record<CalendarEvent['importanceLevel'], string> = {
+  low: 'bg-app-success',
+  medium: 'bg-app-warning',
+  high: 'bg-app-danger',
+};
+
+const removableChipClass =
+  'inline-flex w-fit items-center rounded-full border border-app-border bg-app-chip px-2.5 py-1.5 text-xs font-bold text-app-chip-text transition-colors hover:border-[color-mix(in_srgb,var(--danger)_50%,var(--border))] hover:text-app-danger';
 
 function formatReminder(value: string) {
   const date = new Date(value);

@@ -32,28 +32,27 @@ export function TemplateBuilder({ template, onClose }: TemplateBuilderProps) {
     <Modal
       title={template.title}
       size="md"
-      className="form-modal-backdrop"
-      panelClassName="form-panel template-builder"
+      panelClassName="max-w-[760px]"
       onClose={onClose}
       footer={
         <>
-          <button className="button ghost" type="button" onClick={onClose}>
+          <button className={ghostButtonClass} type="button" onClick={onClose}>
             {t('Cancel')}
           </button>
-          <button className="button primary" type="button" onClick={() => void copyOutput()}>
+          <button className={primaryButtonClass} type="button" onClick={() => void copyOutput()}>
             <Copy size={17} aria-hidden="true" />
             <span>{t(copied ? 'Copied' : 'Copy result')}</span>
           </button>
         </>
       }
     >
-      <span className="template-builder-kicker">
+      <span className="inline-flex w-fit items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--accent)_38%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_12%,var(--surface-strong))] px-2.5 py-1 text-xs font-extrabold uppercase tracking-[0.08em] text-app-accent-strong">
         <Wand2 size={15} aria-hidden="true" />
         {t('Build text')}
       </span>
 
       {variables.length > 0 ? (
-        <div className="template-builder-fields">
+        <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
           {variables.map((variable) => {
             const key = createVariableKey(variable);
 
@@ -94,13 +93,19 @@ export function TemplateBuilder({ template, onClose }: TemplateBuilderProps) {
           })}
         </div>
       ) : (
-        <p className="muted-text">{t('This template has no variables.')}</p>
+        <p className="text-sm text-app-muted">{t('This template has no variables.')}</p>
       )}
 
       <label>
         {t('Result')}
-        <textarea className="template-result" rows={9} readOnly value={output} />
+        <textarea className="min-h-[220px] font-mono text-sm" rows={9} readOnly value={output} />
       </label>
     </Modal>
   );
 }
+
+const ghostButtonClass =
+  'inline-flex min-h-control items-center justify-center rounded-control border border-[color-mix(in_srgb,var(--accent)_36%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-strong))] px-3.5 py-2.5 text-sm font-bold text-[color-mix(in_srgb,var(--accent-strong)_86%,var(--text))] transition-colors hover:border-[color-mix(in_srgb,var(--accent-strong)_82%,var(--border))] hover:bg-[var(--control-bg-hover)]';
+
+const primaryButtonClass =
+  'inline-flex min-h-control items-center justify-center gap-2 rounded-control border border-[color-mix(in_srgb,var(--accent)_72%,var(--border))] bg-[var(--button-bg-primary)] px-3.5 py-2.5 text-sm font-bold text-app-accent-strong transition-colors hover:border-[color-mix(in_srgb,var(--accent)_86%,var(--border))] hover:bg-[var(--button-bg-primary-hover)]';

@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ClipboardEvent } from "react";
+import { cn } from "../../../utils/classNames";
 import type { StudyHeadingBlock } from "../../core/blockCore";
 
 export function HeadingBlockEditor({
@@ -30,10 +31,10 @@ export function HeadingBlockEditor({
   }
 
   return (
-    <div className={`rich-text-shell study-heading-field level-${block.level}`}>
+    <div className="grid gap-2">
       <div
         ref={editorRef}
-        className={`rich-text-editor study-heading-input ${text.trim() ? "" : "is-empty"}`}
+        className={cn(headingEditorClass, headingLevelClasses[block.level], !text.trim() && headingPlaceholderClass)}
         contentEditable
         role="textbox"
         aria-multiline="false"
@@ -51,3 +52,15 @@ export function HeadingBlockEditor({
     </div>
   );
 }
+
+const headingEditorClass =
+  "relative min-h-[58px] w-full rounded-panel border border-app-border bg-app-surface px-4 py-3 text-app-text outline-none transition-colors focus:border-[color-mix(in_srgb,var(--accent)_56%,var(--border))] focus:shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent)_38%,transparent)]";
+const headingPlaceholderClass =
+  "before:pointer-events-none before:absolute before:left-4 before:top-3 before:text-app-muted before:content-[attr(data-placeholder)]";
+const headingLevelClasses: Record<StudyHeadingBlock["level"], string> = {
+  1: "text-[30px] font-extrabold leading-tight",
+  2: "text-[26px] font-extrabold leading-tight",
+  3: "text-[22px] font-extrabold leading-tight",
+  4: "text-[18px] font-extrabold leading-tight",
+  5: "text-[16px] font-extrabold leading-tight",
+};

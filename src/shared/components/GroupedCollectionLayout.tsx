@@ -38,8 +38,8 @@ export function GroupedCollectionLayout<T extends { id: string }>({
   onAddItemsToGroup,
 }: GroupedCollectionLayoutProps<T>) {
   return (
-    <div className="todo-workspace grouped-collection-layout">
-      {filters ? <div className="todo-filters-row grouped-collection-filters">{filters}</div> : null}
+    <div className="grid grid-cols-[260px_minmax(0,1fr)] items-start gap-[18px] max-[980px]:grid-cols-1">
+      {filters ? <div className="col-span-full">{filters}</div> : null}
       <ContentGroupsPanel
         groups={groups}
         totalCount={totalCount}
@@ -48,7 +48,7 @@ export function GroupedCollectionLayout<T extends { id: string }>({
         onActiveGroupChange={onActiveGroupChange}
         onGroupsChange={onGroupsChange}
       />
-      <section className="todo-list-panel grouped-collection-panel">
+      <section className="min-w-0 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel">
         <ContentGroupWorkspaceHeader
           groups={groups}
           activeGroupId={activeGroupId}

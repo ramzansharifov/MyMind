@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
+import { cn } from "../../utils/classNames";
 import { CodePreview } from "../blocks/code/CodeBlockEditor";
 import { LatexPreview, MarkdownPreview } from "../blocks/markup/MarkupBlock";
 import { RichTextViewer } from "../blocks/richText/RichTextEditor";
@@ -32,7 +33,7 @@ export function StudyReadTree({ blocks }: StudyReadTreeProps) {
   }
 
   return (
-    <div className="study-block-reader">
+    <div className="grid gap-3">
       {tree.map((node) => (
         <StudyReadNodeView
           node={node}
@@ -95,23 +96,23 @@ function StudyReadNodeView({
   const hasChildren = node.children.length > 0;
 
   return (
-    <section className={`study-read-heading-section level-${node.heading.level} ${isCollapsed ? "collapsed" : ""}`}>
+    <section className="grid gap-2">
       <button
-        className={`study-read-heading-button level-${node.heading.level}`}
+        className="group flex w-full items-center gap-2 rounded-panel border border-transparent px-1 py-1 text-left transition-colors hover:border-app-border hover:bg-app-surface-soft"
         type="button"
         aria-expanded={!isCollapsed}
         onClick={() => onToggleSection(node.heading.id)}
       >
-        <span className="study-read-heading-toggle" aria-hidden="true">
+        <span className="grid h-7 w-7 shrink-0 place-items-center text-app-muted group-hover:text-app-accent-strong" aria-hidden="true">
           {hasChildren ? isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} /> : null}
         </span>
-        <span className={`study-read-heading-title level-${node.heading.level}`} role="heading" aria-level={node.heading.level}>
+        <span className={cn("text-app-text", headingTitleClasses[node.heading.level])} role="heading" aria-level={node.heading.level}>
           {node.heading.text.trim() || "Без заголовка"}
         </span>
       </button>
 
       {!isCollapsed ? (
-        <div className="study-read-heading-children">
+        <div className={cn("grid gap-3", node.heading.level < 5 && "ml-8 border-l border-app-border pl-4")}>
           {node.children.map((child) => (
             <StudyReadNodeView
               node={child}
@@ -129,7 +130,7 @@ function StudyReadNodeView({
 function BlockReader({ block }: { block: Exclude<StudyContentBlock, StudyHeadingBlock> }) {
   if (block.type === "text") {
     return (
-      <section className="study-read-block">
+      <section className={readBlockClass}>
         <RichTextViewer value={block.content} />
       </section>
     );
@@ -137,7 +138,7 @@ function BlockReader({ block }: { block: Exclude<StudyContentBlock, StudyHeading
 
   if (block.type === "markdown") {
     return (
-      <section className="study-read-block">
+      <section className={readBlockClass}>
         <MarkdownPreview source={block.source} />
       </section>
     );
@@ -145,7 +146,7 @@ function BlockReader({ block }: { block: Exclude<StudyContentBlock, StudyHeading
 
   if (block.type === "latex") {
     return (
-      <section className="study-read-block">
+      <section className={readBlockClass}>
         <LatexPreview source={block.source} displayMode={block.displayMode} />
       </section>
     );
@@ -153,7 +154,7 @@ function BlockReader({ block }: { block: Exclude<StudyContentBlock, StudyHeading
 
   if (block.type === "code") {
     return (
-      <section className="study-read-block">
+      <section className={readBlockClass}>
         <CodePreview source={block.source} language={block.language} />
       </section>
     );
@@ -165,3 +166,13 @@ function BlockReader({ block }: { block: Exclude<StudyContentBlock, StudyHeading
 function getStudyReadNodeKey(node: StudyReadNode) {
   return node.kind === "section" ? node.heading.id : node.block.id;
 }
+
+const readBlockClass =
+  "rounded-panel border border-app-border bg-app-surface-soft p-4 text-app-text";
+const headingTitleClasses: Record<StudyHeadingBlock["level"], string> = {
+  1: "text-[30px] font-extrabold leading-tight",
+  2: "text-[26px] font-extrabold leading-tight",
+  3: "text-[22px] font-extrabold leading-tight",
+  4: "text-[18px] font-extrabold leading-tight",
+  5: "text-[16px] font-extrabold leading-tight",
+};

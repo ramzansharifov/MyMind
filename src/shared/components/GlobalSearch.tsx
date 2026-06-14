@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Search } from 'lucide-react';
 import type { AppData } from '../app/appData';
 import { useI18n } from '../i18n/I18nProvider';
 import type { ModuleKey } from '../types/common';
@@ -17,12 +18,19 @@ export function GlobalSearch({ data, onNavigate }: { data: AppData; onNavigate: 
   const { t } = useI18n();
 
   return (
-    <div className="global-search">
-      <input value={query} placeholder={t('Search everything...')} onChange={(event) => setQuery(event.target.value)} />
+    <div className="relative mb-[18px]">
+      <Search className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-app-muted" size={18} aria-hidden="true" />
+      <input
+        className="w-full py-3 pl-12 pr-4"
+        value={query}
+        placeholder={t('Search everything...')}
+        onChange={(event) => setQuery(event.target.value)}
+      />
       {query.trim() && results.length > 0 ? (
-        <div className="global-search-results">
+        <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 grid max-h-[360px] gap-1.5 overflow-auto rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-2 [backdrop-filter:var(--glass-blur)] shadow-modal">
           {results.slice(0, 10).map((result) => (
             <button
+              className="grid gap-0.5 rounded-control border border-transparent bg-transparent px-3 py-2.5 text-left text-app-text transition-colors hover:border-[color-mix(in_srgb,var(--accent)_34%,var(--border))] hover:bg-app-surface-strong"
               type="button"
               key={result.id}
               onClick={() => {
@@ -30,8 +38,8 @@ export function GlobalSearch({ data, onNavigate }: { data: AppData; onNavigate: 
                 setQuery('');
               }}
             >
-              <strong>{result.title}</strong>
-              <span>
+              <strong className="truncate text-sm">{result.title}</strong>
+              <span className="truncate text-xs text-app-muted">
                 {t(moduleLabels[result.module])} / {result.detail}
               </span>
             </button>

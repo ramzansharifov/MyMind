@@ -8,7 +8,6 @@ import python from "highlight.js/lib/languages/python";
 import sql from "highlight.js/lib/languages/sql";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
-import "highlight.js/styles/github-dark.css";
 import { useMemo } from "react";
 import { AutoResizeTextarea } from "../../components/AutoResizeTextarea";
 import type { StudyCodeBlock } from "../../core/blockCore";
@@ -58,13 +57,13 @@ export function CodeBlockEditor({
   onChangeSource: (source: string) => void;
 }) {
   return (
-    <div className="study-code-block">
+    <div className="grid gap-3">
       {previewMode ? (
-        <div className="study-code-preview-panel">
+        <div className="rounded-panel border border-app-border bg-app-surface p-3">
           <CodePreview source={block.source} language={block.language} />
         </div>
       ) : (
-        <div className="study-code-source">
+        <div className="grid gap-2 rounded-panel border border-app-border bg-app-surface p-3">
           <AutoResizeTextarea
             value={block.source}
             placeholder={'function hello() {\n  return "world";\n}'}
@@ -97,11 +96,11 @@ export function CodePreview({ source, language }: { source: string; language: st
   }, [language, source]);
 
   if (!html) {
-    return <p className="muted-text">Code is empty.</p>;
+    return <p className="text-sm text-app-muted">Code is empty.</p>;
   }
 
   return (
-    <pre className="study-code-preview">
+    <pre className="m-0 max-w-full overflow-x-auto rounded-panel border border-app-border bg-[#0d1117] p-4 text-sm leading-6 text-[#e6edf3]">
       <code
         className={`hljs ${language && language !== "auto" ? `language-${language}` : ""}`}
         dangerouslySetInnerHTML={{ __html: html }}

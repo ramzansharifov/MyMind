@@ -6,6 +6,7 @@ import { PageHeader } from '../../shared/components/PageHeader';
 import { Tooltip } from '../../shared/components/Tooltip';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
+import { cn } from '../../shared/utils/classNames';
 import { formatDate, todayDateOnly } from '../../shared/utils/dateUtils';
 import {
   buildCalendarDays,
@@ -86,9 +87,9 @@ export function CalendarPage({ events, onChange }: CalendarPageProps) {
       return null;
     }
     return (
-      <section className="panel section-block">
-        <h2>{t(title)}</h2>
-        <div className="stack">{items.map(renderEventCard)}</div>
+      <section className={panelClass}>
+        <h2 className="text-xl font-extrabold text-app-text">{t(title)}</h2>
+        <div className="mt-3 grid gap-3">{items.map(renderEventCard)}</div>
       </section>
     );
   }
@@ -101,74 +102,74 @@ export function CalendarPage({ events, onChange }: CalendarPageProps) {
         actions={<AddButton label="Add important date" onClick={() => openNewEvent(todayDateOnly())} />}
       />
 
-      <div className="calendar-workspace">
-        <section className="panel calendar-panel">
-          <div className="calendar-toolbar">
-            <button className="icon-button ghost" type="button" onClick={() => changeMonth(-1)} aria-label={t('Previous month')}>
+      <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)] items-start gap-[18px] max-[1100px]:grid-cols-1">
+        <section className={panelClass}>
+          <div className="mb-4 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+            <button className={iconButtonClass} type="button" onClick={() => changeMonth(-1)} aria-label={t('Previous month')}>
               <ChevronLeft size={18} aria-hidden="true" />
             </button>
-            <div>
-              <h2>{monthLabel(visibleMonth)}</h2>
-              <small>{days.filter((day) => day.isCurrentMonth).reduce((sum, day) => sum + day.events.length, 0)} {t('events')}</small>
+            <div className="min-w-0 text-center">
+              <h2 className="text-xl font-extrabold text-app-text">{monthLabel(visibleMonth)}</h2>
+              <small className="text-app-muted">{days.filter((day) => day.isCurrentMonth).reduce((sum, day) => sum + day.events.length, 0)} {t('events')}</small>
             </div>
-            <button className="icon-button ghost" type="button" onClick={() => changeMonth(1)} aria-label={t('Next month')}>
+            <button className={iconButtonClass} type="button" onClick={() => changeMonth(1)} aria-label={t('Next month')}>
               <ChevronRight size={18} aria-hidden="true" />
             </button>
           </div>
-          <div className="calendar-weekdays">
+          <div className="mb-2 grid grid-cols-7 gap-2">
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
-              <strong key={day}>{t(day)}</strong>
+              <strong className="px-1 text-center text-xs font-extrabold uppercase tracking-[0.08em] text-app-muted" key={day}>{t(day)}</strong>
             ))}
           </div>
-          <div className="calendar-month-grid">
+          <div className="grid grid-cols-7 gap-2 max-[620px]:gap-1">
             {days.map((day) => (
               <button
-                className={[
-                  'calendar-day',
-                  day.isCurrentMonth ? '' : 'muted',
-                  day.isToday ? 'today' : '',
-                  day.date === selectedDate ? 'selected' : '',
-                ].filter(Boolean).join(' ')}
+                className={cn(
+                  dayButtonClass,
+                  !day.isCurrentMonth && 'opacity-45',
+                  day.isToday && 'border-[color-mix(in_srgb,var(--accent)_54%,var(--border))]',
+                  day.date === selectedDate && 'border-[color-mix(in_srgb,var(--accent)_80%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_20%,transparent)]',
+                )}
                 key={day.date}
                 type="button"
                 onClick={() => setSelectedDate(day.date)}
               >
-                <span>{day.dayNumber}</span>
-                <div className="calendar-day-dots" aria-label={`${day.events.length} ${t('events')}`}>
+                <span className="text-sm font-extrabold text-app-text">{day.dayNumber}</span>
+                <div className="mt-auto flex min-h-4 flex-wrap items-center gap-1" aria-label={`${day.events.length} ${t('events')}`}>
                   {day.events.slice(0, 4).map((event) => (
                     <Tooltip content={event.title} position="top" key={event.id}>
-                      <i className={eventImportance(event)} />
+                      <i className={cn(importanceDotClass, importanceDotClasses[eventImportance(event)])} />
                     </Tooltip>
                   ))}
-                  {day.events.length > 4 ? <small>+{day.events.length - 4}</small> : null}
+                  {day.events.length > 4 ? <small className="text-[10px] font-bold text-app-muted">+{day.events.length - 4}</small> : null}
                 </div>
               </button>
             ))}
           </div>
-          <div className="calendar-legend">
+          <div className="mt-4 flex flex-wrap gap-2">
             {importanceLegend.map((item) => (
-              <span key={item.value}>
-                <i className={item.value} />
+              <span className={legendItemClass} key={item.value}>
+                <i className={cn(importanceDotClass, importanceDotClasses[item.value])} />
                 {t(item.label)}
               </span>
             ))}
           </div>
         </section>
 
-        <aside className="panel selected-date-panel">
-          <div className="section-heading">
+        <aside className={panelClass}>
+          <div className="mb-4 flex items-start justify-between gap-3 border-b border-[var(--line-soft)] pb-3">
             <div>
-              <h2>{formatDate(selectedDate)}</h2>
-              <small>{selectedEvents.length} {t('events')}</small>
+              <h2 className="text-xl font-extrabold text-app-text">{formatDate(selectedDate)}</h2>
+              <small className="text-app-muted">{selectedEvents.length} {t('events')}</small>
             </div>
-            <AddButton className="calendar-date-add-button" iconOnly label="Add important date" onClick={() => openNewEvent(selectedDate)} />
+            <AddButton iconOnly label="Add important date" onClick={() => openNewEvent(selectedDate)} />
           </div>
           {selectedEvents.length === 0 ? <EmptyState title="No events on this date" message="Add an event or select another date." /> : null}
-          <div className="stack">{selectedEvents.map(renderEventCard)}</div>
+          <div className="grid gap-3">{selectedEvents.map(renderEventCard)}</div>
         </aside>
       </div>
 
-      <div className="calendar-support-grid">
+      <div className="mt-[18px] grid grid-cols-2 gap-[18px] max-[1000px]:grid-cols-1">
         <Section title="Today" items={todayEvents(activeEvents)} />
         <Section title="This week" items={weekEvents(activeEvents)} />
         <Section title="This month" items={monthEvents(activeEvents)} />
@@ -189,3 +190,23 @@ const importanceLegend: Array<{ value: CalendarEvent['importanceLevel']; label: 
 function eventImportance(event: CalendarEvent) {
   return event.importanceLevel ?? (event.isImportant ? 'high' : 'low');
 }
+
+const panelClass =
+  'rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel';
+
+const iconButtonClass =
+  'grid h-icon min-h-icon w-icon place-items-center rounded-control border border-[color-mix(in_srgb,var(--accent)_36%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-strong))] text-app-accent-strong transition-colors hover:border-[color-mix(in_srgb,var(--accent-strong)_82%,var(--border))] hover:bg-[var(--control-bg-hover)]';
+
+const dayButtonClass =
+  'flex min-h-[96px] flex-col items-start rounded-panel border border-app-border bg-app-surface-soft p-2.5 text-left transition-colors hover:border-[color-mix(in_srgb,var(--accent)_48%,var(--border))] hover:bg-app-surface-strong max-[620px]:min-h-[76px] max-[620px]:p-2';
+
+const importanceDotClass = 'block h-2.5 w-2.5 rounded-full';
+
+const importanceDotClasses: Record<CalendarEvent['importanceLevel'], string> = {
+  low: 'bg-app-success',
+  medium: 'bg-app-warning',
+  high: 'bg-app-danger',
+};
+
+const legendItemClass =
+  'inline-flex items-center gap-2 rounded-full border border-app-border bg-app-chip px-2.5 py-1.5 text-xs font-bold text-app-chip-text';

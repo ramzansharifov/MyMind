@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Check, CheckCircle2, Circle, Folder } from 'lucide-react';
 import { EntityForm } from '../../shared/components/EntityForm';
 import { useI18n } from '../../shared/i18n/I18nProvider';
+import { cn } from '../../shared/utils/classNames';
 import { splitCsv, joinCsv } from '../../shared/utils/formatters';
 import { createId } from '../../shared/utils/idGenerator';
 import type { TodoGroup, TodoItem, TodoPriority, TodoStatus } from './types';
@@ -58,26 +59,26 @@ export function TodoForm({ todo, groups, defaultGroupId = 'pending', onCancel, o
         {t('Description')}
         <textarea rows={4} value={description} onChange={(event) => setDescription(event.target.value)} />
       </label>
-      <div className="form-grid">
-        <div className="form-section todo-choice-section">
-          <strong>{t('Status')}</strong>
-          <div className="todo-status-picker">
+      <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
+        <div className={formSectionClass}>
+          <strong className={sectionTitleClass}>{t('Status')}</strong>
+          <div className="grid gap-2">
             {statusOptions.map((option) => {
               const Icon = option.icon;
               const isActive = status === option.value;
               return (
                 <button
-                  className={`todo-choice-card${isActive ? ' active' : ''}`}
+                  className={cn(choiceCardClass, isActive && choiceCardActiveClass)}
                   type="button"
                   key={option.value}
                   onClick={() => setStatus(option.value)}
                 >
-                  <span className="todo-choice-icon">
+                  <span className={choiceIconClass}>
                     <Icon size={18} aria-hidden="true" />
                   </span>
-                  <span>
-                    <strong>{t(option.label)}</strong>
-                    <small>{t(option.description)}</small>
+                  <span className="min-w-0 text-left">
+                    <strong className="block text-sm text-app-text">{t(option.label)}</strong>
+                    <small className="mt-0.5 block text-xs text-app-muted">{t(option.description)}</small>
                   </span>
                   {isActive ? <Check size={16} aria-hidden="true" /> : null}
                 </button>
@@ -85,21 +86,21 @@ export function TodoForm({ todo, groups, defaultGroupId = 'pending', onCancel, o
             })}
           </div>
         </div>
-        <div className="form-section todo-choice-section">
-          <strong>{t('Priority')}</strong>
-          <div className="todo-priority-picker">
+        <div className={formSectionClass}>
+          <strong className={sectionTitleClass}>{t('Priority')}</strong>
+          <div className="grid gap-2">
             {priorityOptions.map((option) => {
               const isActive = priority === option.value;
               return (
                 <button
-                  className={`todo-choice-card priority-${option.value}${isActive ? ' active' : ''}`}
+                  className={cn(choiceCardClass, isActive && choiceCardActiveClass)}
                   type="button"
                   key={option.value}
                   onClick={() => setPriority(option.value)}
                 >
-                  <span className="todo-priority-dot" aria-hidden="true" />
-                  <span>
-                    <strong>{t(option.label)}</strong>
+                  <span className={cn(priorityDotClass, priorityDotClasses[option.value])} aria-hidden="true" />
+                  <span className="min-w-0 text-left">
+                    <strong className="block text-sm text-app-text">{t(option.label)}</strong>
                   </span>
                   {isActive ? <Check size={16} aria-hidden="true" /> : null}
                 </button>
@@ -108,25 +109,25 @@ export function TodoForm({ todo, groups, defaultGroupId = 'pending', onCancel, o
           </div>
         </div>
       </div>
-      <div className="form-section todo-choice-section">
-        <strong>{t('Group')}</strong>
-        <div className="todo-group-picker">
+      <div className={formSectionClass}>
+        <strong className={sectionTitleClass}>{t('Group')}</strong>
+        <div className="grid gap-2">
           {groups
             .filter((group) => group.kind !== 'all' && group.kind !== 'completed')
             .map((group) => {
               const isActive = groupId === group.id;
               return (
                 <button
-                  className={`todo-choice-card${isActive ? ' active' : ''}`}
+                  className={cn(choiceCardClass, isActive && choiceCardActiveClass)}
                   type="button"
                   key={group.id}
                   onClick={() => setGroupId(group.id)}
                 >
-                  <span className="todo-choice-icon">
+                  <span className={choiceIconClass}>
                     <Folder size={18} aria-hidden="true" />
                   </span>
-                  <span>
-                    <strong>{t(group.title)}</strong>
+                  <span className="min-w-0 text-left">
+                    <strong className="block text-sm text-app-text">{t(group.title)}</strong>
                   </span>
                   {isActive ? <Check size={16} aria-hidden="true" /> : null}
                 </button>
@@ -138,8 +139,8 @@ export function TodoForm({ todo, groups, defaultGroupId = 'pending', onCancel, o
         {t('Due date')}
         <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
       </label>
-      <label className="checkbox-line">
-        <input type="checkbox" checked={reminderEnabled} onChange={(event) => setReminderEnabled(event.target.checked)} />
+      <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-bold text-app-text">
+        <input className="h-4 w-4 accent-[var(--accent)]" type="checkbox" checked={reminderEnabled} onChange={(event) => setReminderEnabled(event.target.checked)} />
         {t('Local reminder')}
       </label>
       {reminderEnabled ? (
@@ -166,6 +167,27 @@ const priorityOptions: Array<{ value: TodoPriority; label: string }> = [
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
 ];
+
+const formSectionClass = 'grid gap-2 rounded-panel border border-[var(--line-soft)] bg-app-surface-soft p-3';
+
+const sectionTitleClass = 'text-sm font-extrabold text-app-text';
+
+const choiceCardClass =
+  'grid w-full grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3 rounded-panel border border-app-border bg-app-surface p-3 text-left transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:bg-app-surface-strong';
+
+const choiceCardActiveClass =
+  'border-[color-mix(in_srgb,var(--accent)_68%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))] text-app-accent-strong';
+
+const choiceIconClass =
+  'grid h-[34px] w-[34px] place-items-center rounded-panel border border-[color-mix(in_srgb,var(--accent)_38%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-soft))] text-app-accent-strong';
+
+const priorityDotClass = 'ml-3 h-3 w-3 rounded-full';
+
+const priorityDotClasses: Record<TodoPriority, string> = {
+  low: 'bg-app-success',
+  medium: 'bg-app-warning',
+  high: 'bg-app-danger',
+};
 
 function toDateTimeLocalValue(value?: string | null) {
   if (!value) {

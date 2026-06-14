@@ -60,7 +60,7 @@ export function TransactionForm({ type, transaction, tags: availableTags, accoun
         <input required value={title} onChange={(event) => setTitle(event.target.value)} />
       </label>
 
-      <div className="form-grid">
+      <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
         <label>
           {t('Amount')}
           <input

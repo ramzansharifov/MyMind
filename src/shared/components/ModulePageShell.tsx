@@ -11,9 +11,9 @@ interface ModulePageShellProps {
 
 export function ModulePageShell({ title, subtitle, actions, filters, children }: ModulePageShellProps) {
   return (
-    <section className="module-page-shell">
+    <section className="min-w-0">
       <PageHeader title={title} subtitle={subtitle} actions={actions} />
-      {filters ? <div className="module-page-filters">{filters}</div> : null}
+      {filters ? <div className="mb-[18px]">{filters}</div> : null}
       {children}
     </section>
   );

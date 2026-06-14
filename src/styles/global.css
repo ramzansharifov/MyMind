@@ -1,16 +1,328 @@
-﻿@import "./design-system.css";
-@import "./modules/movies.css";
-@import "./modules/templates.css";
-@import "./modules/study.css";
-@import "./modules/boards.css";
-@import "./modules/finance.css";
-@import "./modules/todos.css";
-@import "./modules/archive.css";
-@import "./modules/grouped-lists.css";
-@import "./modules/habits.css";
-@import "./modules/dashboard.css";
-@import "./modules/workouts.css";
-@import "./modules/settings.css";
-@import "./modules/contacts.css";
-@import "./modules/calendar.css";
-@import "./modules/progress-photos.css";
+@import "katex/dist/katex.min.css";
+@import "highlight.js/styles/github-dark.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --bg: #0e1117;
+  --surface: rgba(18, 25, 35, 0.78);
+  --surface-strong: rgba(24, 34, 49, 0.84);
+  --surface-soft: rgba(15, 22, 33, 0.68);
+  --border: #263345;
+  --glass-surface: rgba(18, 25, 35, 0.72);
+  --glass-surface-strong: rgba(24, 34, 49, 0.78);
+  --glass-surface-soft: rgba(15, 22, 33, 0.62);
+  --glass-border: rgba(103, 132, 164, 0.26);
+  --glass-highlight: rgba(255, 255, 255, 0.055);
+  --glass-blur: blur(18px) saturate(132%);
+  --text: #eef1f4;
+  --muted: #9aa5b3;
+  --accent: #2f8c7f;
+  --accent-strong: #3aa997;
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--surface-soft));
+  --accent-muted: color-mix(in srgb, var(--accent) 18%, transparent);
+  --accent-border: color-mix(in srgb, var(--accent) 48%, var(--border));
+  --accent-glow: color-mix(in srgb, var(--accent) 28%, transparent);
+  --accent-glow-strong: color-mix(in srgb, var(--accent) 46%, transparent);
+  --danger: #d06f5f;
+  --positive: #4ab58d;
+  --neutral: #687586;
+  --warning: #d9902f;
+  --warning-strong: #f0a33c;
+  --info: #6f8fd6;
+  --violet: #8a72ca;
+  --priority-low: var(--info);
+  --priority-medium: var(--warning);
+  --priority-high: #d85f5f;
+  --meal-breakfast: var(--warning);
+  --meal-lunch: var(--accent);
+  --meal-dinner: var(--info);
+  --meal-snack: var(--violet);
+  --chart-cursor-accent: color-mix(in srgb, var(--accent) 8%, transparent);
+  --chart-cursor-danger: color-mix(in srgb, var(--danger) 8%, transparent);
+  --chart-area-accent: color-mix(in srgb, var(--accent) 24%, transparent);
+  --chart-series-1: var(--accent-strong);
+  --chart-series-2: var(--warning);
+  --chart-series-3: var(--info);
+  --chart-series-4: var(--priority-high);
+  --chart-series-5: var(--positive);
+  --quote-accent-default: var(--violet);
+  --code-bg: #05080d;
+  --drawing-surface: #151922;
+  --chip-bg: #1b2634;
+  --chip-text: #cbd3dd;
+  --selected-bg: #214a45;
+  --selected-border: #2a7f72;
+  --line-soft: #223044;
+  --code: #b8d8d0;
+  --hero-bg: #121f27;
+  --hero-border: #263745;
+  --shadow: rgba(0, 0, 0, 0.22);
+  --shadow-strong: rgba(0, 0, 0, 0.42);
+  --backdrop: rgba(4, 7, 12, 0.68);
+  --app-glow-primary: color-mix(in srgb, var(--accent) 28%, transparent);
+  --app-glow-secondary: color-mix(in srgb, var(--accent) 16%, transparent);
+  --app-glow-tertiary: color-mix(in srgb, var(--accent) 12%, transparent);
+  --control-bg: color-mix(in srgb, var(--glass-surface-soft) 86%, var(--surface) 14%);
+  --control-bg-hover: color-mix(in srgb, var(--accent) 12%, var(--surface-strong));
+  --control-border: var(--glass-border);
+  --panel-bg:
+    linear-gradient(145deg, var(--glass-highlight), transparent 46%),
+    color-mix(in srgb, var(--glass-surface) 92%, var(--surface) 8%);
+  --panel-bg-strong:
+    linear-gradient(145deg, var(--glass-highlight), transparent 48%),
+    var(--glass-surface-strong);
+  --panel-bg-soft: var(--glass-surface-soft);
+  --panel-shadow:
+    0 18px 46px var(--shadow),
+    inset 0 1px 0 var(--glass-highlight);
+  --modal-shadow: 0 28px 86px var(--shadow-strong);
+  --button-bg:
+    linear-gradient(180deg, var(--glass-highlight), transparent),
+    var(--glass-surface-strong);
+  --button-bg-ghost: color-mix(in srgb, var(--surface-strong) 58%, transparent);
+  --button-bg-primary: color-mix(in srgb, var(--accent) 18%, var(--surface-strong));
+  --button-bg-primary-hover: color-mix(in srgb, var(--accent) 24%, var(--surface-strong));
+  --button-bg-danger: color-mix(in srgb, var(--danger) 14%, var(--surface-strong));
+  --button-bg-danger-hover: color-mix(in srgb, var(--danger) 20%, var(--surface-strong));
+  --button-bg-warning: color-mix(in srgb, var(--warning) 14%, var(--surface-strong));
+  --button-bg-warning-hover: color-mix(in srgb, var(--warning) 20%, var(--surface-strong));
+  --field-bg: var(--control-bg);
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: color-mix(in srgb, var(--accent) 30%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--accent) 70%, transparent);
+  --radius-control: 8px;
+  --radius-panel: 8px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --control-height: 42px;
+  --icon-button-size: 36px;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f5f6;
+  --surface: rgba(255, 255, 255, 0.78);
+  --surface-strong: rgba(238, 242, 243, 0.86);
+  --surface-soft: rgba(248, 250, 251, 0.7);
+  --border: #d9e0e4;
+  --glass-surface: rgba(255, 255, 255, 0.78);
+  --glass-surface-strong: rgba(244, 248, 250, 0.84);
+  --glass-surface-soft: rgba(255, 255, 255, 0.68);
+  --glass-border: rgba(103, 126, 142, 0.28);
+  --glass-highlight: rgba(255, 255, 255, 0.78);
+  --glass-blur: blur(18px) saturate(120%);
+  --text: #172026;
+  --muted: #66717c;
+  --accent: #257c70;
+  --accent-strong: #1e675d;
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--surface-soft));
+  --accent-muted: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-border: color-mix(in srgb, var(--accent) 44%, var(--border));
+  --accent-glow: color-mix(in srgb, var(--accent) 18%, transparent);
+  --accent-glow-strong: color-mix(in srgb, var(--accent) 30%, transparent);
+  --danger: #b95349;
+  --positive: #2f8a69;
+  --neutral: #8d98a3;
+  --warning: #b6843b;
+  --warning-strong: #9c6e2d;
+  --info: #3f7fbf;
+  --violet: #7b6dc8;
+  --priority-high: #b95349;
+  --code-bg: #f1f5f7;
+  --drawing-surface: #eef3f7;
+  --chip-bg: #eef3f4;
+  --chip-text: #3a4751;
+  --selected-bg: #dcefeb;
+  --selected-border: #78aaa1;
+  --line-soft: #dfe6e9;
+  --code: #22695f;
+  --hero-bg: #e8f1ef;
+  --hero-border: #cbdeda;
+  --shadow: rgba(25, 37, 45, 0.08);
+  --shadow-strong: rgba(25, 37, 45, 0.18);
+  --backdrop: rgba(12, 18, 24, 0.32);
+  --app-glow-primary: color-mix(in srgb, var(--accent) 18%, transparent);
+  --app-glow-secondary: color-mix(in srgb, var(--accent) 10%, transparent);
+  --app-glow-tertiary: color-mix(in srgb, var(--accent) 8%, transparent);
+  --control-bg: color-mix(in srgb, var(--glass-surface-soft) 86%, var(--surface) 14%);
+  --control-bg-hover: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
+  --panel-bg:
+    linear-gradient(145deg, var(--glass-highlight), transparent 46%),
+    color-mix(in srgb, var(--glass-surface) 92%, var(--surface) 8%);
+  --panel-bg-strong:
+    linear-gradient(145deg, var(--glass-highlight), transparent 48%),
+    var(--glass-surface-strong);
+  --button-bg-primary: color-mix(in srgb, var(--accent) 16%, var(--surface-strong));
+  --button-bg-primary-hover: color-mix(in srgb, var(--accent) 22%, var(--surface-strong));
+  --button-bg-danger: color-mix(in srgb, var(--danger) 12%, var(--surface-strong));
+  --button-bg-danger-hover: color-mix(in srgb, var(--danger) 18%, var(--surface-strong));
+  --scrollbar-thumb: color-mix(in srgb, var(--accent) 25%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--accent) 65%, transparent);
+  background: var(--bg);
+  color: var(--text);
+}
+
+:root[data-accent="blue"] {
+  --accent: #3f7fbf;
+  --accent-strong: #2f6fae;
+  --selected-bg: color-mix(in srgb, #3f7fbf 24%, var(--surface));
+  --selected-border: #6698cc;
+}
+
+:root[data-accent="violet"] {
+  --accent: #7b6dc8;
+  --accent-strong: #6658b8;
+  --selected-bg: color-mix(in srgb, #7b6dc8 22%, var(--surface));
+  --selected-border: #978dd6;
+}
+
+:root[data-accent="amber"] {
+  --accent: #b6843b;
+  --accent-strong: #9c6e2d;
+  --selected-bg: color-mix(in srgb, #b6843b 22%, var(--surface));
+  --selected-border: #c99d5d;
+}
+
+:root[data-density="compact"] {
+  font-size: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border: 1px solid var(--scrollbar-track);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+body {
+  min-width: 1100px;
+  min-height: 100vh;
+  margin: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 12% 6%, var(--app-glow-primary), transparent 32%),
+    radial-gradient(circle at 82% 0%, var(--app-glow-secondary), transparent 30%),
+    radial-gradient(circle at 52% 102%, var(--app-glow-tertiary), transparent 34%),
+    var(--bg);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+input:invalid,
+textarea:invalid,
+select:invalid {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: var(--control-height);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--field-bg);
+  color: var(--text);
+  padding: 10px 12px;
+  outline: none;
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  backdrop-filter: var(--glass-blur);
+}
+
+textarea {
+  resize: vertical;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 34px;
+  letter-spacing: 0;
+}
+
+h2 {
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+h3 {
+  font-size: 16px;
+  letter-spacing: 0;
+}
+
+p,
+small,
+span {
+  line-height: 1.45;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

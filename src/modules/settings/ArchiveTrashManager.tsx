@@ -5,6 +5,7 @@ import { CloseButton, DeleteButton } from '../../shared/components/ActionButtons
 import { ModalPortal } from '../../shared/components/ModalPortal';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isArchived, isTrashed, restoreEntity, trashEntity, type LifecycleEntity } from '../../shared/utils/archiveUtils';
+import { cn } from '../../shared/utils/classNames';
 import { formatDate } from '../../shared/utils/dateUtils';
 
 type ManagedCollectionKey =
@@ -71,6 +72,28 @@ const managedCollections: CollectionConfig[] = [
   { key: 'inventory', label: 'Inventory', titleKeys: ['title'], detailKeys: ['category', 'location', 'notes'] },
 ];
 
+const backdropClass = 'fixed inset-0 z-50 grid place-items-center bg-[var(--backdrop)] p-5';
+const windowClass =
+  'grid max-h-[90vh] w-[min(980px,calc(100vw-40px))] gap-4 overflow-hidden rounded-panel border border-app-border bg-[var(--panel-bg)] p-4 text-app-text shadow-modal [backdrop-filter:var(--glass-blur)]';
+const embeddedWindowClass = 'max-h-none w-full overflow-visible border-0 bg-transparent p-0 shadow-none [backdrop-filter:none]';
+const headerClass = 'flex items-start justify-between gap-4 border-b border-[var(--line-soft)] pb-3';
+const tabsClass = 'flex flex-wrap gap-2 rounded-panel border border-app-border bg-app-surface-soft p-1.5';
+const tabClass =
+  'inline-flex min-h-control items-center justify-center gap-2 rounded-control border border-transparent px-3.5 py-2 text-sm font-bold text-app-muted transition hover:text-app-text';
+const tabActiveClass = 'border-[var(--accent-border)] bg-[var(--selected-bg)] text-app-accent-strong';
+const emptyClass = 'grid gap-1 rounded-panel border border-dashed border-app-border bg-app-surface-soft p-8 text-center text-app-muted';
+const listClass = 'grid max-h-[62vh] gap-3 overflow-auto pr-1';
+const embeddedListClass = 'max-h-none overflow-visible pr-0';
+const rowClass = 'grid gap-3 rounded-panel border border-app-border bg-app-surface p-4 shadow-panel [backdrop-filter:var(--glass-blur)]';
+const rowTopClass = 'grid grid-cols-[1fr_auto] gap-4 max-[860px]:grid-cols-1';
+const rowHeadingClass = 'grid content-start gap-1';
+const rowActionsClass = 'flex flex-wrap items-start justify-end gap-2 max-[860px]:justify-start';
+const ghostButtonClass =
+  'inline-flex min-h-control items-center justify-center gap-2 rounded-control border border-[color-mix(in_srgb,var(--accent)_36%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-strong))] px-3.5 py-2.5 text-sm font-bold text-[color-mix(in_srgb,var(--accent-strong)_86%,var(--text))] transition hover:border-[color-mix(in_srgb,var(--accent-strong)_82%,var(--border))] hover:bg-[var(--control-bg-hover)]';
+const chipClass = 'inline-flex w-fit items-center rounded-full border border-app-border bg-app-chip px-2.5 py-1 text-xs font-bold text-app-chip-text';
+const detailClass = 'text-sm leading-6 text-app-muted';
+const collapsedDetailClass = 'max-h-[4.75rem] overflow-hidden';
+
 export function ArchiveTrashManager({ data, onChange, onClose, onStatusMessage }: ArchiveTrashManagerProps) {
   const archiveRows = getRows(data, 'archive');
   const trashRows = getRows(data, 'trash');
@@ -79,7 +102,7 @@ export function ArchiveTrashManager({ data, onChange, onClose, onStatusMessage }
   return (
     <ModalPortal>
     <div
-      className="archive-window-backdrop"
+      className={backdropClass}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -164,26 +187,26 @@ function ArchiveTrashContent({
 
     return (
       <section
-        className={`archive-window${isEmbedded ? ' archive-window-embedded' : ''}`}
+        className={cn(windowClass, isEmbedded && embeddedWindowClass)}
         role={isEmbedded ? 'region' : 'dialog'}
         aria-modal={isEmbedded ? undefined : true}
         aria-label={t(title)}
       >
-        <div className="archive-window-header">
+        <div className={headerClass}>
           <div>
             <h2>{t(title)}</h2>
-            <p>{t(description)}</p>
+            <p className="mt-1 text-sm text-app-muted">{t(description)}</p>
           </div>
           {onClose ? <CloseButton onClick={onClose} /> : null}
         </div>
         {onActiveTabChange ? (
-          <div className="archive-tabs" role="tablist">
-            <button className={activeTab === 'archive' ? 'active' : ''} type="button" onClick={() => onActiveTabChange('archive')}>
+          <div className={tabsClass} role="tablist">
+            <button className={cn(tabClass, activeTab === 'archive' && tabActiveClass)} type="button" onClick={() => onActiveTabChange('archive')}>
               <Archive size={16} aria-hidden="true" />
               <span>{t('Archive')}</span>
               <strong>{archiveRows.length}</strong>
             </button>
-            <button className={activeTab === 'trash' ? 'active' : ''} type="button" onClick={() => onActiveTabChange('trash')}>
+            <button className={cn(tabClass, activeTab === 'trash' && tabActiveClass)} type="button" onClick={() => onActiveTabChange('trash')}>
               <Trash2 size={16} aria-hidden="true" />
               <span>{t('Trash')}</span>
               <strong>{trashRows.length}</strong>
@@ -191,39 +214,39 @@ function ArchiveTrashContent({
           </div>
         ) : null}
         {rows.length === 0 ? (
-          <div className="empty-state archive-empty">
-            <strong>{t(activeTab === 'archive' ? 'No archived items' : 'Trash is empty')}</strong>
+          <div className={emptyClass}>
+            <strong className="text-app-text">{t(activeTab === 'archive' ? 'No archived items' : 'Trash is empty')}</strong>
             <span>{t(activeTab === 'archive' ? 'Archived records will appear here.' : 'Items moved to trash will appear here for 30 days.')}</span>
           </div>
         ) : (
-          <div className="archive-list">
+          <div className={cn(listClass, isEmbedded && embeddedListClass)}>
             {rows.map((row) => {
               const rowKey = `${row.config.key}-${row.item.id}`;
               const isExpanded = Boolean(expandedRows[rowKey]);
               const detail = row.detail || t('No description.');
               return (
-                <article className="archive-row" key={rowKey}>
-                  <div className="archive-row-top">
-                    <div className="archive-row-heading">
-                      <span className="chip">{t(row.config.label)}</span>
-                      <h3>{row.title}</h3>
-                      <small>
+                <article className={rowClass} key={rowKey}>
+                  <div className={rowTopClass}>
+                    <div className={rowHeadingClass}>
+                      <span className={chipClass}>{t(row.config.label)}</span>
+                      <h3 className="text-base font-extrabold text-app-text">{row.title}</h3>
+                      <small className="text-xs text-app-muted">
                         {t(row.state === 'archive' ? 'Archived' : 'In trash')}: {formatDate(row.date)}
                         {row.state === 'trash' && row.item.trashExpiresAt ? ` / ${t('Expires')}: ${formatDate(row.item.trashExpiresAt)}` : ''}
                       </small>
                     </div>
-                    <div className="archive-row-actions">
-                      <button className="button ghost" type="button" onClick={() => toggleExpanded(rowKey)}>
+                    <div className={rowActionsClass}>
+                      <button className={ghostButtonClass} type="button" onClick={() => toggleExpanded(rowKey)}>
                         {isExpanded ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
                         <span>{t(isExpanded ? 'Show less' : 'Show fully')}</span>
                       </button>
                       {row.state === 'trash' ? (
-                        <button className="button ghost" type="button" onClick={() => archiveItem(row.config, row.item.id)}>
+                        <button className={ghostButtonClass} type="button" onClick={() => archiveItem(row.config, row.item.id)}>
                           <Archive size={16} aria-hidden="true" />
                           <span>{t('Archive')}</span>
                         </button>
                       ) : null}
-                      <button className="button ghost" type="button" onClick={() => restoreItem(row.config, row.item.id)}>
+                      <button className={ghostButtonClass} type="button" onClick={() => restoreItem(row.config, row.item.id)}>
                         <RotateCcw size={16} aria-hidden="true" />
                         <span>{t('Restore')}</span>
                       </button>
@@ -245,7 +268,7 @@ function ArchiveTrashContent({
                       />
                     </div>
                   </div>
-                  <p className={`archive-row-detail${isExpanded ? ' expanded' : ''}`}>{detail}</p>
+                  <p className={cn(detailClass, !isExpanded && collapsedDetailClass)}>{detail}</p>
                 </article>
               );
             })}

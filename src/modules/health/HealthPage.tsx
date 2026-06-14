@@ -28,34 +28,34 @@ export function HealthPage({ data, onChange }: { data: HealthData; onChange: (da
           <AddButton label="Add health entry" onClick={() => setEditing(null)} />
         }
       />
-      <div className="stats-grid">
-        <article className="stat-card">
-          <span>{t('Entries')}</span>
-          <strong>{data.entries.length}</strong>
+      <div className="mb-[18px] grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3.5">
+        <article className={statCardClass}>
+          <span className="text-app-muted">{t('Entries')}</span>
+          <strong className="text-2xl text-app-text">{data.entries.length}</strong>
         </article>
-        <article className="stat-card">
-          <span>{t('Average sleep')}</span>
-          <strong>{average(data.entries.map((entry) => entry.sleepHours)).toFixed(1)}h</strong>
+        <article className={statCardClass}>
+          <span className="text-app-muted">{t('Average sleep')}</span>
+          <strong className="text-2xl text-app-text">{average(data.entries.map((entry) => entry.sleepHours)).toFixed(1)}h</strong>
         </article>
-        <article className="stat-card">
-          <span>{t('Average energy')}</span>
-          <strong>{average(data.entries.map((entry) => entry.energy)).toFixed(1)}/10</strong>
+        <article className={statCardClass}>
+          <span className="text-app-muted">{t('Average energy')}</span>
+          <strong className="text-2xl text-app-text">{average(data.entries.map((entry) => entry.energy)).toFixed(1)}/10</strong>
         </article>
       </div>
       {entries.length === 0 ? (
         <EmptyState title="No health entries" message="Add daily health notes to notice patterns over time." />
       ) : (
-        <div className="stack">
+        <div className="grid gap-3">
           {entries.map((entry) => (
-            <article className="card list-card" key={entry.id}>
-              <div>
-                <h3>{formatDate(entry.date)}</h3>
-                <p>{entry.notes || entry.symptoms || 'No notes.'}</p>
-                <small>
+            <article className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel max-[760px]:grid-cols-1" key={entry.id}>
+              <div className="min-w-0">
+                <h3 className="text-base font-extrabold text-app-text">{formatDate(entry.date)}</h3>
+                <p className="mt-1 text-sm text-app-muted">{entry.notes || entry.symptoms || 'No notes.'}</p>
+                <small className="mt-2 block text-xs font-bold text-app-muted">
                   {t('Mood')} {entry.mood || t('none')} / {t('sleep')} {entry.sleepHours}h / {t('energy')} {entry.energy}/10 / {t('weight')} {entry.weight || 0}
                 </small>
               </div>
-              <div className="card-actions compact">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <EditButton onClick={() => setEditing(entry)} />
                 <DeleteButton
                   onConfirm={() => onChange({ ...data, entries: data.entries.filter((item) => item.id !== entry.id) })}
@@ -122,7 +122,7 @@ function HealthEntryForm({
         {t('Mood')}
         <input value={mood} onChange={(event) => setMood(event.target.value)} />
       </label>
-      <div className="form-grid">
+      <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
         <label>
           {t('Sleep hours')}
           <input type="number" value={sleepHours} onChange={(event) => setSleepHours(event.target.value)} />
@@ -147,3 +147,6 @@ function HealthEntryForm({
     </EntityForm>
   );
 }
+
+const statCardClass =
+  'grid gap-1.5 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel';

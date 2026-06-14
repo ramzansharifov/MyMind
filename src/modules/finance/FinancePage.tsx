@@ -8,6 +8,7 @@ import { PageHeader } from '../../shared/components/PageHeader';
 import { SegmentedTabs } from '../../shared/components/SegmentedTabs';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, trashEntity } from '../../shared/utils/archiveUtils';
+import { cn } from '../../shared/utils/classNames';
 import { formatCurrency } from '../../shared/utils/formatters';
 import { createId } from '../../shared/utils/idGenerator';
 import { Minus } from 'lucide-react';
@@ -238,14 +239,14 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
         subtitle="Accounts, starting balances, income, expenses, goals, and tags for local financial tracking."
       />
 
-      <div className="panel finance-tabs-panel">
+      <div className="mb-[18px] flex flex-wrap items-center justify-between gap-3 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-3 [backdrop-filter:var(--glass-blur)] shadow-panel">
         <SegmentedTabs tabs={financeTabs} activeTab={view} ariaLabel="Finance sections" onChange={setView} />
 
-        <div className="finance-tab-actions">
+        <div className="flex flex-wrap items-center gap-2">
           {view === 'ledger' ? (
             <>
               <AddButton label="Income" onClick={() => setOpenForm({ kind: 'transaction', type: 'income' })} />
-              <button className="button danger finance-expense-button" type="button" onClick={() => setOpenForm({ kind: 'transaction', type: 'expense' })}>
+              <button className={dangerButtonClass} type="button" onClick={() => setOpenForm({ kind: 'transaction', type: 'expense' })}>
                 <Minus size={17} aria-hidden="true" />
                 <span>{t('Expense')}</span>
               </button>
@@ -260,13 +261,13 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
 
       {view === 'ledger' ? (
         <>
-          <section className="panel finance-start-panel">
-            <div className="card-title-row">
+          <section className={panelClass}>
+            <div className="flex items-start justify-between gap-4 max-[700px]:flex-col">
               <div>
-                <h2>{t('Total balance')}</h2>
-                <p className="muted-text">{t('Combined balance across all accounts.')}</p>
+                <h2 className="text-xl font-extrabold text-app-text">{t('Total balance')}</h2>
+                <p className="text-app-muted">{t('Combined balance across all accounts.')}</p>
               </div>
-              <strong className="finance-total-balance">{formatCurrency(balance, currency)}</strong>
+              <strong className="text-3xl font-extrabold text-app-accent-strong">{formatCurrency(balance, currency)}</strong>
             </div>
           </section>
 
@@ -278,47 +279,47 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
             onQueryChange={setQuery}
             onToggle={() => setFiltersOpen((current) => !current)}
           >
-            <div className="filter-choice-group">
-              <div className="filter-choice-heading">
-                <strong>{t('Type')}</strong>
-                {types.length > 0 ? <button type="button" onClick={() => setTypes([])}>{t('Clear')}</button> : null}
+            <div className={filterChoiceGroupClass}>
+              <div className={filterChoiceHeadingClass}>
+                <strong className="text-app-text">{t('Type')}</strong>
+                {types.length > 0 ? <button className={filterClearInlineClass} type="button" onClick={() => setTypes([])}>{t('Clear')}</button> : null}
               </div>
-              <div className="filter-chip-row">
+              <div className="flex flex-wrap gap-2">
                 {transactionTypeFilters.map((item) => (
-                  <button className={`filter-chip${types.includes(item) ? ' active' : ''}`} type="button" key={item} onClick={() => toggleTypeFilter(item)}>
+                  <button className={cn(filterChipClass, types.includes(item) && filterChipActiveClass)} type="button" key={item} onClick={() => toggleTypeFilter(item)}>
                     {t(item === 'income' ? 'Income' : 'Expense')}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="filter-choice-group">
-              <div className="filter-choice-heading">
-                <strong>{t('Tag')}</strong>
-                {selectedTags.length > 0 ? <button type="button" onClick={() => setSelectedTags([])}>{t('Clear')}</button> : null}
+            <div className={filterChoiceGroupClass}>
+              <div className={filterChoiceHeadingClass}>
+                <strong className="text-app-text">{t('Tag')}</strong>
+                {selectedTags.length > 0 ? <button className={filterClearInlineClass} type="button" onClick={() => setSelectedTags([])}>{t('Clear')}</button> : null}
               </div>
-              <div className="filter-chip-row">
+              <div className="flex flex-wrap gap-2">
                 {availableTransactionTags.length > 0 ? availableTransactionTags.map((item) => (
-                  <button className={`filter-chip${selectedTags.includes(item) ? ' active' : ''}`} type="button" key={item} onClick={() => toggleTransactionTag(item)}>
+                  <button className={cn(filterChipClass, selectedTags.includes(item) && filterChipActiveClass)} type="button" key={item} onClick={() => toggleTransactionTag(item)}>
                     {item}
                   </button>
-                )) : <span className="muted-text">{t('No tags yet.')}</span>}
+                )) : <span className="text-sm text-app-muted">{t('No tags yet.')}</span>}
               </div>
             </div>
 
-            <div className="filter-choice-group">
-              <div className="filter-choice-heading">
-                <strong>{t('Date')}</strong>
-                {date ? <button type="button" onClick={() => setDate('')}>{t('Clear')}</button> : null}
+            <div className={filterChoiceGroupClass}>
+              <div className={filterChoiceHeadingClass}>
+                <strong className="text-app-text">{t('Date')}</strong>
+                {date ? <button className={filterClearInlineClass} type="button" onClick={() => setDate('')}>{t('Clear')}</button> : null}
               </div>
               <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
             </div>
 
-            {activeFilterCount > 0 ? <button className="button ghost filter-clear-button" type="button" onClick={clearFinanceFilters}>{t('Clear filters')}</button> : null}
+            {activeFilterCount > 0 ? <button className={ghostButtonClass} type="button" onClick={clearFinanceFilters}>{t('Clear filters')}</button> : null}
           </CollapsibleFilters>
 
-          <section className="panel">
-            <h2>{t('Transactions')}</h2>
+          <section className={panelClass}>
+            <h2 className="mb-3 text-xl font-extrabold text-app-text">{t('Transactions')}</h2>
             {filtered.length === 0 ? (
               <EmptyState title="No transactions" message="Add income or expenses to build your local ledger." />
             ) : (
@@ -341,7 +342,7 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
 
       {view === 'goals' ? (
         <>
-          <div className="card-grid">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3.5">
             {data.savingsGoals.map((goal) => (
               <SavingsGoalCard
                 goal={goal}
@@ -365,15 +366,15 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
       ) : null}
 
       {view === 'settings' ? (
-        <div className="finance-settings-grid">
-          <section className="panel finance-start-panel">
-            <div className="card-title-row">
+        <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] gap-[18px] max-[1100px]:grid-cols-1">
+          <section className={panelClass}>
+            <div className="mb-4 flex items-start justify-between gap-4 border-b border-[var(--line-soft)] pb-3 max-[760px]:flex-col">
               <div>
-                <h2>{t('Accounts')}</h2>
-                <p className="muted-text">{t('Create separate accounts with their own starting balances.')}</p>
+                <h2 className="text-xl font-extrabold text-app-text">{t('Accounts')}</h2>
+                <p className="text-app-muted">{t('Create separate accounts with their own starting balances.')}</p>
               </div>
 
-              <div className="card-actions">
+              <div className="flex flex-wrap items-center gap-2">
                 <AddButton label="Add account" onClick={() => setOpenForm({ kind: 'account' })} />
                 <DeleteButton
                   iconOnly={false}
@@ -385,13 +386,13 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
               </div>
             </div>
 
-            <div className="finance-start-value">
-              <span>{t('Total balance')}</span>
-              <strong>{formatCurrency(balance, currency)}</strong>
-              <small>{t('Across all accounts')}</small>
+            <div className="mb-4 grid gap-0.5 rounded-panel border border-app-border bg-app-surface-soft p-3">
+              <span className="text-xs font-bold uppercase tracking-[0.06em] text-app-muted">{t('Total balance')}</span>
+              <strong className="text-2xl text-app-accent-strong">{formatCurrency(balance, currency)}</strong>
+              <small className="text-app-muted">{t('Across all accounts')}</small>
             </div>
 
-            <div className="card-grid">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3.5">
               {accounts.map((account) => (
                 <FinanceAccountCard
                   account={account}
@@ -406,16 +407,16 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
             </div>
           </section>
 
-          <section className="panel finance-tags-panel">
-            <h2>{t('Tag builder')}</h2>
-            <p className="muted-text">{t('Create tags for income, expenses, or both. These tags appear as quick choices in the transaction form.')}</p>
+          <section className={panelClass}>
+            <h2 className="text-xl font-extrabold text-app-text">{t('Tag builder')}</h2>
+            <p className="mt-1 text-app-muted">{t('Create tags for income, expenses, or both. These tags appear as quick choices in the transaction form.')}</p>
 
-            <div className="finance-tag-builder">
+            <div className="my-4 grid gap-3 rounded-panel border border-[var(--line-soft)] bg-app-surface-soft p-3">
               <input placeholder={t('Tag name')} value={newTagName} onChange={(event) => setNewTagName(event.target.value)} />
 
-              <div className="filter-chip-row">
+              <div className="flex flex-wrap gap-2">
                 {financeTagTypes.map((item) => (
-                  <button className={`filter-chip${newTagType === item ? ' active' : ''}`} type="button" key={item} onClick={() => setNewTagType(item)}>
+                  <button className={cn(filterChipClass, newTagType === item && filterChipActiveClass)} type="button" key={item} onClick={() => setNewTagType(item)}>
                     {t(item === 'both' ? 'Both' : item === 'income' ? 'Income' : 'Expense')}
                   </button>
                 ))}
@@ -424,7 +425,7 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
               <AddButton label={editingTagId ? 'Save tag' : 'Add tag'} onClick={addTag} />
             </div>
 
-            <div className="finance-tag-columns">
+            <div className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1">
               <FinanceTagGroup title="Income tags" variant="income" tags={incomeTags} data={data} onEdit={startEditTag} onChange={onChange} />
               <FinanceTagGroup title="Expense tags" variant="expense" tags={expenseTags} data={data} onEdit={startEditTag} onChange={onChange} />
             </div>
@@ -485,25 +486,24 @@ function FinanceTagGroup({
   const { t } = useI18n();
 
   return (
-    <div className={`finance-tag-group ${variant}`}>
-      <div className="finance-tag-group-heading">
-        <h3>{t(title)}</h3>
-        <span>{tags.length}</span>
+    <div className="grid gap-2 rounded-panel border border-app-border bg-app-surface-soft p-3">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-base font-extrabold text-app-text">{t(title)}</h3>
+        <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-app-border bg-app-chip px-2 text-xs font-extrabold text-app-chip-text">{tags.length}</span>
       </div>
 
-      <div className="finance-tag-list">
+      <div className="grid gap-2">
         {tags.map((item) => (
-          <div className={`finance-tag-card tag-${item.type}`} key={`${title}-${item.id}`}>
-            <div>
-              <strong>{item.name}</strong>
-              <small>{t(item.type === 'both' ? 'Both' : item.type === 'income' ? 'Income' : 'Expense')}</small>
+          <div className={cn(tagCardClass, variant === 'income' ? 'border-[color-mix(in_srgb,var(--success)_34%,var(--border))]' : 'border-[color-mix(in_srgb,var(--danger)_34%,var(--border))]')} key={`${title}-${item.id}`}>
+            <div className="min-w-0">
+              <strong className="block truncate text-sm text-app-text">{item.name}</strong>
+              <small className="text-xs text-app-muted">{t(item.type === 'both' ? 'Both' : item.type === 'income' ? 'Income' : 'Expense')}</small>
             </div>
 
-            <div className="finance-tag-actions">
-              <EditButton className="finance-tag-icon-action" onClick={() => onEdit(item)} />
+            <div className="flex items-center gap-2">
+              <EditButton onClick={() => onEdit(item)} />
               <DeleteButton
                 label="Delete tag"
-                className="finance-tag-icon-action"
                 onConfirm={() => onChange({ ...data, tags: data.tags.filter((tagItem) => tagItem.id !== item.id) })}
                 confirmTitle="Delete tag?"
               />
@@ -511,7 +511,7 @@ function FinanceTagGroup({
           </div>
         ))}
 
-        {tags.length === 0 ? <span className="muted-text">{t('No tags yet.')}</span> : null}
+        {tags.length === 0 ? <span className="text-sm text-app-muted">{t('No tags yet.')}</span> : null}
       </div>
     </div>
   );
@@ -545,3 +545,27 @@ const financeTabs: Array<{ id: FinanceView; label: string }> = [
   { id: 'settings', label: 'Settings' },
   { id: 'charts', label: 'Charts' },
 ];
+
+const panelClass =
+  'mb-[18px] rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel';
+
+const dangerButtonClass =
+  'inline-flex min-h-control items-center justify-center gap-2 rounded-control border border-[color-mix(in_srgb,var(--danger)_72%,var(--border))] bg-[var(--button-bg-danger)] px-3.5 py-2.5 text-sm font-bold text-app-danger transition-colors hover:border-[color-mix(in_srgb,var(--danger)_88%,var(--border))] hover:bg-[var(--button-bg-danger-hover)]';
+
+const ghostButtonClass =
+  'inline-flex min-h-control w-fit items-center justify-center rounded-control border border-[color-mix(in_srgb,var(--accent)_36%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-strong))] px-3.5 py-2.5 text-sm font-bold text-[color-mix(in_srgb,var(--accent-strong)_86%,var(--text))] transition-colors hover:border-[color-mix(in_srgb,var(--accent-strong)_82%,var(--border))] hover:bg-[var(--control-bg-hover)]';
+
+const filterChoiceGroupClass = 'grid gap-2';
+
+const filterChoiceHeadingClass = 'flex items-center justify-between gap-3 text-sm';
+
+const filterClearInlineClass = 'text-xs font-bold text-app-accent-strong transition-colors hover:text-app-text';
+
+const filterChipClass =
+  'inline-flex min-h-9 items-center gap-2 rounded-full border border-app-border bg-app-chip px-3 py-1.5 text-sm font-bold text-app-chip-text transition-colors hover:border-[color-mix(in_srgb,var(--accent)_46%,var(--border))] hover:bg-app-surface-strong';
+
+const filterChipActiveClass =
+  'border-[color-mix(in_srgb,var(--accent)_70%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_18%,var(--surface-strong))] text-app-accent-strong';
+
+const tagCardClass =
+  'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-panel border bg-app-surface p-2.5';

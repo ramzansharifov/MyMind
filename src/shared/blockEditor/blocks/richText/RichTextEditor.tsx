@@ -29,6 +29,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { cn } from "../../../utils/classNames";
 import {
   applyRichTextCommand,
   applyRichTextLink,
@@ -411,7 +412,7 @@ export function RichTextEditor({
   }
 
   const toolbar = (
-    <div className="rich-text-toolbar" aria-label="Панель форматирования текста">
+    <div className={richTextToolbarClass} aria-label="Панель форматирования текста">
       <ToolbarGroup title="Начертание">
         <ToolbarButton label="Жирный" active={selectionState.bold} onClick={() => runCommand("bold")}>
           <Bold size={16} />
@@ -440,8 +441,9 @@ export function RichTextEditor({
         </ToolbarButton>
 
         {linkEditorOpen ? (
-          <div className="rich-text-link-control" onMouseDown={(event) => event.stopPropagation()}>
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5" onMouseDown={(event) => event.stopPropagation()}>
             <input
+              className="h-9 min-w-[180px] flex-1 px-3 text-sm"
               ref={linkInputRef}
               type="url"
               value={linkDraft}
@@ -472,9 +474,10 @@ export function RichTextEditor({
       </ToolbarGroup>
 
       <ToolbarGroup title="Цвет и размер">
-        <label className="rich-text-color-control" title="Цвет текста">
+        <label className={richTextInlineControlClass} title="Цвет текста">
           <Palette size={15} />
           <input
+            className="h-6 w-7 cursor-pointer border-0 bg-transparent p-0"
             type="color"
             value={selectedColor}
             aria-label="Цвет текста"
@@ -485,9 +488,10 @@ export function RichTextEditor({
           />
         </label>
 
-        <label className="rich-text-size-control" title="Размер текста">
+        <label className={richTextInlineControlClass} title="Размер текста">
           <Type size={15} />
           <select
+            className="h-8 min-w-[118px] border-0 bg-transparent px-1 text-sm font-bold text-app-text outline-none"
             value={selectedSize}
             aria-label="Размер текста"
             onMouseDown={saveSelection}
@@ -538,12 +542,12 @@ export function RichTextEditor({
   );
 
   return (
-    <div className={`rich-text-shell ${compact ? "rich-text-shell-compact" : ""} ${className}`}>
+    <div className={cn(richTextShellClass, compact && richTextShellCompactClass, className)}>
       {showToolbar ? (toolbarTarget ? createPortal(toolbar, toolbarTarget) : toolbar) : null}
 
       <div
         ref={editorRef}
-        className={`rich-text-editor ${isEmpty ? "is-empty" : ""}`}
+        className={cn(richTextEditorClass, richTextContentClass, compact && richTextEditorCompactClass, isEmpty && richTextPlaceholderClass)}
         contentEditable
         role="textbox"
         aria-multiline="true"
@@ -576,17 +580,17 @@ export function RichTextViewer({ value, fallback = "Материал пока п
   const empty = isRichTextEmpty(safeHtml);
 
   if (empty) {
-    return <p className="muted-text">{fallback}</p>;
+    return <p className="text-sm text-app-muted">{fallback}</p>;
   }
 
-  return <div className="rich-text-viewer" dangerouslySetInnerHTML={{ __html: safeHtml }} />;
+  return <div className={cn("text-app-text", richTextContentClass)} dangerouslySetInnerHTML={{ __html: safeHtml }} />;
 }
 
 function ToolbarGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="rich-text-toolbar-group">
-      <span className="rich-text-toolbar-group-title">{title}</span>
-      <div className="rich-text-toolbar-group-controls">{children}</div>
+    <div className="grid gap-2 border-b border-app-border pb-3 last:border-b-0 last:pb-0">
+      <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-muted">{title}</span>
+      <div className="flex flex-wrap items-center gap-2">{children}</div>
     </div>
   );
 }
@@ -604,7 +608,7 @@ function ToolbarButton({
 }) {
   return (
     <button
-      className={`rich-text-toolbar-button ${active ? "active" : ""}`}
+      className={cn(richTextToolbarButtonClass, active && richTextToolbarButtonActiveClass)}
       type="button"
       title={label}
       aria-label={label}
@@ -616,3 +620,20 @@ function ToolbarButton({
     </button>
   );
 }
+
+const richTextShellClass = "grid gap-2";
+const richTextShellCompactClass = "gap-1.5";
+const richTextToolbarClass = "grid gap-3 text-app-text";
+const richTextToolbarButtonClass =
+  "inline-flex h-9 w-9 items-center justify-center rounded-control border border-app-border bg-app-surface-strong text-app-muted transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:text-app-accent-strong";
+const richTextToolbarButtonActiveClass =
+  "border-[color-mix(in_srgb,var(--accent)_56%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))] text-app-accent-strong";
+const richTextInlineControlClass =
+  "inline-flex min-h-9 items-center gap-2 rounded-control border border-app-border bg-app-surface-strong px-2 text-app-muted transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:text-app-accent-strong";
+const richTextEditorClass =
+  "relative min-h-[88px] w-full rounded-panel border border-app-border bg-app-surface px-4 py-3 text-app-text outline-none transition-colors focus:border-[color-mix(in_srgb,var(--accent)_56%,var(--border))] focus:shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent)_38%,transparent)]";
+const richTextEditorCompactClass = "min-h-[48px] px-3 py-2 text-sm";
+const richTextPlaceholderClass =
+  "before:pointer-events-none before:absolute before:left-4 before:top-3 before:text-app-muted before:content-[attr(data-placeholder)]";
+const richTextContentClass =
+  "leading-7 [&_a]:text-app-accent-strong [&_a]:underline [&_a]:underline-offset-4 [&_code]:rounded [&_code]:border [&_code]:border-app-border [&_code]:bg-app-surface-strong [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.92em] [&_li]:my-1 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_strong]:font-extrabold [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-6";

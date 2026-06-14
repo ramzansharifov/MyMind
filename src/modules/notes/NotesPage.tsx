@@ -7,6 +7,7 @@ import { LoadingState } from '../../shared/components/LoadingState';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import type { ContentGroup } from '../../shared/types/common';
+import { cn } from '../../shared/utils/classNames';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
 import { countItemsByContentGroup, matchesContentGroup } from '../../shared/utils/contentGroupUtils';
 import { filterNotes, noteCategories, noteTags } from './noteUtils';
@@ -14,7 +15,6 @@ import { NoteCard } from './NoteCard';
 import { noteStorageClient } from './storage/noteStorageClient';
 import type { Note, NoteIndexItem, NoteSearchIndexItem } from './types';
 import type { NoteEditorNavigationActions } from './NoteEditorPage';
-import '../../styles/modules/notes.css';
 
 const NoteEditorPage = lazy(() => import('./NoteEditorPage').then((module) => ({ default: module.NoteEditorPage })));
 
@@ -190,43 +190,43 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
             onQueryChange={setQuery}
             onToggle={() => setFiltersOpen((current) => !current)}
           >
-        <div className="filter-choice-group">
-          <div className="filter-choice-heading">
+        <div className={filterGroupClass}>
+          <div className={filterHeadingClass}>
             <strong>{t('Category')}</strong>
-            {categories.length > 0 ? <button type="button" onClick={() => setCategories([])}>{t('Clear')}</button> : null}
+            {categories.length > 0 ? <button className={filterClearInlineClass} type="button" onClick={() => setCategories([])}>{t('Clear')}</button> : null}
           </div>
-          <div className="filter-chip-row">
+          <div className={filterChipRowClass}>
             {availableCategories.length > 0 ? availableCategories.map((item) => (
-              <button className={`filter-chip${categories.includes(item) ? ' active' : ''}`} type="button" key={item} onClick={() => toggleCategory(item)}>
+              <button className={cn(filterChipClass, categories.includes(item) && filterChipActiveClass)} type="button" key={item} onClick={() => toggleCategory(item)}>
                 {item}
               </button>
-            )) : <span className="muted-text">{t('No categories yet.')}</span>}
+            )) : <span className="text-sm text-app-muted">{t('No categories yet.')}</span>}
           </div>
         </div>
-        <div className="filter-choice-group">
-          <div className="filter-choice-heading">
+        <div className={filterGroupClass}>
+          <div className={filterHeadingClass}>
             <strong>{t('Tag')}</strong>
-            {tags.length > 0 ? <button type="button" onClick={() => setTags([])}>{t('Clear')}</button> : null}
+            {tags.length > 0 ? <button className={filterClearInlineClass} type="button" onClick={() => setTags([])}>{t('Clear')}</button> : null}
           </div>
-          <div className="filter-chip-row">
+          <div className={filterChipRowClass}>
             {availableTags.length > 0 ? availableTags.map((item) => (
-              <button className={`filter-chip${tags.includes(item) ? ' active' : ''}`} type="button" key={item} onClick={() => toggleTag(item)}>
+              <button className={cn(filterChipClass, tags.includes(item) && filterChipActiveClass)} type="button" key={item} onClick={() => toggleTag(item)}>
                 {item}
               </button>
-            )) : <span className="muted-text">{t('No tags yet.')}</span>}
+            )) : <span className="text-sm text-app-muted">{t('No tags yet.')}</span>}
           </div>
         </div>
-        <div className="filter-choice-group">
-          <div className="filter-choice-heading">
+        <div className={filterGroupClass}>
+          <div className={filterHeadingClass}>
             <strong>{t('Pinned only')}</strong>
           </div>
-          <div className="filter-chip-row">
-            <button className={`filter-chip${pinnedOnly ? ' active' : ''}`} type="button" onClick={() => setPinnedOnly((current) => !current)}>
+          <div className={filterChipRowClass}>
+            <button className={cn(filterChipClass, pinnedOnly && filterChipActiveClass)} type="button" onClick={() => setPinnedOnly((current) => !current)}>
               {t('Pinned only')}
             </button>
           </div>
         </div>
-        {activeFilterCount > 0 ? <button className="button ghost filter-clear-button" type="button" onClick={clearFilters}>{t('Clear filters')}</button> : null}
+        {activeFilterCount > 0 ? <button className={filterClearButtonClass} type="button" onClick={clearFilters}>{t('Clear filters')}</button> : null}
           </CollapsibleFilters>
         }
         groups={groups}
@@ -248,7 +248,7 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
           ) : filtered.length === 0 ? (
             <EmptyState title="No notes found" message="Capture ideas, instructions, references, and personal knowledge." />
           ) : (
-            <div className="card-grid">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
               {filtered.map((note) => (
                 <NoteCard
                   note={note}
@@ -273,6 +273,17 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
     </section>
   );
 }
+
+const filterGroupClass = 'grid gap-2 rounded-panel border border-app-border bg-app-surface-soft p-3';
+const filterHeadingClass = 'flex items-center justify-between gap-3 text-sm text-app-text';
+const filterChipRowClass = 'flex flex-wrap gap-2';
+const filterChipClass =
+  'inline-flex min-h-[34px] items-center rounded-full border border-app-border bg-app-surface px-3 py-1 text-sm font-bold text-app-muted transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:text-app-text';
+const filterChipActiveClass =
+  'border-[color-mix(in_srgb,var(--accent)_58%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))] text-app-accent-strong';
+const filterClearInlineClass = 'text-xs font-bold text-app-accent-strong hover:text-app-text';
+const filterClearButtonClass =
+  'inline-flex min-h-control w-fit items-center justify-center rounded-control border border-[color-mix(in_srgb,var(--accent)_36%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-strong))] px-3.5 py-2.5 text-sm font-bold text-app-accent-strong transition-colors hover:border-[color-mix(in_srgb,var(--accent-strong)_72%,var(--border))] hover:bg-[var(--control-bg-hover)]';
 
 function noteFromIndexItem(item: NoteIndexItem): Note {
   return {

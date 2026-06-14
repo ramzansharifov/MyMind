@@ -6,6 +6,7 @@ import { ItemSelectionModal } from './ItemSelectionModal';
 import { TextField } from './FormFields';
 import { useI18n } from '../i18n/I18nProvider';
 import { createId } from '../utils/idGenerator';
+import { cn } from '../utils/classNames';
 import type { ContentGroup } from '../types/common';
 
 interface ContentGroupsPanelProps {
@@ -52,25 +53,25 @@ export function ContentGroupsPanel({
   }
 
   return (
-    <aside className="panel todo-groups-panel content-groups-panel">
-      <div className="section-heading content-groups-heading">
-        <div className="content-groups-heading-main">
-          <h2>{t('Groups')}</h2>
-          <span className="rating-pill">{totalCount}</span>
+    <aside className="grid content-start gap-3 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <h2 className="truncate text-lg font-extrabold">{t('Groups')}</h2>
+          <span className={countPillClass}>{totalCount}</span>
         </div>
-        <AddButton className="content-group-add-button" iconOnly label="Add group" onClick={() => setIsCreatingGroup(true)} />
+        <AddButton iconOnly label="Add group" onClick={() => setIsCreatingGroup(true)} />
       </div>
 
-      <div className="todo-group-tabs" role="tablist" aria-label={t('Groups')}>
+      <div className="grid gap-2" role="tablist" aria-label={t('Groups')}>
         {allGroups.map((group) => (
           <button
-            className={`todo-group-tab ${activeGroupId === group.id ? 'active' : ''}`}
+            className={cn(groupTabClass, activeGroupId === group.id && groupTabActiveClass)}
             key={group.id}
             type="button"
             onClick={() => onActiveGroupChange(group.id)}
           >
-            <span>{t(group.title)}</span>
-            <small>{group.id === 'all' ? totalCount : counts[group.id] ?? 0}</small>
+            <span className="min-w-0 truncate">{t(group.title)}</span>
+            <small className="shrink-0 text-xs font-extrabold text-app-muted">{group.id === 'all' ? totalCount : counts[group.id] ?? 0}</small>
           </button>
         ))}
       </div>
@@ -142,19 +143,19 @@ export function ContentGroupWorkspaceHeader<T extends { id: string }>({
   }
 
   return (
-    <div className="content-group-workspace-header">
-      <div className="content-group-workspace-copy">
-        <h2>{selectedGroup.title}</h2>
-        <small>
+    <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-[var(--line-soft)] pb-3">
+      <div className="min-w-0">
+        <h2 className="truncate text-xl font-extrabold text-app-text">{selectedGroup.title}</h2>
+        <small className="text-app-muted">
           {itemCount} {t('items')}
         </small>
       </div>
       {canManageSelectedGroup || actions || (onAddItemsToGroup && activeGroupId !== 'all') ? (
-        <div className="content-group-actions">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {actions}
           {onAddItemsToGroup && activeGroupId !== 'all' ? (
             <button
-              className="button ghost content-group-action-button"
+              className={ghostButtonClass}
               type="button"
               onClick={() => setIsAddingItems(true)}
             >
@@ -165,7 +166,7 @@ export function ContentGroupWorkspaceHeader<T extends { id: string }>({
           {canManageSelectedGroup ? (
             <>
               <button
-                className="button ghost content-group-action-button"
+                className={ghostButtonClass}
                 type="button"
                 onClick={() => {
                   setTitle(selectedGroup.title);
@@ -176,7 +177,6 @@ export function ContentGroupWorkspaceHeader<T extends { id: string }>({
                 <span>{t('Edit')}</span>
               </button>
               <DeleteButton
-                className="content-group-action-button"
                 iconOnly={false}
                 label="Delete group"
                 confirmTitle="Delete group?"
@@ -227,8 +227,20 @@ interface GroupFormDialogProps {
 
 export function GroupFormDialog({ title, saveLabel, value, onChange, onCancel, onSubmit }: GroupFormDialogProps) {
   return (
-    <FormModal title={title} saveLabel={saveLabel} className="content-group-dialog" onCancel={onCancel} onSubmit={onSubmit}>
+    <FormModal title={title} saveLabel={saveLabel} onCancel={onCancel} onSubmit={onSubmit}>
       <TextField label="Group name" autoFocus required value={value} placeholder="New group" onChange={(event) => onChange(event.target.value)} />
     </FormModal>
   );
 }
+
+const countPillClass =
+  'inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-app-border bg-app-chip px-2 text-xs font-extrabold text-app-chip-text';
+
+const groupTabClass =
+  'grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-panel border border-app-border bg-app-surface-soft px-3 py-2.5 text-left text-sm font-bold text-app-text transition-colors hover:border-[color-mix(in_srgb,var(--accent)_38%,var(--border))] hover:bg-app-surface-strong';
+
+const groupTabActiveClass =
+  'border-[color-mix(in_srgb,var(--accent)_62%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))] text-app-accent-strong shadow-[inset_3px_0_0_var(--accent)]';
+
+const ghostButtonClass =
+  'inline-flex min-h-control items-center justify-center gap-2 rounded-control border border-[color-mix(in_srgb,var(--accent)_36%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-strong))] px-3.5 py-2.5 text-sm font-bold text-[color-mix(in_srgb,var(--accent-strong)_86%,var(--text))] transition-[border-color,background,color,transform,box-shadow] hover:-translate-y-px hover:border-[color-mix(in_srgb,var(--accent-strong)_82%,var(--border))] hover:bg-[var(--control-bg-hover)] hover:text-[color-mix(in_srgb,var(--accent-strong)_92%,white)] hover:shadow-[0_8px_22px_var(--shadow)]';
