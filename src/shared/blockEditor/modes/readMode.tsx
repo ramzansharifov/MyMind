@@ -160,6 +160,20 @@ function BlockReader({ block }: { block: Exclude<StudyContentBlock, StudyHeading
     );
   }
 
+  if (block.type === "divider") {
+    return (
+      <div className="py-3" aria-hidden="true">
+        <div
+          className="w-full rounded-full"
+          style={{
+            height: `${block.thickness}px`,
+            background: `linear-gradient(90deg, transparent, ${block.color}, transparent)`,
+          }}
+        />
+      </div>
+    );
+  }
+
   return null;
 }
 

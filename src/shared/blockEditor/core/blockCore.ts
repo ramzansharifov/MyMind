@@ -5,7 +5,7 @@ import {
 } from "../blocks/richText/richTextCore";
 
 export type StudyHeadingLevel = 1 | 2 | 3 | 4 | 5;
-export type StudyBlockType = "text" | "heading" | "markdown" | "latex" | "code";
+export type StudyBlockType = "text" | "heading" | "markdown" | "latex" | "code" | "divider";
 
 export interface StudyTextBlock {
   id: string;
@@ -40,12 +40,20 @@ export interface StudyCodeBlock {
   language: string;
 }
 
+export interface StudyDividerBlock {
+  id: string;
+  type: "divider";
+  thickness: number;
+  color: string;
+}
+
 export type StudyContentBlock =
   | StudyTextBlock
   | StudyHeadingBlock
   | StudyMarkdownBlock
   | StudyLatexBlock
-  | StudyCodeBlock;
+  | StudyCodeBlock
+  | StudyDividerBlock;
 
 export interface StudyBlockDocument {
   format: typeof STUDY_BLOCK_DOCUMENT_FORMAT;
@@ -56,6 +64,10 @@ export interface StudyBlockDocument {
 
 export const STUDY_BLOCK_DOCUMENT_FORMAT = "study-blocks-v1";
 export const STUDY_BLOCK_DOCUMENT_VERSION = 1;
+export const STUDY_DIVIDER_DEFAULT_THICKNESS = 1;
+export const STUDY_DIVIDER_MIN_THICKNESS = 1;
+export const STUDY_DIVIDER_MAX_THICKNESS = 12;
+export const STUDY_DIVIDER_DEFAULT_COLOR = "#2dd4bf";
 
 export function createStudyBlockDocument(content?: unknown, fallbackPlainText = ""): StudyBlockDocument {
   const blocks = normalizeStudyBlocks(content, fallbackPlainText);
@@ -117,6 +129,45 @@ export function createStudyCodeBlock(source = "", language = "auto"): StudyCodeB
     source,
     language,
   };
+}
+
+export function createStudyDividerBlock(options: Partial<Pick<StudyDividerBlock, "thickness" | "color">> = {}): StudyDividerBlock {
+  return {
+    id: createStudyBlockId("divider"),
+    type: "divider",
+    thickness: normalizeStudyDividerThickness(options.thickness),
+    color: normalizeStudyDividerColor(options.color),
+  };
+}
+
+export function duplicateStudyBlock(block: StudyContentBlock): StudyContentBlock {
+  if (block.type === "text") {
+    return createStudyTextBlock(block.content);
+  }
+
+  if (block.type === "heading") {
+    return createStudyHeadingBlock(block.text, block.level);
+  }
+
+  if (block.type === "markdown") {
+    return createStudyMarkdownBlock(block.source);
+  }
+
+  if (block.type === "latex") {
+    return {
+      ...createStudyLatexBlock(block.source),
+      displayMode: block.displayMode,
+    };
+  }
+
+  if (block.type === "divider") {
+    return createStudyDividerBlock({
+      thickness: block.thickness,
+      color: block.color,
+    });
+  }
+
+  return createStudyCodeBlock(block.source, block.language);
 }
 
 export function studyBlocksToPlainText(blocks: StudyContentBlock[]) {
@@ -204,6 +255,15 @@ function normalizeStudyBlock(value: unknown): StudyContentBlock | null {
     };
   }
 
+  if (source.type === "divider") {
+    return {
+      id: typeof source.id === "string" ? source.id : createStudyBlockId("divider"),
+      type: "divider",
+      thickness: normalizeStudyDividerThickness((source as Partial<StudyDividerBlock>).thickness),
+      color: normalizeStudyDividerColor((source as Partial<StudyDividerBlock>).color),
+    };
+  }
+
   return null;
 }
 
@@ -213,6 +273,22 @@ function normalizeStudyHeadingLevel(value: unknown): StudyHeadingLevel {
   if (level === 1 || level === 2 || level === 3 || level === 4 || level === 5) return level;
 
   return 1;
+}
+
+function normalizeStudyDividerThickness(value: unknown) {
+  const thickness = Number(value);
+
+  if (!Number.isFinite(thickness)) return STUDY_DIVIDER_DEFAULT_THICKNESS;
+
+  return Math.min(STUDY_DIVIDER_MAX_THICKNESS, Math.max(STUDY_DIVIDER_MIN_THICKNESS, Math.round(thickness)));
+}
+
+function normalizeStudyDividerColor(value: unknown) {
+  if (typeof value !== "string") return STUDY_DIVIDER_DEFAULT_COLOR;
+
+  const color = value.trim();
+
+  return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(color) ? color : STUDY_DIVIDER_DEFAULT_COLOR;
 }
 
 function createStudyBlockId(prefix: string) {

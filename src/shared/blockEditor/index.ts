@@ -7,12 +7,17 @@ export type { RichTextDocument } from "./blocks/richText/richTextCore";
 export {
   createStudyBlockDocument,
   createStudyCodeBlock,
+  createStudyDividerBlock,
   createStudyHeadingBlock,
   createStudyLatexBlock,
   createStudyMarkdownBlock,
   createStudyTextBlock,
   isStudyBlockDocument,
   normalizeStudyBlockDocument,
+  STUDY_DIVIDER_DEFAULT_COLOR,
+  STUDY_DIVIDER_DEFAULT_THICKNESS,
+  STUDY_DIVIDER_MAX_THICKNESS,
+  STUDY_DIVIDER_MIN_THICKNESS,
   studyBlocksToPlainText,
 } from "./core/blockCore";
 export type {
@@ -22,6 +27,7 @@ export type {
   StudyContentBlock,
   StudyHeadingBlock,
   StudyHeadingLevel,
+  StudyDividerBlock,
   StudyLatexBlock,
   StudyMarkdownBlock,
   StudyTextBlock,

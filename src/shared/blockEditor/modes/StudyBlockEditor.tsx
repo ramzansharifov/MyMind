@@ -2,10 +2,12 @@ import {
   ArrowDown,
   ArrowUp,
   Code2,
+  Copy,
   Eye,
   Plus,
   GripVertical,
   Heading,
+  Minus,
   Sigma,
   Trash2,
   Type,
@@ -22,11 +24,15 @@ import { createRichTextDocument } from "../blocks/richText/richTextCore";
 import {
   createStudyBlockDocument,
   createStudyCodeBlock,
+  createStudyDividerBlock,
+  duplicateStudyBlock,
   createStudyHeadingBlock,
   createStudyLatexBlock,
   createStudyMarkdownBlock,
   createStudyTextBlock,
   normalizeStudyBlockDocument,
+  STUDY_DIVIDER_MAX_THICKNESS,
+  STUDY_DIVIDER_MIN_THICKNESS,
   type StudyBlockDocument,
   type StudyContentBlock,
   type StudyHeadingLevel,
@@ -48,6 +54,7 @@ const BLOCK_INSERT_OPTIONS: Array<{ type: StudyContentBlock["type"]; label: stri
   { type: "markdown", label: "Markdown", icon: Code2 },
   { type: "latex", label: "LaTeX", icon: Sigma },
   { type: "code", label: "Code", icon: Code2 },
+  { type: "divider", label: "Разделитель", icon: Minus },
 ];
 
 export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: StudyBlockEditorProps) {
@@ -55,6 +62,7 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
   const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const [activeTextEditorId, setActiveTextEditorId] = useState<string | null>(null);
   const [previewBlockIds, setPreviewBlockIds] = useState<Record<string, boolean>>({});
+  const [collapsedBlockIds, setCollapsedBlockIds] = useState<Record<string, boolean>>({});
   const [insertSlotAfterId, setInsertSlotAfterId] = useState<string | null>(null);
   const [insertMenuAfterId, setInsertMenuAfterId] = useState<string | null>(null);
   const [blockPendingDelete, setBlockPendingDelete] = useState<StudyContentBlock | null>(null);
@@ -88,6 +96,7 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
     if (type === "markdown") return createStudyMarkdownBlock();
     if (type === "latex") return createStudyLatexBlock();
     if (type === "code") return createStudyCodeBlock();
+    if (type === "divider") return createStudyDividerBlock();
 
     return createStudyTextBlock();
   }
@@ -95,10 +104,16 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
   function removeBlock(blockId: string) {
     if (document.blocks.length <= 1) {
       emitBlocks([createStudyTextBlock()]);
+      setCollapsedBlockIds({});
       return;
     }
 
     emitBlocks(document.blocks.filter((block) => block.id !== blockId));
+    setCollapsedBlockIds((current) => {
+      const next = { ...current };
+      delete next[blockId];
+      return next;
+    });
     setActiveBlockId(null);
     setActiveTextEditorId(null);
     setInsertSlotAfterId(null);
@@ -117,8 +132,32 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
     emitBlocks(blocks);
   }
 
+  function duplicateBlock(blockId: string) {
+    const index = document.blocks.findIndex((block) => block.id === blockId);
+    const sourceBlock = document.blocks[index];
+
+    if (!sourceBlock) return;
+
+    const duplicate = duplicateStudyBlock(sourceBlock);
+    emitBlocks([...document.blocks.slice(0, index + 1), duplicate, ...document.blocks.slice(index + 1)]);
+    setActiveBlockId(duplicate.id);
+    setActiveTextEditorId(duplicate.type === "text" ? `text:${duplicate.id}` : null);
+    setInsertSlotAfterId(null);
+    setInsertMenuAfterId(null);
+  }
+
   function toggleBlockPreview(blockId: string) {
     setPreviewBlockIds((current) => ({
+      ...current,
+      [blockId]: !current[blockId],
+    }));
+  }
+
+  function toggleBlockCollapsed(blockId: string) {
+    setActiveTextEditorId((current) => (current === `text:${blockId}` ? null : current));
+    setInsertSlotAfterId(null);
+    setInsertMenuAfterId(null);
+    setCollapsedBlockIds((current) => ({
       ...current,
       [blockId]: !current[blockId],
     }));
@@ -136,7 +175,11 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
             {document.blocks.map((block, index) => (
               <Fragment key={block.id}>
                 <section
-                  className={cn(studyContentBlockClass, activeBlockId === block.id && studyContentBlockActiveClass)}
+                  className={cn(
+                    studyContentBlockClass,
+                    activeBlockId === block.id && studyContentBlockActiveClass,
+                    collapsedBlockIds[block.id] && studyContentBlockCollapsedClass,
+                  )}
                   onMouseDown={() => {
                     setActiveBlockId(block.id);
                     setInsertSlotAfterId(null);
@@ -147,7 +190,19 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
                   }}
                 >
                   <div className="mb-3 flex items-center gap-2">
-                    <GripVertical className="text-app-muted" size={16} />
+                    <button
+                      className={blockGripButtonClass}
+                      type="button"
+                      onDoubleClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        toggleBlockCollapsed(block.id);
+                      }}
+                      aria-label={collapsedBlockIds[block.id] ? "Развернуть блок" : "Свернуть блок"}
+                      title={collapsedBlockIds[block.id] ? "Двойной клик: развернуть блок" : "Двойной клик: свернуть блок"}
+                    >
+                      <GripVertical size={16} />
+                    </button>
                     <span className="mr-auto text-sm font-extrabold text-app-text">{blockTypeLabel(block.type)}</span>
                     {isPreviewableBlock(block.type) ? (
                       <button
@@ -178,6 +233,15 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
                     >
                       <ArrowDown size={16} />
                     </button>
+                    <button
+                      className={iconButtonClass}
+                      type="button"
+                      onClick={() => duplicateBlock(block.id)}
+                      aria-label="Duplicate block"
+                      title="Duplicate"
+                    >
+                      <Copy size={16} />
+                    </button>
                   <button
                     className={dangerIconButtonClass}
                     type="button"
@@ -188,7 +252,11 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
                   </button>
                 </div>
 
-                  {block.type === "heading" ? (
+                  {collapsedBlockIds[block.id] ? (
+                    <div className={collapsedBlockPreviewClass}>{getCollapsedBlockSummary(block)}</div>
+                  ) : block.type === "divider" ? (
+                    <DividerBlockEditor block={block} />
+                  ) : block.type === "heading" ? (
                     <HeadingBlockEditor
                       block={block}
                       onChange={(text) =>
@@ -310,7 +378,7 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
           />
         </div>
 
-        <div className="sticky top-4 grid gap-3 max-[1100px]:static">
+        <div className="sticky top-4 grid max-h-[calc(100dvh-2rem)] self-start overflow-y-auto pr-1 gap-3 max-[1100px]:static max-[1100px]:max-h-none max-[1100px]:overflow-visible max-[1100px]:pr-0">
           <aside className="grid gap-3 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel" aria-label="Настройки активного блока">
             <div className="border-b border-app-border pb-3">
               <strong className="text-base font-extrabold text-app-text">Настройки</strong>
@@ -331,9 +399,9 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
               </div>
             </div>
 
-            {activeBlock?.type === "heading" || activeBlock?.type === "code" ? (
+            {activeBlock?.type === "heading" || activeBlock?.type === "code" || activeBlock?.type === "divider" ? (
               <div className="grid gap-2">
-                <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-muted">Разметка</span>
+                <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-muted">{activeBlock.type === "divider" ? "Вид" : "Разметка"}</span>
 
                 {activeBlock.type === "heading" ? (
                   <label className={settingsLabelClass}>
@@ -383,6 +451,57 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
                       ))}
                     </select>
                   </label>
+                ) : null}
+
+                {activeBlock.type === "divider" ? (
+                  <>
+                    <label className={settingsLabelClass}>
+                      <span>Толщина</span>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                        <input
+                          className="h-2 min-w-0 cursor-pointer accent-[var(--accent)]"
+                          type="range"
+                          min={STUDY_DIVIDER_MIN_THICKNESS}
+                          max={STUDY_DIVIDER_MAX_THICKNESS}
+                          value={activeBlock.thickness}
+                          onChange={(event) => {
+                            const thickness = Math.round(Number(event.target.value));
+                            updateBlock(activeBlock.id, (current) =>
+                              current.type === "divider"
+                                ? {
+                                    ...current,
+                                    thickness,
+                                  }
+                                : current,
+                            );
+                          }}
+                        />
+                        <span className="min-w-[44px] text-right text-sm font-bold normal-case tracking-normal text-app-text">{activeBlock.thickness}px</span>
+                      </div>
+                    </label>
+
+                    <label className={settingsLabelClass}>
+                      <span>Цвет</span>
+                      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-control border border-app-border bg-app-surface-strong p-2">
+                        <input
+                          className="h-9 w-12 cursor-pointer rounded-control border-0 bg-transparent p-0"
+                          type="color"
+                          value={activeBlock.color}
+                          onChange={(event) =>
+                            updateBlock(activeBlock.id, (current) =>
+                              current.type === "divider"
+                                ? {
+                                    ...current,
+                                    color: event.target.value,
+                                  }
+                                : current,
+                            )
+                          }
+                        />
+                        <span className="truncate text-sm font-bold normal-case tracking-normal text-app-text">{activeBlock.color}</span>
+                      </div>
+                    </label>
+                  </>
                 ) : null}
               </div>
             ) : null}
@@ -485,6 +604,7 @@ function blockTypeLabel(type: StudyContentBlock["type"]) {
   if (type === "markdown") return "Markdown";
   if (type === "latex") return "LaTeX";
   if (type === "code") return "Code";
+  if (type === "divider") return "Разделитель";
   return "Текст";
 }
 
@@ -492,10 +612,46 @@ function blockTypeIcon(type: StudyContentBlock["type"]) {
   return BLOCK_INSERT_OPTIONS.find((option) => option.type === type)?.icon ?? Type;
 }
 
+function getCollapsedBlockSummary(block: StudyContentBlock) {
+  if (block.type === "divider") return "Разделитель";
+
+  const text =
+    block.type === "text"
+      ? block.content.plainText
+      : block.type === "heading"
+        ? block.text
+        : block.source;
+  const summary = text.replace(/\s+/g, " ").trim();
+
+  if (!summary) return "Пустой блок";
+
+  return summary.length > 120 ? `${summary.slice(0, 120)}...` : summary;
+}
+
+function DividerBlockEditor({ block }: { block: Extract<StudyContentBlock, { type: "divider" }> }) {
+  return (
+    <div className="py-3" aria-hidden="true">
+      <div
+        className="w-full rounded-full"
+        style={{
+          height: `${block.thickness}px`,
+          background: `linear-gradient(90deg, transparent, ${block.color}, transparent)`,
+        }}
+      />
+    </div>
+  );
+}
+
 const studyContentBlockClass =
   "rounded-panel border border-app-border bg-app-surface-soft p-4 text-app-text transition-colors";
 const studyContentBlockActiveClass =
   "border-[color-mix(in_srgb,var(--accent)_50%,var(--border))] shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent)_28%,transparent)]";
+const studyContentBlockCollapsedClass =
+  "bg-[color-mix(in_srgb,var(--surface-soft)_88%,var(--accent)_4%)]";
+const blockGripButtonClass =
+  "grid h-6 w-6 shrink-0 place-items-center rounded-control text-app-muted transition-colors hover:bg-app-surface-strong hover:text-app-accent-strong";
+const collapsedBlockPreviewClass =
+  "truncate rounded-control border border-dashed border-app-border bg-app-surface px-3 py-2 text-sm text-app-muted";
 const iconButtonClass =
   "inline-flex h-9 w-9 items-center justify-center rounded-control border border-app-border bg-app-surface-strong text-app-muted transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:text-app-accent-strong disabled:cursor-not-allowed disabled:opacity-45";
 const iconButtonActiveClass =

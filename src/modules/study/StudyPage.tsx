@@ -613,8 +613,8 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
   const rootNodes = visibleNodes.filter((node) => !node.parentId).sort((a, b) => a.order - b.order);
 
   return (
-    <section className="grid min-h-[calc(100vh-48px)] grid-cols-[300px_minmax(0,1fr)] gap-0 bg-app-bg text-app-text max-[980px]:grid-cols-1">
-      <aside className="sticky top-0 flex h-[calc(100vh-48px)] flex-col overflow-hidden border-r border-app-border bg-[linear-gradient(180deg,color-mix(in_srgb,var(--surface)_94%,var(--accent)_6%),var(--surface))] p-4 max-[980px]:static max-[980px]:h-auto">
+    <section className="grid h-full min-h-0 grid-cols-[300px_minmax(0,1fr)] gap-0 overflow-hidden bg-app-bg text-app-text max-[980px]:h-auto max-[980px]:min-h-screen max-[980px]:grid-cols-1 max-[980px]:overflow-visible">
+      <aside className="sticky top-0 flex h-full min-h-0 flex-col overflow-hidden border-r border-app-border bg-[linear-gradient(180deg,color-mix(in_srgb,var(--surface)_94%,var(--accent)_6%),var(--surface))] p-4 max-[980px]:static max-[980px]:h-auto">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <span className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-muted">Библиотека</span>
@@ -720,7 +720,7 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
         ) : null}
       </aside>
 
-      <main className="min-w-0 overflow-y-auto p-6">
+      <main className="h-full min-h-0 min-w-0 overflow-y-auto p-6">
         <div className="mb-4 flex items-start justify-between gap-4 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-5 [backdrop-filter:var(--glass-blur)] shadow-panel max-[900px]:flex-col">
           <div className="min-w-0">
             <nav className="mb-3 flex flex-wrap items-center gap-1.5 text-xs text-app-muted" aria-label="Путь">
