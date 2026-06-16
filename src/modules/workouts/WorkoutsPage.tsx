@@ -2,9 +2,10 @@ import { lazy, Suspense, useState, type FormEvent } from 'react';
 import { AddButton, DeleteButton, EditButton } from '../../shared/components/ActionButtons';
 import { ContentGroupWorkspaceHeader, GroupFormDialog } from '../../shared/components/ContentGroupsPanel';
 import { EmptyState } from '../../shared/components/EmptyState';
+import { GroupsSidebar } from '../../shared/components/GroupsSidebar';
 import { LoadingState } from '../../shared/components/LoadingState';
 import { PageHeader } from '../../shared/components/PageHeader';
-import { SegmentedTabs } from '../../shared/components/SegmentedTabs';
+import { PageTabs } from '../../shared/components/PageTabs';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { cn } from '../../shared/utils/classNames';
 import { formatDate } from '../../shared/utils/dateUtils';
@@ -37,12 +38,6 @@ const sectionPanelClass =
 const sectionHeadingClass = 'flex items-start justify-between gap-4 border-b border-[var(--line-soft)] pb-3 max-[760px]:flex-col';
 const mutedTextClass = 'text-sm text-app-muted';
 const contentGridClass = 'grid grid-cols-[minmax(210px,260px)_1fr] gap-4 max-[900px]:grid-cols-1';
-const groupPanelClass = 'grid content-start gap-3 rounded-panel border border-app-border bg-app-surface-soft p-3';
-const groupHeaderClass = 'flex items-center justify-between gap-3 border-b border-[var(--line-soft)] pb-3';
-const groupTabListClass = 'grid gap-2';
-const groupTabClass =
-  'flex min-h-control items-center justify-between gap-3 rounded-control border border-app-border bg-app-surface-soft px-3 py-2 text-left text-sm font-bold text-app-text transition hover:border-[color-mix(in_srgb,var(--accent)_45%,var(--border))] hover:bg-[var(--control-bg-hover)]';
-const groupTabActiveClass = 'border-[var(--accent-border)] bg-[var(--selected-bg)] text-app-accent-strong';
 const itemGridClass = 'grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] content-start gap-3';
 const cardGridClass = 'grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4';
 const stackClass = 'grid gap-3';
@@ -258,7 +253,7 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
     <section className="grid gap-5">
       <PageHeader title="Training & Nutrition" subtitle="Manage exercises, workouts, nutrition, and track your progress." />
 
-      <SegmentedTabs tabs={SECTION_TABS} activeTab={activeSection} ariaLabel="Training and nutrition sections" onChange={setActiveSection} />
+      <PageTabs tabs={SECTION_TABS} activeTab={activeSection} ariaLabel="Training and nutrition sections" onChange={setActiveSection} />
 
       {/* Exercises Section */}
       {activeSection === 'exercises' && (
@@ -283,36 +278,29 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
             canManageGroup={(group) => Boolean(exerciseGroups.some((item) => item.id === group.id))}
           />
           <div className={contentGridClass}>
-            <aside className={groupPanelClass}>
-              <div className={groupHeaderClass}>
-                <div className="flex items-center gap-2">
-                  <h2>{t('Groups')}</h2>
-                  <span className={pillClass}>{exercises.length}</span>
-                </div>
-                <AddButton iconOnly label="Add exercise group" onClick={() => setIsCreatingExerciseGroup(true)} />
-              </div>
-              <div className={groupTabListClass} role="tablist" aria-label={t('Exercise groups')}>
-                {[
-                  { id: 'all', title: t('All'), count: exercises.length, group: null },
-                  { id: 'ungrouped', title: t('No group'), count: exercises.filter((exercise) => !exercise.groupId).length, group: null },
-                  ...exerciseGroups.map((group) => ({
-                    id: group.id,
-                    title: group.title,
-                    count: exercises.filter((exercise) => exercise.groupId === group.id).length,
-                    group,
-                  })),
-                ].map((group) => (
-                  <button
-                    className={cn(groupTabClass, activeExerciseGroupId === group.id && groupTabActiveClass)}
-                    key={group.id}
-                    type="button"
-                    onClick={() => setActiveExerciseGroupId(group.id)}
-                  >
-                    <span>{group.title}</span>
-                    <small className="text-xs font-extrabold text-app-muted">{group.count}</small>
-                  </button>
-                ))}
-              </div>
+            <GroupsSidebar
+              title="Groups"
+              totalCount={exercises.length}
+              groups={[
+                { id: 'all', title: 'All' },
+                { id: 'ungrouped', title: 'No group' },
+                ...exerciseGroups,
+              ]}
+              activeGroupId={activeExerciseGroupId}
+              ariaLabel="Exercise groups"
+              getGroupCount={(groupId) => {
+                if (groupId === 'all') {
+                  return exercises.length;
+                }
+                if (groupId === 'ungrouped') {
+                  return exercises.filter((exercise) => !exercise.groupId).length;
+                }
+                return exercises.filter((exercise) => exercise.groupId === groupId).length;
+              }}
+              onActiveGroupChange={setActiveExerciseGroupId}
+              onCreateGroup={() => setIsCreatingExerciseGroup(true)}
+              createLabel="Add exercise group"
+            >
               {isCreatingExerciseGroup ? (
                 <GroupFormDialog
                   title="Create group"
@@ -326,7 +314,7 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
                   onSubmit={saveExerciseGroup}
                 />
               ) : null}
-            </aside>
+            </GroupsSidebar>
             <div className={itemGridClass}>
             {visibleExercises.map((exercise) => (
                 <article className={cardClass} key={exercise.id}>

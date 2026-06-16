@@ -54,25 +54,31 @@ export function Sidebar({
       )}
     >
       {canToggleCollapse ? (
-        <Tooltip className="absolute inset-x-0 top-0 h-0 w-full max-w-none" content={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')} position="bottom">
-          <button
-            className={cn(
-              'pointer-events-none absolute right-[-15px] top-6 z-[3] grid h-[30px] w-[30px] translate-x-1 place-items-center rounded-full',
-              'border border-[color-mix(in_srgb,var(--accent)_38%,var(--glass-border))]',
-              'bg-[color-mix(in_srgb,var(--glass-surface-strong)_94%,black_6%)] text-app-accent-strong opacity-0 shadow-[0_12px_24px_var(--shadow)]',
-              'transition-[opacity,transform,background,border-color] duration-150 ease-out',
-              'hover:border-[color-mix(in_srgb,var(--accent)_64%,var(--glass-border))] hover:bg-[color-mix(in_srgb,var(--accent)_18%,var(--glass-surface-strong))]',
-              'focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:opacity-100',
-              'group-hover/sidebar:pointer-events-auto group-hover/sidebar:translate-x-0 group-hover/sidebar:opacity-100',
-            )}
-            type="button"
-            aria-label={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
-            onClick={onToggleCollapse}
+        <div className="absolute right-0 top-1/2 z-[30] h-[30px] w-[30px] translate-x-1/2 -translate-y-1/2">
+          <Tooltip
+            content={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
+            position="bottom"
           >
-            {isCollapsed ? <ChevronRight size={16} aria-hidden="true" /> : <ChevronLeft size={16} aria-hidden="true" />}
-          </button>
-        </Tooltip>
+            <button
+              className={cn(
+                'pointer-events-none grid h-[30px] w-[30px] place-items-center rounded-full',
+                'border border-[color-mix(in_srgb,var(--accent)_38%,var(--glass-border))]',
+                'bg-[color-mix(in_srgb,var(--glass-surface-strong)_94%,black_6%)] text-app-accent-strong opacity-0 shadow-[0_12px_24px_var(--shadow)]',
+                'transition-[opacity,background,border-color] duration-150 ease-out',
+                'hover:border-[color-mix(in_srgb,var(--accent)_64%,var(--glass-border))] hover:bg-[color-mix(in_srgb,var(--accent)_18%,var(--glass-surface-strong))]',
+                'focus-visible:pointer-events-auto focus-visible:opacity-100',
+                'group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100',
+              )}
+              type="button"
+              aria-label={t(isCollapsed ? 'Expand sidebar' : 'Collapse sidebar')}
+              onClick={onToggleCollapse}
+            >
+              {isCollapsed ? <ChevronRight size={16} aria-hidden="true" /> : <ChevronLeft size={16} aria-hidden="true" />}
+            </button>
+          </Tooltip>
+        </div>
       ) : null}
+      <SidebarLogo isCollapsed={isCollapsed} />
       <nav className="grid gap-1.5">
         {entries.map((entry) =>
           entry.type === 'module' ? (
@@ -98,6 +104,55 @@ export function Sidebar({
         )}
       </nav>
     </aside>
+  );
+}
+
+function SidebarLogo({ isCollapsed }: { isCollapsed: boolean }) {
+  return (
+    <div className="mb-5" aria-label="MyMind">
+      <div
+        className={cn(
+          'flex h-12 items-center gap-3 rounded-panel px-1.5 text-app-text',
+          isCollapsed && 'justify-center px-0',
+        )}
+      >
+        <span
+          className={cn(
+            'relative grid h-11 w-11 shrink-0 place-items-center rounded-[14px]',
+            'border border-[color-mix(in_srgb,var(--accent)_44%,var(--glass-border))]',
+            'bg-[radial-gradient(circle_at_32%_24%,color-mix(in_srgb,var(--accent-strong)_46%,white_8%),transparent_34%),linear-gradient(145deg,color-mix(in_srgb,var(--accent)_26%,var(--surface-strong)),color-mix(in_srgb,var(--glass-surface-strong)_92%,black_8%))]',
+            'text-app-accent-strong shadow-[0_14px_34px_color-mix(in_srgb,var(--accent-glow)_70%,transparent),inset_0_1px_0_var(--glass-highlight)]',
+          )}
+          aria-hidden="true"
+        >
+          <svg className="h-6 w-6" viewBox="0 0 28 28" fill="none">
+            <path
+              d="M6.5 19.5V8.5L14 16L21.5 8.5V19.5"
+              stroke="currentColor"
+              strokeWidth="2.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M9.5 8.5H6.5M21.5 8.5H18.5"
+              stroke="color-mix(in_srgb,var(--accent-strong)_54%,white)"
+              strokeWidth="2.6"
+              strokeLinecap="round"
+            />
+            <circle cx="14" cy="16" r="1.9" fill="currentColor" />
+          </svg>
+        </span>
+
+        <span className={cn('grid min-w-0 transition-opacity duration-200', isCollapsed && 'hidden opacity-0')}>
+          <strong className="truncate text-lg font-extrabold leading-tight text-app-text">MyMind</strong>
+          <small className="truncate text-xs font-bold uppercase tracking-[0.12em] text-app-accent-strong">
+            Personal OS
+          </small>
+        </span>
+      </div>
+
+      <div className="mt-5 h-px border-t border-[var(--glass-border)]" />
+    </div>
   );
 }
 
@@ -186,7 +241,7 @@ function SidebarModuleButton({
         aria-label={label}
         onClick={() => onNavigate(module.key)}
       >
-        <span className="grid shrink-0 place-items-center text-app-muted transition-colors group-hover/nav:text-app-accent-strong">
+        <span className={cn('grid shrink-0 place-items-center transition-colors group-hover/nav:text-app-accent-strong', active === module.key ? 'text-app-accent-strong' : 'text-app-muted')}>
           <Icon size={18} aria-hidden="true" />
         </span>
         <span className={cn('min-w-0 overflow-hidden text-ellipsis whitespace-nowrap', isCollapsed && 'hidden')}>{label}</span>
@@ -215,11 +270,11 @@ function sidebarItemClass({
   nested?: boolean;
 }) {
   return cn(
-    'group/nav relative flex h-10 min-h-10 w-full items-center gap-3 rounded-panel border-0 bg-transparent px-3 text-left',
-    'text-[color-mix(in_srgb,var(--text)_78%,var(--muted))] transition-[background,color,padding] duration-200 ease-out',
+    'group/nav relative flex h-10 min-h-10 w-full items-center gap-3 rounded-panel border border-transparent bg-transparent px-3 text-left',
+    'text-[color-mix(in_srgb,var(--text)_78%,var(--muted))] transition-[background,color,border-color,padding,box-shadow] duration-200 ease-out',
     'hover:bg-[linear-gradient(135deg,color-mix(in_srgb,var(--glass-highlight)_92%,transparent),transparent),color-mix(in_srgb,var(--accent)_13%,var(--glass-surface-strong))] hover:text-app-text',
     active &&
-      "bg-[linear-gradient(135deg,color-mix(in_srgb,var(--glass-highlight)_92%,transparent),transparent),color-mix(in_srgb,var(--accent)_13%,var(--glass-surface-strong))] text-app-text after:absolute after:right-0 after:top-[9px] after:bottom-[9px] after:w-1 after:rounded-full after:bg-app-accent-strong after:shadow-[0_0_18px_var(--accent-glow-strong)]",
+    "border-[color-mix(in_srgb,var(--accent)_34%,transparent)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_20%,var(--glass-highlight)),transparent_58%),color-mix(in_srgb,var(--accent)_18%,var(--glass-surface-strong))] text-app-accent-strong shadow-[inset_3px_0_0_var(--accent),0_10px_26px_color-mix(in_srgb,var(--accent)_10%,transparent)] after:absolute after:right-0 after:top-[9px] after:bottom-[9px] after:w-1 after:rounded-full after:bg-app-accent-strong after:shadow-[0_0_18px_var(--accent-glow-strong)]",
     collapsed && 'justify-center gap-0 px-3 after:hidden',
     nested && !collapsed && 'pl-[18px]',
   );

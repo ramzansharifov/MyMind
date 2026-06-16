@@ -3,7 +3,7 @@ import { AddButton } from '../../shared/components/ActionButtons';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { LoadingState } from '../../shared/components/LoadingState';
 import { PageHeader } from '../../shared/components/PageHeader';
-import { SegmentedTabs } from '../../shared/components/SegmentedTabs';
+import { PageTabs } from '../../shared/components/PageTabs';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { trashEntity } from '../../shared/utils/archiveUtils';
 import { formatDate, localDateOnly, millisecondsUntilNextLocalDay } from '../../shared/utils/dateUtils';
@@ -109,7 +109,7 @@ export function HabitsPage({ data, onChange }: HabitsPageProps) {
         subtitle="A daily routine list with notes and preserved history."
       />
 
-      <SegmentedTabs
+      <PageTabs
         tabs={[
           { id: 'routine', label: 'Routine' },
           { id: 'history', label: 'History' },

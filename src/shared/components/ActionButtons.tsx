@@ -6,16 +6,19 @@ import { Tooltip } from './Tooltip';
 import { useI18n } from '../i18n/I18nProvider';
 import { cn } from '../utils/classNames';
 
-type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger' | 'archive';
+export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger' | 'archive';
 
-interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface AppButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
   variant?: ButtonVariant;
+  icon?: ReactNode;
   iconOnly?: boolean;
+  showLabel?: boolean;
+  tooltip?: string | false;
   children?: ReactNode;
 }
 
-function buttonClass(variant: ButtonVariant, iconOnly: boolean, className = '') {
+export function actionButtonClass(variant: ButtonVariant, iconOnly: boolean, className = '') {
   return cn(
     'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-control border border-[var(--control-border)]',
     'bg-[var(--button-bg)] text-app-text [backdrop-filter:var(--glass-blur)]',
@@ -35,154 +38,105 @@ function buttonClass(variant: ButtonVariant, iconOnly: boolean, className = '') 
   );
 }
 
-export function AddButton({ label, iconOnly = false, children, className, ...props }: IconButtonProps) {
+export function AppButton({
+  label,
+  variant = 'default',
+  icon,
+  iconOnly = false,
+  showLabel,
+  tooltip,
+  children,
+  className,
+  type = 'button',
+  ...props
+}: AppButtonProps) {
   const { t } = useI18n();
   const translated = t(label);
+  const visibleLabel = showLabel ?? !iconOnly;
+  const button = (
+    <button className={actionButtonClass(variant, iconOnly, className)} type={type} aria-label={translated} {...props}>
+      {icon}
+      {visibleLabel ? <span>{children ?? translated}</span> : null}
+    </button>
+  );
+
+  if (tooltip === false) {
+    return button;
+  }
+
   return (
-    <Tooltip content={translated}>
-      <button className={buttonClass('primary', iconOnly, className)} type="button" aria-label={translated} {...props}>
-        <Plus size={17} aria-hidden="true" />
-        {!iconOnly ? <span>{children ?? translated}</span> : null}
-      </button>
+    <Tooltip content={t(tooltip ?? label)}>
+      {button}
     </Tooltip>
   );
 }
 
-export function SaveButton({ label = 'Save', iconOnly = false, children, className, ...props }: Omit<IconButtonProps, 'label'> & { label?: string }) {
-  const { t } = useI18n();
-  const translated = t(label);
-  return (
-    <Tooltip content={translated}>
-      <button className={buttonClass('primary', iconOnly, className)} type="submit" aria-label={translated} {...props}>
-        <Save size={17} aria-hidden="true" />
-        {!iconOnly ? <span>{children ?? translated}</span> : null}
-      </button>
-    </Tooltip>
-  );
+export function AddButton(props: Omit<AppButtonProps, 'icon' | 'variant'>) {
+  return <AppButton variant="primary" icon={<Plus size={17} aria-hidden="true" />} {...props} />;
 }
 
-export function BackButton({ label = 'Back', iconOnly = false, children, className, ...props }: Omit<IconButtonProps, 'label'> & { label?: string }) {
-  const { t } = useI18n();
-  const translated = t(label);
-  return (
-    <Tooltip content={translated}>
-      <button className={buttonClass('ghost', iconOnly, className)} type="button" aria-label={translated} {...props}>
-        <ArrowLeft size={18} aria-hidden="true" />
-        {!iconOnly ? <span>{children ?? translated}</span> : null}
-      </button>
-    </Tooltip>
-  );
+export function SaveButton({ label = 'Save', type = 'submit', ...props }: Omit<AppButtonProps, 'icon' | 'variant' | 'label'> & { label?: string }) {
+  return <AppButton label={label} variant="primary" icon={<Save size={17} aria-hidden="true" />} type={type} {...props} />;
 }
 
-export function EditButton({ label = 'Edit', iconOnly = true, children, className, ...props }: Omit<IconButtonProps, 'label'> & { label?: string }) {
-  const { t } = useI18n();
-  const translated = t(label);
-  return (
-    <Tooltip content={translated}>
-      <button className={buttonClass('ghost', iconOnly, className)} type="button" aria-label={translated} {...props}>
-        <Pencil size={17} aria-hidden="true" />
-        {!iconOnly ? <span>{children ?? translated}</span> : null}
-      </button>
-    </Tooltip>
-  );
+export function BackButton({ label = 'Back', ...props }: Omit<AppButtonProps, 'icon' | 'variant' | 'label'> & { label?: string }) {
+  return <AppButton label={label} variant="ghost" icon={<ArrowLeft size={18} aria-hidden="true" />} {...props} />;
 }
 
-export function CloseButton({ label = 'Close', className, ...props }: Omit<IconButtonProps, 'label'> & { label?: string }) {
-  const { t } = useI18n();
-  const translated = t(label);
-  return (
-    <Tooltip content={translated}>
-      <button className={buttonClass('ghost', true, className)} type="button" aria-label={translated} {...props}>
-        <X size={18} aria-hidden="true" />
-      </button>
-    </Tooltip>
-  );
+export function EditButton({ label = 'Edit', iconOnly = true, ...props }: Omit<AppButtonProps, 'icon' | 'variant' | 'label'> & { label?: string }) {
+  return <AppButton label={label} variant="ghost" icon={<Pencil size={17} aria-hidden="true" />} iconOnly={iconOnly} {...props} />;
 }
 
-export function CancelButton({ label = 'Cancel', iconOnly = false, children, className, ...props }: Omit<IconButtonProps, 'label'> & { label?: string }) {
-  const { t } = useI18n();
-  const translated = t(label);
-  return (
-    <Tooltip content={translated}>
-      <button className={buttonClass('ghost', iconOnly, className)} type="button" aria-label={translated} {...props}>
-        <X size={18} aria-hidden="true" />
-        {!iconOnly ? <span>{children ?? translated}</span> : null}
-      </button>
-    </Tooltip>
-  );
+export function CloseButton({ label = 'Close', iconOnly = true, ...props }: Omit<AppButtonProps, 'icon' | 'variant' | 'label'> & { label?: string }) {
+  return <AppButton label={label} variant="ghost" icon={<X size={18} aria-hidden="true" />} iconOnly={iconOnly} {...props} />;
+}
+
+export function CancelButton({ label = 'Cancel', ...props }: Omit<AppButtonProps, 'icon' | 'variant' | 'label'> & { label?: string }) {
+  return <AppButton label={label} variant="ghost" icon={<X size={18} aria-hidden="true" />} {...props} />;
 }
 
 export function PinButton({
   isPinned,
   label,
-  className,
-  ...props
-}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & { isPinned: boolean; label?: string }) {
-  const { t } = useI18n();
-  const translated = t(label ?? (isPinned ? 'Unpin' : 'Pin'));
-  const Icon = isPinned ? PinOff : Pin;
-  return (
-    <Tooltip content={translated}>
-      <button className={buttonClass('ghost', true, className)} type="button" aria-label={translated} {...props}>
-        <Icon size={17} aria-hidden="true" />
-      </button>
-    </Tooltip>
-  );
-}
-
-interface DeleteButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'> {
-  label?: string;
-  confirmTitle?: string;
-  confirmMessage?: string;
-  iconOnly?: boolean;
-  children?: ReactNode;
-  onConfirm: () => void;
-}
-
-interface ArchiveButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'> {
-  label?: string;
-  confirmTitle?: string;
-  confirmMessage?: string;
-  iconOnly?: boolean;
-  children?: ReactNode;
-  onConfirm: () => void;
-}
-
-export function ArchiveButton({
-  label = 'Archive',
-  confirmTitle = 'Archive item?',
-  confirmMessage = 'The item will be hidden from regular lists but kept in local SQLite storage.',
   iconOnly = true,
-  children,
-  className,
+  ...props
+}: Omit<AppButtonProps, 'icon' | 'variant' | 'label'> & { isPinned: boolean; label?: string }) {
+  const Icon = isPinned ? PinOff : Pin;
+  return <AppButton label={label ?? (isPinned ? 'Unpin' : 'Pin')} variant="ghost" icon={<Icon size={17} aria-hidden="true" />} iconOnly={iconOnly} {...props} />;
+}
+
+interface ConfirmActionButtonProps extends Omit<AppButtonProps, 'onClick' | 'label'> {
+  label?: string;
+  confirmTitle?: string;
+  confirmMessage?: string;
+  confirmVariant?: 'primary' | 'danger';
+  action?: 'archive' | 'delete' | 'confirm';
+  onConfirm: () => void;
+}
+
+export function ConfirmActionButton({
+  label = 'Confirm',
+  variant = 'primary',
+  icon,
+  confirmTitle = 'Confirm action?',
+  confirmMessage = 'Please confirm this action.',
+  confirmVariant = 'primary',
+  action = 'confirm',
   onConfirm,
   ...props
-}: ArchiveButtonProps) {
+}: ConfirmActionButtonProps) {
   const [isConfirming, setIsConfirming] = useState(false);
-  const { t } = useI18n();
-  const translatedLabel = t(label);
 
   return (
     <>
-      <Tooltip content={translatedLabel}>
-        <button
-          className={buttonClass('archive', iconOnly, className)}
-          type="button"
-          aria-label={translatedLabel}
-          onClick={() => setIsConfirming(true)}
-          {...props}
-        >
-          <Archive size={17} aria-hidden="true" />
-          {!iconOnly ? <span>{children ?? translatedLabel}</span> : null}
-        </button>
-      </Tooltip>
+      <AppButton label={label} variant={variant} icon={icon} onClick={() => setIsConfirming(true)} {...props} />
       {isConfirming ? (
         <ConfirmDialog
           title={confirmTitle}
           message={confirmMessage}
           confirmLabel={label}
-          confirmVariant="primary"
-          action="archive"
+          confirmVariant={confirmVariant}
+          action={action}
           onCancel={() => setIsConfirming(false)}
           onConfirm={() => {
             setIsConfirming(false);
@@ -191,6 +145,28 @@ export function ArchiveButton({
         />
       ) : null}
     </>
+  );
+}
+
+export function ArchiveButton({
+  label = 'Archive',
+  confirmTitle = 'Archive item?',
+  confirmMessage = 'The item will be hidden from regular lists but kept in local SQLite storage.',
+  iconOnly = true,
+  ...props
+}: Omit<ConfirmActionButtonProps, 'icon' | 'variant' | 'confirmVariant' | 'action' | 'label'> & { label?: string }) {
+  return (
+    <ConfirmActionButton
+      label={label}
+      variant="archive"
+      icon={<Archive size={17} aria-hidden="true" />}
+      iconOnly={iconOnly}
+      confirmTitle={confirmTitle}
+      confirmMessage={confirmMessage}
+      confirmVariant="primary"
+      action="archive"
+      {...props}
+    />
   );
 }
 
@@ -199,43 +175,19 @@ export function DeleteButton({
   confirmTitle = 'Delete item?',
   confirmMessage = 'This action cannot be undone.',
   iconOnly = true,
-  children,
-  className,
-  onConfirm,
   ...props
-}: DeleteButtonProps) {
-  const [isConfirming, setIsConfirming] = useState(false);
-  const { t } = useI18n();
-  const translatedLabel = t(label);
-
+}: Omit<ConfirmActionButtonProps, 'icon' | 'variant' | 'confirmVariant' | 'action' | 'label'> & { label?: string }) {
   return (
-    <>
-      <Tooltip content={translatedLabel}>
-        <button
-          className={buttonClass('danger', iconOnly, className)}
-          type="button"
-          aria-label={translatedLabel}
-          onClick={() => setIsConfirming(true)}
-          {...props}
-        >
-          <Trash2 size={17} aria-hidden="true" />
-          {!iconOnly ? <span>{children ?? translatedLabel}</span> : null}
-        </button>
-      </Tooltip>
-      {isConfirming ? (
-        <ConfirmDialog
-          title={confirmTitle}
-          message={confirmMessage}
-          confirmLabel={label}
-          confirmVariant="danger"
-          action="delete"
-          onCancel={() => setIsConfirming(false)}
-          onConfirm={() => {
-            setIsConfirming(false);
-            onConfirm();
-          }}
-        />
-      ) : null}
-    </>
+    <ConfirmActionButton
+      label={label}
+      variant="danger"
+      icon={<Trash2 size={17} aria-hidden="true" />}
+      iconOnly={iconOnly}
+      confirmTitle={confirmTitle}
+      confirmMessage={confirmMessage}
+      confirmVariant="danger"
+      action="delete"
+      {...props}
+    />
   );
 }

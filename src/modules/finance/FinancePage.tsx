@@ -5,7 +5,7 @@ import { EntityForm } from '../../shared/components/EntityForm';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { LoadingState } from '../../shared/components/LoadingState';
 import { PageHeader } from '../../shared/components/PageHeader';
-import { SegmentedTabs } from '../../shared/components/SegmentedTabs';
+import { PageTabs } from '../../shared/components/PageTabs';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, trashEntity } from '../../shared/utils/archiveUtils';
 import { cn } from '../../shared/utils/classNames';
@@ -240,7 +240,7 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
       />
 
       <div className="mb-[18px] flex flex-wrap items-center justify-between gap-3 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-3 [backdrop-filter:var(--glass-blur)] shadow-panel">
-        <SegmentedTabs tabs={financeTabs} activeTab={view} ariaLabel="Finance sections" onChange={setView} />
+        <PageTabs tabs={financeTabs} activeTab={view} ariaLabel="Finance sections" onChange={setView} />
 
         <div className="flex flex-wrap items-center gap-2">
           {view === 'ledger' ? (

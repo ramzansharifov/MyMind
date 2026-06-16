@@ -3,6 +3,7 @@ import { AddButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { ContentGroupWorkspaceHeader, GroupFormDialog } from '../../shared/components/ContentGroupsPanel';
 import { EmptyState } from '../../shared/components/EmptyState';
+import { GroupsSidebar } from '../../shared/components/GroupsSidebar';
 import { PageHeader } from '../../shared/components/PageHeader';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
@@ -208,33 +209,16 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
           </CollapsibleFilters>
         </div>
 
-        <aside className="grid content-start gap-3 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <h2 className="truncate text-lg font-extrabold">{t('Groups')}</h2>
-              <span className={countPillClass}>{activeTodos.length}</span>
-            </div>
-            <AddButton iconOnly label="Add group" onClick={() => setIsCreatingGroup(true)} />
-          </div>
-
-          <div className="grid gap-2" role="tablist" aria-label={t('Task groups')}>
-            {groups.map((group) => {
-              const count = activeTodos.filter((todo) => matchesGroup(todo, group.id)).length;
-
-              return (
-                <button
-                  className={cn(groupTabClass, activeGroupId === group.id && groupTabActiveClass)}
-                  key={group.id}
-                  type="button"
-                  onClick={() => setActiveGroupId(group.id)}
-                >
-                  <span className="min-w-0 truncate">{t(group.title)}</span>
-                  <small className="shrink-0 text-xs font-extrabold text-app-muted">{count}</small>
-                </button>
-              );
-            })}
-          </div>
-
+        <GroupsSidebar
+          title="Groups"
+          totalCount={activeTodos.length}
+          groups={groups}
+          activeGroupId={activeGroupId}
+          ariaLabel="Task groups"
+          getGroupCount={(groupId) => activeTodos.filter((todo) => matchesGroup(todo, groupId)).length}
+          onActiveGroupChange={setActiveGroupId}
+          onCreateGroup={() => setIsCreatingGroup(true)}
+        >
           {isCreatingGroup ? (
             <GroupFormDialog
               title="Create group"
@@ -248,7 +232,7 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
               onSubmit={addGroup}
             />
           ) : null}
-        </aside>
+        </GroupsSidebar>
 
         <section className="min-w-0 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel">
           {query.trim() ? (
@@ -349,12 +333,3 @@ const priorityDotClasses: Record<TodoPriority, string> = {
 
 const ghostButtonClass =
   'inline-flex min-h-control w-fit items-center justify-center rounded-control border border-[color-mix(in_srgb,var(--accent)_36%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-strong))] px-3.5 py-2.5 text-sm font-bold text-[color-mix(in_srgb,var(--accent-strong)_86%,var(--text))] transition-colors hover:border-[color-mix(in_srgb,var(--accent-strong)_82%,var(--border))] hover:bg-[var(--control-bg-hover)]';
-
-const countPillClass =
-  'inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-app-border bg-app-chip px-2 text-xs font-extrabold text-app-chip-text';
-
-const groupTabClass =
-  'grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-panel border border-app-border bg-app-surface-soft px-3 py-2.5 text-left text-sm font-bold text-app-text transition-colors hover:border-[color-mix(in_srgb,var(--accent)_38%,var(--border))] hover:bg-app-surface-strong';
-
-const groupTabActiveClass =
-  'border-[color-mix(in_srgb,var(--accent)_62%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))] text-app-accent-strong shadow-[inset_3px_0_0_var(--accent)]';
