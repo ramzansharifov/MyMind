@@ -14,6 +14,7 @@ import { normalizeBoardsData } from './modules/boards/boardsUtils';
 const DashboardPage = lazy(() => import('./modules/dashboard/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const MoviesPage = lazy(() => import('./modules/movies/MoviesPage').then((module) => ({ default: module.MoviesPage })));
 const WorkoutsPage = lazy(() => import('./modules/workouts/WorkoutsPage').then((module) => ({ default: module.WorkoutsPage })));
+const NutritionPage = lazy(() => import('./modules/nutrition/NutritionPage').then((module) => ({ default: module.NutritionPage })));
 const TodosPage = lazy(() => import('./modules/todos/TodosPage').then((module) => ({ default: module.TodosPage })));
 const FinancePage = lazy(() => import('./modules/finance/FinancePage').then((module) => ({ default: module.FinancePage })));
 const HabitsPage = lazy(() => import('./modules/habits/HabitsPage').then((module) => ({ default: module.HabitsPage })));
@@ -156,7 +157,19 @@ export function App() {
       case 'movies':
         return <MoviesPage movies={data.movies} onChange={(movies) => setData((current) => ({ ...current, movies }))} />;
       case 'workouts':
-        return <WorkoutsPage data={data.workouts} onChange={(workouts) => setData((current) => ({ ...current, workouts }))} />;
+        return (
+          <WorkoutsPage
+            data={data.workouts}
+            onChange={(workouts) => setData((current) => ({ ...current, workouts }))}
+          />
+        );
+      case 'nutrition':
+        return (
+          <NutritionPage
+            data={data.workouts}
+            onChange={(workouts) => setData((current) => ({ ...current, workouts }))}
+          />
+        );
       case 'todos':
         return <TodosPage data={data.todos} onChange={(todos) => setData((current) => ({ ...current, todos }))} />;
       case 'finance':
@@ -356,9 +369,9 @@ function ReminderModal({ reminder, onDismiss, onSnooze }: { reminder: AppReminde
         </>
       }
     >
-        <span className="inline-flex text-xs font-extrabold uppercase tracking-[0.08em] text-app-danger">{t('Reminder')}</span>
-        <h2 id="app-reminder-title">{reminder.title}</h2>
-        <p className="text-app-muted">{reminder.body}</p>
+      <span className="inline-flex text-xs font-extrabold uppercase tracking-[0.08em] text-app-danger">{t('Reminder')}</span>
+      <h2 id="app-reminder-title">{reminder.title}</h2>
+      <p className="text-app-muted">{reminder.body}</p>
     </Modal>
   );
 }

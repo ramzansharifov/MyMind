@@ -14,7 +14,7 @@ interface NutritionEntryFormProps {
 const mealTypes: MealRecord['mealType'][] = ['breakfast', 'lunch', 'dinner', 'snack'];
 const formGridClass = 'grid grid-cols-2 gap-3 max-[640px]:grid-cols-1';
 const formSectionClass = 'grid gap-3 rounded-panel border border-app-border bg-app-surface-soft p-4';
-const titleRowClass = 'flex items-center justify-between gap-3 max-[640px]:items-start max-[640px]:flex-col';
+const titleRowClass = 'flex items-center justify-between gap-3 max-[640px]:flex-col max-[640px]:items-start';
 const mealEditorClass = 'grid gap-3';
 const mealRowClass = 'grid gap-3 rounded-panel border border-app-border bg-app-surface p-3 shadow-panel [backdrop-filter:var(--glass-blur)]';
 const macroGridClass = 'grid grid-cols-4 gap-3 max-[900px]:grid-cols-2 max-[520px]:grid-cols-1';

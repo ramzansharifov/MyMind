@@ -1,6 +1,4 @@
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -16,20 +14,18 @@ import type { ReactNode } from 'react';
 import { StatCard } from '../../shared/components/StatCard';
 import { useI18n } from '../../shared/i18n/I18nProvider';
 import { formatDate } from '../../shared/utils/dateUtils';
-import type { ExerciseDefinition, NutritionEntry, ProgressRecord, WorkoutPlan, WorkoutSession } from './types';
+import type { ExerciseDefinition, ProgressRecord, WorkoutPlan, WorkoutSession } from './types';
 
 interface ChartsSectionProps {
   exercises: ExerciseDefinition[];
   plans: WorkoutPlan[];
   sessions: WorkoutSession[];
   progressRecords: ProgressRecord[];
-  nutritionEntries: NutritionEntry[];
 }
 
-export function ChartsSection({ exercises, plans, sessions, progressRecords, nutritionEntries }: ChartsSectionProps) {
+export function ChartsSection({ exercises, plans, sessions, progressRecords }: ChartsSectionProps) {
   const { t } = useI18n();
   const trainingData = buildTrainingData(sessions);
-  const nutritionData = buildNutritionData(nutritionEntries);
   const progressData = buildProgressData(progressRecords);
 
   return (
@@ -37,7 +33,7 @@ export function ChartsSection({ exercises, plans, sessions, progressRecords, nut
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-extrabold text-app-text">{t('Charts & Analytics')}</h2>
-          <p className="mt-1 text-sm text-app-muted">{t('View your training progress, nutrition trends, and metrics over time.')}</p>
+          <p className="mt-1 text-sm text-app-muted">{t('View your training progress and body metrics over time.')}</p>
         </div>
       </div>
 
@@ -46,7 +42,6 @@ export function ChartsSection({ exercises, plans, sessions, progressRecords, nut
         <StatCard label="Plans" value={plans.length} />
         <StatCard label="Workouts" value={sessions.length} />
         <StatCard label="Progress Records" value={progressRecords.length} />
-        <StatCard label="Nutrition Entries" value={nutritionEntries.length} />
       </div>
 
       <div className={chartGridClass}>
@@ -83,41 +78,6 @@ export function ChartsSection({ exercises, plans, sessions, progressRecords, nut
             </ResponsiveContainer>
           ) : (
             <EmptyChart label={t('No workout sessions yet.')} />
-          )}
-        </ChartCard>
-
-        <ChartCard title="Nutrition calories" description="Daily calories from recorded meals.">
-          {nutritionData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={nutritionData}>
-                <CartesianGrid stroke="var(--line-soft)" vertical={false} />
-                <XAxis dataKey="label" stroke="var(--muted)" tickLine={false} axisLine={false} />
-                <YAxis stroke="var(--muted)" tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Area type="monotone" dataKey="calories" name={t('Calories')} stroke="var(--accent-strong)" fill="var(--chart-area-accent)" strokeWidth={3} />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <EmptyChart label={t('No nutrition entries yet.')} />
-          )}
-        </ChartCard>
-
-        <ChartCard title="Nutrition macros" description="Protein, carbs, and fats by day.">
-          {nutritionData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={nutritionData}>
-                <CartesianGrid stroke="var(--line-soft)" vertical={false} />
-                <XAxis dataKey="label" stroke="var(--muted)" tickLine={false} axisLine={false} />
-                <YAxis stroke="var(--muted)" tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'var(--chart-cursor-accent)' }} />
-                <Legend />
-                <Bar dataKey="protein" name={t('protein')} stackId="macros" fill="var(--accent-strong)" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="carbs" name={t('carbs')} stackId="macros" fill="var(--chart-series-2)" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="fats" name={t('fats')} stackId="macros" fill="var(--chart-series-3)" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <EmptyChart label={t('No nutrition entries yet.')} />
           )}
         </ChartCard>
 
@@ -181,22 +141,6 @@ function buildTrainingData(sessions: WorkoutSession[]) {
         skipped: rows.filter((row) => row.status === 'skipped').length,
         energy: session.energyLevel,
         mood: session.mood,
-      };
-    });
-}
-
-function buildNutritionData(entries: NutritionEntry[]) {
-  return [...entries]
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(-14)
-    .map((entry) => {
-      const meals = Array.isArray(entry.meals) ? entry.meals : [];
-      return {
-        label: formatDate(entry.date),
-        calories: Math.round(meals.reduce((sum, meal) => sum + (Number(meal.calories) || 0), 0)),
-        protein: Number(meals.reduce((sum, meal) => sum + (Number(meal.protein) || 0), 0).toFixed(1)),
-        carbs: Number(meals.reduce((sum, meal) => sum + (Number(meal.carbs) || 0), 0).toFixed(1)),
-        fats: Number(meals.reduce((sum, meal) => sum + (Number(meal.fats) || 0), 0).toFixed(1)),
       };
     });
 }

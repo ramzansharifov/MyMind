@@ -11,8 +11,6 @@ import { cn } from '../../shared/utils/classNames';
 import { formatDate } from '../../shared/utils/dateUtils';
 import { createId } from '../../shared/utils/idGenerator';
 import { ExerciseForm } from './ExerciseForm';
-import { NutritionEntryForm } from './NutritionEntryForm';
-import { NutritionMealForm } from './NutritionMealForm';
 import { ProgressRecordForm } from './ProgressRecordForm';
 import { StartingPositionForm } from './StartingPositionForm';
 import { WorkoutCard } from './WorkoutCard';
@@ -22,8 +20,6 @@ import { recentSessions, resultSummary, weekdayLabels } from './workoutUtils';
 import type {
   ExerciseDefinition,
   ExerciseGroup,
-  MealRecord,
-  NutritionEntry,
   ProgressRecord,
   StartingPosition,
   WorkoutData,
@@ -61,19 +57,12 @@ const photoThumbClass = 'aspect-square w-full rounded-control border border-app-
 const photoGridLargeClass = 'grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3';
 const photoLargeClass = 'h-64 w-full rounded-panel border border-app-border object-cover';
 const noteLineClass = 'whitespace-pre-wrap text-sm leading-6 text-app-muted';
-const mealAccentByType: Record<string, string> = {
-  breakfast: 'bg-[var(--meal-breakfast)]',
-  lunch: 'bg-[var(--meal-lunch)]',
-  dinner: 'bg-[var(--meal-dinner)]',
-  snack: 'bg-[var(--meal-snack)]',
-};
-
 interface WorkoutsPageProps {
   data: WorkoutData;
   onChange: (data: WorkoutData) => void;
 }
 
-type Section = 'exercises' | 'plans' | 'sessions' | 'starting-position' | 'progress' | 'latest-progress' | 'nutrition-meals' | 'charts';
+type Section = 'exercises' | 'plans' | 'sessions' | 'starting-position' | 'progress' | 'latest-progress' | 'charts';
 
 type OpenForm =
   | { kind: 'exercise'; exercise?: ExerciseDefinition | null }
@@ -81,8 +70,6 @@ type OpenForm =
   | { kind: 'session'; plan?: WorkoutPlan | null }
   | { kind: 'starting-position'; position?: StartingPosition | null }
   | { kind: 'progress-record'; record?: ProgressRecord | null }
-  | { kind: 'nutrition-entry'; entry: NutritionEntry }
-  | { kind: 'nutrition-meal'; meal?: MealRecord | null }
   | null;
 
 const SECTION_TABS: Array<{ id: Section; label: string }> = [
@@ -92,7 +79,6 @@ const SECTION_TABS: Array<{ id: Section; label: string }> = [
   { id: 'starting-position', label: 'Starting Position' },
   { id: 'progress', label: 'All Progress' },
   { id: 'latest-progress', label: 'Latest Progress' },
-  { id: 'nutrition-meals', label: 'Nutrition' },
   { id: 'charts', label: 'Charts' },
 ];
 
@@ -108,7 +94,6 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
   const plans = data.plans ?? [];
   const sessions = data.sessions ?? [];
   const progressRecords = data.progressRecords ?? [];
-  const nutritionEntries = data.nutritionEntries ?? [];
   const startingPosition = data.startingPosition ?? null;
 
   function saveExercise(exercise: ExerciseDefinition) {
@@ -205,55 +190,16 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
     onChange({ ...data, progressRecords: progressRecords.filter((item) => item.id !== id) });
   }
 
-  function saveNutritionEntry(meals: MealRecord[]) {
-    const date = new Date().toISOString().slice(0, 10);
-    const existingEntry = nutritionEntries.find(e => e.date === date);
-
-    if (existingEntry) {
-        const existingMeals = Array.isArray(existingEntry.meals) ? existingEntry.meals : [];
-        const updatedEntry = {
-            ...existingEntry,
-            meals: [...existingMeals, ...meals],
-            updatedAt: new Date().toISOString()
-        };
-        onChange({
-            ...data,
-            nutritionEntries: nutritionEntries.map(e => e.id === existingEntry.id ? updatedEntry : e)
-        });
-    } else {
-        const entry: NutritionEntry = {
-            id: createId('nutrition'),
-            date,
-            meals,
-            water: 0,
-            notes: '',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        };
-        onChange({ ...data, nutritionEntries: [entry, ...nutritionEntries] });
-    }
-    setOpenForm(null);
-  }
-
-  function deleteNutritionEntry(id: string) {
-    onChange({ ...data, nutritionEntries: nutritionEntries.filter((item) => item.id !== id) });
-  }
-
-  function saveNutritionDay(entry: NutritionEntry) {
-    onChange({
-      ...data,
-      nutritionEntries: nutritionEntries.map((item) => (item.id === entry.id ? entry : item)),
-    });
-    setOpenForm(null);
-  }
-
   const latestProgress = [...progressRecords].sort((a, b) => b.date.localeCompare(a.date))[0];
 
   return (
     <section className="grid gap-5">
-      <PageHeader title="Training & Nutrition" subtitle="Manage exercises, workouts, nutrition, and track your progress." />
+      <PageHeader
+        title="Workouts"
+        subtitle="Manage exercises, workouts, progress, and training plans."
+      />
 
-      <PageTabs tabs={SECTION_TABS} activeTab={activeSection} ariaLabel="Training and nutrition sections" onChange={setActiveSection} />
+      <PageTabs tabs={SECTION_TABS} activeTab={activeSection} ariaLabel="Training sections" onChange={setActiveSection} />
 
       {/* Exercises Section */}
       {activeSection === 'exercises' && (
@@ -587,88 +533,6 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
           </section>
       )}
 
-      {/* Nutrition - Meals Section */}
-      {activeSection === 'nutrition-meals' && (
-        <section className={sectionPanelClass}>
-          <div className={sectionHeadingClass}>
-            <div>
-              <h2>{t('Daily Nutrition')}</h2>
-              <p className={mutedTextClass}>{t('Track your meals and daily nutritional intake.')}</p>
-            </div>
-            <AddButton label="Add today's meal" onClick={() => setOpenForm({ kind: 'nutrition-meal' })} />
-          </div>
-          <div className={stackClass}>
-            {(nutritionEntries || []).filter(Boolean).map((entry) => {
-              const meals = (Array.isArray(entry.meals) ? entry.meals : []).filter(Boolean);
-              const totals = {
-                protein: meals.reduce((sum, meal) => sum + (Number(meal.protein) || 0), 0),
-                carbs: meals.reduce((sum, meal) => sum + (Number(meal.carbs) || 0), 0),
-                fats: meals.reduce((sum, meal) => sum + (Number(meal.fats) || 0), 0),
-                calories: meals.reduce((sum, meal) => sum + (Number(meal.calories) || 0), 0),
-              };
-              const totalMetrics = [
-                { label: t('protein'), value: `${totals.protein.toFixed(1)}g` },
-                { label: t('carbs'), value: `${totals.carbs.toFixed(1)}g` },
-                { label: t('fats'), value: `${totals.fats.toFixed(1)}g` },
-                { label: t('kcal'), value: String(Math.round(totals.calories)) },
-              ];
-              return (
-                <article className={cardClass} key={entry.id}>
-                  <div className="grid grid-cols-[1fr_auto] gap-4 max-[760px]:grid-cols-1">
-                    <div className="grid gap-3">
-                      <div className={headingRowClass}>
-                        <div>
-                          <span className={kickerClass}>{t('Daily totals')}</span>
-                          <h3 className="text-base font-extrabold text-app-text">{formatDate(entry.date)}</h3>
-                        </div>
-                        {entry.water > 0 ? <span className={pillClass}>{t('Water')} {entry.water}L</span> : null}
-                      </div>
-                      <div className={metricGridClass}>
-                        {totalMetrics.map((metric) => (
-                          <div className={metricTileClass} key={metric.label}>
-                            <span>{metric.label}</span>
-                            <strong>{metric.value}</strong>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="grid gap-2">
-                        {meals.map((meal) => (
-                          <section className="grid grid-cols-[4px_1fr] overflow-hidden rounded-control border border-app-border bg-app-surface-soft" key={meal.id}>
-                            <div className={cn(mealAccentByType[meal.mealType || 'snack'] ?? mealAccentByType.snack)} aria-hidden="true" />
-                            <div className="grid gap-2 p-3">
-                              <div className={headingRowClass}>
-                                <div>
-                                  <strong className="block text-sm text-app-text">{t(meal.mealType || 'snack')}</strong>
-                                  <span className="text-xs text-app-muted">{meal.time || t('Any time')}</span>
-                                </div>
-                                <span className={pillClass}>{Math.round(meal.calories ?? 0)} {t('kcal')}</span>
-                              </div>
-                              <p className={mutedTextClass}>{meal.customDescription || t('Detailed meal')}</p>
-                              <div className={chipRowClass}>
-                                <span><strong>{meal.protein ?? 0}g</strong> {t('protein')}</span>
-                                <span><strong>{meal.carbs ?? 0}g</strong> {t('carbs')}</span>
-                                <span><strong>{meal.fats ?? 0}g</strong> {t('fats')}</span>
-                              </div>
-                            </div>
-                          </section>
-                        ))}
-                        {meals.length === 0 ? <div className="rounded-control border border-dashed border-app-border p-3 text-sm text-app-muted">{t('No meals recorded.')}</div> : null}
-                      </div>
-                      {entry.notes ? <p className={noteLineClass}>{entry.notes}</p> : null}
-                    </div>
-                    <div className={cn(actionRowClass, 'self-start')}>
-                      <EditButton onClick={() => setOpenForm({ kind: 'nutrition-entry', entry })} />
-                      <DeleteButton onConfirm={() => deleteNutritionEntry(entry.id)} confirmTitle="Delete this day's record?" />
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-            {(nutritionEntries || []).length === 0 ? <EmptyState title="No nutrition entries" message="Start logging your daily meals and nutrition." /> : null}
-          </div>
-        </section>
-      )}
-
       {/* Charts Section */}
       {activeSection === 'charts' && (
         <Suspense fallback={<LoadingState title="Loading charts" message="Preparing workout analytics..." variant="compact" />}>
@@ -677,7 +541,6 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
             plans={plans}
             sessions={sessions}
             progressRecords={progressRecords}
-            nutritionEntries={nutritionEntries}
           />
         </Suspense>
       )}
@@ -703,12 +566,6 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
       ) : null}
       {openForm?.kind === 'progress-record' ? (
         <ProgressRecordForm record={openForm.record} onCancel={() => setOpenForm(null)} onSave={saveProgressRecord} />
-      ) : null}
-      {openForm?.kind === 'nutrition-entry' ? (
-        <NutritionEntryForm entry={openForm.entry} onCancel={() => setOpenForm(null)} onSave={saveNutritionDay} />
-      ) : null}
-      {openForm?.kind === 'nutrition-meal' ? (
-        <NutritionMealForm meal={openForm.meal} onCancel={() => setOpenForm(null)} onSave={(meal) => saveNutritionEntry([meal])} />
       ) : null}
     </section>
   );

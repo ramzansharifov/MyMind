@@ -17,7 +17,8 @@ import type { StudyData } from '../../modules/study/types';
 import { emptyStudyData, normalizeStudyData } from '../../modules/study/studyUtils';
 import type { TodoData, TodoItem } from '../../modules/todos/types';
 import { DEFAULT_TODO_GROUPS } from '../../modules/todos/todoUtils';
-import type { MealRecord, NutritionEntry, WorkoutData } from '../../modules/workouts/types';
+import type { MealRecord, NutritionEntry } from '../../modules/nutrition/types';
+import type { WorkoutData } from '../../modules/workouts/types';
 import { appModules, moduleGroupIconDefinitions } from './moduleRegistry';
 import type { CollectionName } from '../storage/storageTypes';
 import type { AppSettings, ContentGroup, GroupedContentData, ModuleGroupIconKey, ModuleKey, SidebarSettings } from '../types/common';
@@ -158,6 +159,7 @@ export const moduleCollections: Record<ModuleKey, AppCollectionName[]> = {
   dashboard: dataCollections,
   movies: ['movies'],
   workouts: ['workouts'],
+  nutrition: ['workouts'],
   todos: ['todos'],
   finance: ['finance'],
   habits: ['habits'],

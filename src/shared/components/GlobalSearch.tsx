@@ -54,6 +54,7 @@ const moduleLabels: Record<ModuleKey, string> = {
   dashboard: 'Dashboard',
   movies: 'Movies',
   workouts: 'Workouts',
+  nutrition: 'Nutrition',
   todos: 'Todo',
   finance: 'Finance',
   habits: 'Habits',

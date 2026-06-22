@@ -67,6 +67,7 @@ export type ModuleKey =
   | 'dashboard'
   | 'movies'
   | 'workouts'
+  | 'nutrition'
   | 'todos'
   | 'finance'
   | 'habits'

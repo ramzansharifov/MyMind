@@ -21,6 +21,7 @@ import {
   Sparkles,
   TextQuote,
   GraduationCap,
+  Utensils,
   UserRound,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -40,6 +41,7 @@ export const appModules: AppModuleDefinition[] = [
   { key: 'dashboard', label: 'Dashboard', icon: Home, canHide: false, canGroup: false },
   { key: 'movies', label: 'Movies', icon: Film, canHide: true, canGroup: true },
   { key: 'workouts', label: 'Workouts', icon: Dumbbell, canHide: true, canGroup: true },
+  { key: 'nutrition', label: 'Nutrition', icon: Utensils, canHide: true, canGroup: true },
   { key: 'todos', label: 'Todo', icon: CheckSquare, canHide: true, canGroup: true },
   { key: 'finance', label: 'Finance', icon: Landmark, canHide: true, canGroup: true },
   { key: 'habits', label: 'Habits', icon: Activity, canHide: true, canGroup: true },

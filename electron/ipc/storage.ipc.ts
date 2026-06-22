@@ -6,7 +6,6 @@ import os from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   assertCollectionName,
-  collectionFiles,
   defaultValue,
   listCollections,
   nowIso,
@@ -146,6 +145,8 @@ function getDatabase() {
   database.pragma("foreign_keys = ON");
   database.pragma("journal_mode = DELETE");
   database.exec(`
+    DROP TABLE IF EXISTS storage_migrations;
+
     CREATE TABLE IF NOT EXISTS collections (
       name TEXT PRIMARY KEY,
       storage_kind TEXT NOT NULL CHECK (storage_kind IN ('document', 'items')),
@@ -219,11 +220,6 @@ function getDatabase() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_study_materials_updated_at ON study_materials(updated_at DESC);
-
-    CREATE TABLE IF NOT EXISTS storage_migrations (
-      id TEXT PRIMARY KEY,
-      completed_at TEXT NOT NULL
-    );
   `);
   sqliteDatabase = database;
   return database;
@@ -351,22 +347,6 @@ function collectionExistsInDatabase(collectionName: CollectionName) {
   );
 }
 
-function migrationWasCompleted(id: string) {
-  return Boolean(
-    getDatabase()
-      .prepare("SELECT 1 FROM storage_migrations WHERE id = ?")
-      .get(id),
-  );
-}
-
-function markMigrationCompleted(id: string) {
-  getDatabase()
-    .prepare(
-      "INSERT OR REPLACE INTO storage_migrations (id, completed_at) VALUES (?, ?)",
-    )
-    .run(id, nowIso());
-}
-
 async function ensureDataDirectory() {
   await fs.mkdir(getDataDirectory(), { recursive: true });
 }
@@ -377,41 +357,6 @@ async function ensureAssetsDirectory() {
   return assetsDirectory;
 }
 
-function getNotesDirectory() {
-  return path.join(getDataDirectory(), "notes");
-}
-
-function getStudyMaterialsDirectory() {
-  return path.join(getDataDirectory(), "study-materials");
-}
-
-function getDraftsDirectory() {
-  return path.join(getDataDirectory(), "drafts");
-}
-
-function getNotesIndexPath() {
-  return path.join(getDataDirectory(), "notes.index.json");
-}
-
-function getStudyIndexPath() {
-  return path.join(getStudyMaterialsDirectory(), "index.json");
-}
-
-function getSearchIndexPath() {
-  return path.join(getDataDirectory(), "search.index.json");
-}
-
-function getNoteFilePath(noteId: string) {
-  return path.join(getNotesDirectory(), `${sanitizeNoteId(noteId)}.json`);
-}
-
-function getStudyMaterialFilePath(materialId: string) {
-  return path.join(
-    getStudyMaterialsDirectory(),
-    `${sanitizeNoteId(materialId)}.json`,
-  );
-}
-
 function getNoteAssetsDirectory(noteId: string) {
   return path.join(getDataDirectory(), "assets", sanitizeNoteId(noteId));
 }
@@ -420,152 +365,6 @@ async function ensureNoteStorageDirectory() {
   await ensureDataDirectory();
   await fs.mkdir(path.join(getDataDirectory(), "assets"), { recursive: true });
   getDatabase();
-  await migrateLegacyNoteStorageIfNeeded();
-}
-
-async function readDirectoryFileNames(directory: string) {
-  try {
-    return await fs.readdir(directory);
-  } catch (error) {
-    if (getStorageErrorCode(error) === "ENOENT") {
-      return [];
-    }
-    throw error;
-  }
-}
-
-async function migrateLegacyNoteStorageIfNeeded() {
-  const migrationId = "legacy-json-notes-v1";
-  if (migrationWasCompleted(migrationId)) {
-    return;
-  }
-
-  const index = await readJsonFile<NoteIndexItem[]>(getNotesIndexPath(), []);
-  const legacyNoteIds = new Set(index.map((item) => item.id).filter(Boolean));
-  const noteFiles = await readDirectoryFileNames(getNotesDirectory());
-  for (const fileName of noteFiles) {
-    if (fileName.endsWith(".json")) {
-      legacyNoteIds.add(fileName.slice(0, -".json".length));
-    }
-  }
-
-  for (const noteId of legacyNoteIds) {
-    const note = await readJsonFile<NoteFile | null>(
-      getNoteFilePath(noteId),
-      null,
-    );
-    if (!note?.id) {
-      continue;
-    }
-    const normalized = normalizeNoteFile(note);
-    writeNoteToDatabase(normalized);
-    writeSearchItemToDatabase(searchItemFromNote(normalized));
-  }
-
-  const searchItems = await readJsonFile<NoteSearchIndexItem[]>(
-    getSearchIndexPath(),
-    [],
-  );
-  for (const item of Array.isArray(searchItems) ? searchItems : []) {
-    if (item?.noteId) {
-      writeSearchItemToDatabase(item);
-    }
-  }
-
-  const draftFiles = await readDirectoryFileNames(getDraftsDirectory());
-  for (const fileName of draftFiles) {
-    if (!fileName.endsWith(".draft.json")) {
-      continue;
-    }
-    const draft = await readJsonFile<NoteDraft | null>(
-      path.join(getDraftsDirectory(), fileName),
-      null,
-    );
-    if (draft?.noteId) {
-      getDatabase()
-        .prepare(
-          `
-        INSERT INTO note_drafts (note_id, editor_content, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(note_id) DO UPDATE SET editor_content = excluded.editor_content, updated_at = excluded.updated_at
-      `,
-        )
-        .run(
-          sanitizeNoteId(draft.noteId),
-          encodeSqliteJson(draft.editorContent),
-          draft.updatedAt ?? nowIso(),
-        );
-    }
-  }
-
-  const htmlCacheDirectory = path.join(getDataDirectory(), "html-cache");
-  const htmlFiles = await readDirectoryFileNames(htmlCacheDirectory);
-  for (const fileName of htmlFiles) {
-    if (!fileName.endsWith(".json")) {
-      continue;
-    }
-    const cache = await readJsonFile<{
-      noteId?: string;
-      html?: string | null;
-      updatedAt?: string;
-    } | null>(path.join(htmlCacheDirectory, fileName), null);
-    if (cache?.noteId) {
-      getDatabase()
-        .prepare(
-          `
-        INSERT INTO note_html_cache (note_id, html, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(note_id) DO UPDATE SET html = excluded.html, updated_at = excluded.updated_at
-      `,
-        )
-        .run(
-          sanitizeNoteId(cache.noteId),
-          cache.html ?? null,
-          cache.updatedAt ?? nowIso(),
-        );
-    }
-  }
-
-  markMigrationCompleted(migrationId);
-}
-
-async function migrateLegacyStudyStorageIfNeeded() {
-  const migrationId = "legacy-json-study-v1";
-  if (migrationWasCompleted(migrationId)) {
-    return;
-  }
-
-  const index = await readJsonFile<StudyMaterialIndexItem[]>(
-    getStudyIndexPath(),
-    [],
-  );
-  const legacyMaterialIds = new Set(
-    index.map((item) => item.id).filter(Boolean),
-  );
-  const materialFiles = await readDirectoryFileNames(
-    getStudyMaterialsDirectory(),
-  );
-  for (const fileName of materialFiles) {
-    if (fileName.endsWith(".json") && fileName !== "index.json") {
-      legacyMaterialIds.add(fileName.slice(0, -".json".length));
-    }
-  }
-
-  for (const materialId of legacyMaterialIds) {
-    const material = await readJsonFile<StudyMaterialFile | null>(
-      getStudyMaterialFilePath(materialId),
-      null,
-    );
-    if (material?.id) {
-      writeStudyMaterialToDatabase(normalizeStudyMaterial(material));
-    }
-  }
-
-  markMigrationCompleted(migrationId);
-}
-
-function filePath(collectionName: CollectionName) {
-  return path.join(getDataDirectory(), collectionFiles[collectionName]);
 }
 
 function sanitizeAssetFileName(value: unknown) {
@@ -733,40 +532,16 @@ async function enqueueCollectionWrite<T>(
   return tracked;
 }
 
-async function readJsonFile<T>(file: string, fallback: T): Promise<T> {
-  try {
-    const content = await withStorageRetry(() => fs.readFile(file, "utf8"));
-    if (!content.trim()) {
-      return fallback;
-    }
-    return JSON.parse(content) as T;
-  } catch (error) {
-    if (getStorageErrorCode(error) === "ENOENT") {
-      return fallback;
-    }
-    if (isRetryableStorageError(error)) {
-      throw error;
-    }
-    return fallback;
-  }
-}
-
-async function ensureFile(collectionName: CollectionName) {
+async function ensureCollection(collectionName: CollectionName) {
   await ensureDataDirectory();
   getDatabase();
   if (collectionExistsInDatabase(collectionName)) {
     return;
   }
 
-  const legacyValue = await readJsonFile<unknown>(
-    filePath(collectionName),
-    undefined,
-  );
   await writeJson(
     collectionName,
-    legacyValue === undefined
-      ? defaultValue(collectionName, getDataDirectory())
-      : legacyValue,
+    defaultValue(collectionName, getDataDirectory()),
   );
 }
 
@@ -778,7 +553,7 @@ async function writeJson(collectionName: CollectionName, value: unknown) {
 }
 
 async function readJson(collectionName: CollectionName) {
-  await ensureFile(collectionName);
+  await ensureCollection(collectionName);
   return readCollectionFromDatabase(collectionName);
 }
 
@@ -794,25 +569,6 @@ async function importSqliteDatabase(sourcePath: string) {
   await ensureDataDirectory();
   closeDatabase();
   await withStorageRetry(() => fs.copyFile(sourcePath, getDatabasePath()));
-}
-
-async function importLegacyCollectionsFromDirectory(sourceDirectory: string) {
-  await ensureDataDirectory();
-  const imported: CollectionName[] = [];
-  for (const collectionName of Object.keys(
-    collectionFiles,
-  ) as CollectionName[]) {
-    const sourceFile = path.join(
-      sourceDirectory,
-      collectionFiles[collectionName],
-    );
-    const value = await readJsonFile<unknown>(sourceFile, undefined);
-    if (value !== undefined) {
-      await writeJson(collectionName, value);
-      imported.push(collectionName);
-    }
-  }
-  return imported;
 }
 
 function ensureListCollection(
@@ -1432,7 +1188,6 @@ async function readNoteDraft(noteId: string) {
 async function ensureStudyStorageDirectory() {
   await ensureDataDirectory();
   getDatabase();
-  await migrateLegacyStudyStorageIfNeeded();
 }
 
 function isStudyRichTextDocument(value: unknown) {
@@ -2241,13 +1996,13 @@ export function registerStorageIpc() {
     const sqliteBackupPath = path.join(sourceDirectory, sqliteDatabaseFileName);
     try {
       await fs.access(sqliteBackupPath);
-      await importSqliteDatabase(sqliteBackupPath);
     } catch (error) {
       if (getStorageErrorCode(error) !== "ENOENT") {
         throw error;
       }
-      await importLegacyCollectionsFromDirectory(sourceDirectory);
+      throw new Error("Selected backup folder does not contain mymind.sqlite.");
     }
+    await importSqliteDatabase(sqliteBackupPath);
     try {
       await fs.cp(
         path.join(sourceDirectory, "assets"),
@@ -2264,7 +2019,7 @@ export function registerStorageIpc() {
     "storage:exportCollection",
     async (_event, collectionName: string) => {
       const safeName = assertCollectionName(collectionName);
-      await ensureFile(safeName);
+      await ensureCollection(safeName);
       const result = await dialog.showSaveDialog({
         title: `Export ${safeName}`,
         defaultPath: path.join(getDocumentsDirectory(), `${safeName}.json`),
