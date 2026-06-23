@@ -469,6 +469,15 @@ async function openContainingFolderFromUrl(url: string) {
   return shell.openPath(folderPath);
 }
 
+async function openFileFromUrl(url: string) {
+  const targetPath = getPathFromLocalAssetUrl(url);
+  if (!targetPath) {
+    throw new Error("Invalid file URL.");
+  }
+
+  return shell.openPath(targetPath);
+}
+
 function isRetryableStorageError(error: unknown) {
   return (
     error !== null &&
@@ -1296,6 +1305,25 @@ function studyEditorContentToPlainText(content: unknown): string {
             : "";
         }
 
+        if (source.type === "file") {
+          return typeof (source as { name?: unknown }).name === "string"
+            ? ((source as { name: string }).name.trim())
+            : "";
+        }
+
+        if (source.type === "link") {
+          const title =
+            typeof (source as { title?: unknown }).title === "string"
+              ? (source as { title: string }).title.trim()
+              : "";
+          const url =
+            typeof (source as { url?: unknown }).url === "string"
+              ? (source as { url: string }).url.trim()
+              : "";
+
+          return [title, url].filter(Boolean).join(" ");
+        }
+
         return "";
       })
       .filter(Boolean)
@@ -1697,7 +1725,7 @@ export function registerStorageIpc() {
       const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${safeName}`;
       const targetPath = path.join(assetsDirectory, fileName);
       await fs.writeFile(targetPath, Buffer.from(payload.data));
-      return pathToFileURL(targetPath).href;
+      return assetUrlFromRelativePath(toRelativeDataPath(targetPath));
     },
   );
 
@@ -1712,6 +1740,10 @@ export function registerStorageIpc() {
 
   ipcMain.handle("files:openContainingFolder", async (_event, url: string) => {
     return openContainingFolderFromUrl(url);
+  });
+
+  ipcMain.handle("files:openFile", async (_event, url: string) => {
+    return openFileFromUrl(url);
   });
 
   ipcMain.handle("notes:listIndex", async () => {

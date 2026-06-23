@@ -2,6 +2,8 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { cn } from "../../utils/classNames";
 import { CodePreview } from "../blocks/code/CodeBlockEditor";
+import { FileBlockViewer } from "../blocks/file/FileBlock";
+import { LinkBlockViewer } from "../blocks/link/LinkBlock";
 import { LatexPreview, MarkdownPreview } from "../blocks/markup/MarkupBlock";
 import { RichTextViewer } from "../blocks/richText/RichTextEditor";
 import type { StudyContentBlock, StudyHeadingBlock } from "../core/blockCore";
@@ -9,7 +11,7 @@ import type { StudyContentBlock, StudyHeadingBlock } from "../core/blockCore";
 export type StudyReadNode =
   | {
       kind: "block";
-      block: Exclude<StudyContentBlock, StudyHeadingBlock>;
+      block: StudyContentBlock;
     }
   | {
       kind: "section";
@@ -61,6 +63,14 @@ export function buildStudyReadTree(blocks: StudyContentBlock[]) {
 
     while (stack.length > 1 && stack[stack.length - 1].level >= block.level) {
       stack.pop();
+    }
+
+    if (!block.collapsible) {
+      stack[stack.length - 1].children.push({
+        kind: "block",
+        block,
+      });
+      return;
     }
 
     const section: StudyReadNode = {
@@ -127,10 +137,20 @@ function StudyReadNodeView({
   );
 }
 
-function BlockReader({ block }: { block: Exclude<StudyContentBlock, StudyHeadingBlock> }) {
+function BlockReader({ block }: { block: StudyContentBlock }) {
+  if (block.type === "heading") {
+    return (
+      <section className={readInlineBlockClass}>
+        <span className={cn("text-app-text", headingTitleClasses[block.level])} role="heading" aria-level={block.level}>
+          {block.text.trim() || "Без заголовка"}
+        </span>
+      </section>
+    );
+  }
+
   if (block.type === "text") {
     return (
-      <section className={readBlockClass}>
+      <section className={readInlineBlockClass}>
         <RichTextViewer value={block.content} />
       </section>
     );
@@ -138,7 +158,7 @@ function BlockReader({ block }: { block: Exclude<StudyContentBlock, StudyHeading
 
   if (block.type === "markdown") {
     return (
-      <section className={readBlockClass}>
+      <section className={readInlineBlockClass}>
         <MarkdownPreview source={block.source} />
       </section>
     );
@@ -146,18 +166,14 @@ function BlockReader({ block }: { block: Exclude<StudyContentBlock, StudyHeading
 
   if (block.type === "latex") {
     return (
-      <section className={readBlockClass}>
+      <section className={readInlineBlockClass}>
         <LatexPreview source={block.source} displayMode={block.displayMode} />
       </section>
     );
   }
 
   if (block.type === "code") {
-    return (
-      <section className={readBlockClass}>
-        <CodePreview source={block.source} language={block.language} />
-      </section>
-    );
+    return <CodePreview source={block.source} language={block.language} />;
   }
 
   if (block.type === "divider") {
@@ -174,6 +190,14 @@ function BlockReader({ block }: { block: Exclude<StudyContentBlock, StudyHeading
     );
   }
 
+  if (block.type === "file") {
+    return <FileBlockViewer block={block} />;
+  }
+
+  if (block.type === "link") {
+    return <LinkBlockViewer block={block} />;
+  }
+
   return null;
 }
 
@@ -181,8 +205,7 @@ function getStudyReadNodeKey(node: StudyReadNode) {
   return node.kind === "section" ? node.heading.id : node.block.id;
 }
 
-const readBlockClass =
-  "rounded-panel border border-app-border bg-app-surface-soft p-4 text-app-text";
+const readInlineBlockClass = "min-w-0 text-app-text";
 const headingTitleClasses: Record<StudyHeadingBlock["level"], string> = {
   1: "text-[30px] font-extrabold leading-tight",
   2: "text-[26px] font-extrabold leading-tight",

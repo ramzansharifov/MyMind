@@ -53,5 +53,6 @@ contextBridge.exposeInMainWorld('mymind', {
     listAssets: () => ipcRenderer.invoke('files:listAssets'),
     getAssetInfo: (url: string) => ipcRenderer.invoke('files:getAssetInfo', url),
     openContainingFolder: (url: string) => ipcRenderer.invoke('files:openContainingFolder', url),
+    openFile: (url: string) => ipcRenderer.invoke('files:openFile', url),
   },
 });

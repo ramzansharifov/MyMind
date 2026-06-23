@@ -1,5 +1,7 @@
 export { CodeBlockEditor, CodePreview } from "./blocks/code/CodeBlockEditor";
+export { FileBlockEditor, FileBlockViewer } from "./blocks/file/FileBlock";
 export { HeadingBlockEditor } from "./blocks/heading/HeadingBlockEditor";
+export { LinkBlockEditor, LinkBlockViewer } from "./blocks/link/LinkBlock";
 export { LatexPreview, MarkdownPreview, MarkupBlockEditor } from "./blocks/markup/MarkupBlock";
 export { RichTextEditor, RichTextViewer } from "./blocks/richText/RichTextEditor";
 export { createRichTextDocument, richTextHtmlToPlainText } from "./blocks/richText/richTextCore";
@@ -8,8 +10,10 @@ export {
   createStudyBlockDocument,
   createStudyCodeBlock,
   createStudyDividerBlock,
+  createStudyFileBlock,
   createStudyHeadingBlock,
   createStudyLatexBlock,
+  createStudyLinkBlock,
   createStudyMarkdownBlock,
   createStudyTextBlock,
   isStudyBlockDocument,
@@ -28,7 +32,11 @@ export type {
   StudyHeadingBlock,
   StudyHeadingLevel,
   StudyDividerBlock,
+  StudyFileBlock,
+  StudyFileKind,
   StudyLatexBlock,
+  StudyLinkBlock,
+  StudyLinkKind,
   StudyMarkdownBlock,
   StudyTextBlock,
 } from "./core/blockCore";

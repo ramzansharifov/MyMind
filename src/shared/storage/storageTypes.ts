@@ -79,6 +79,7 @@ export interface FileSystemApi {
   listAssets(): Promise<Array<{ path: string; url: string; sizeBytes: number }>>;
   getAssetInfo(url: string): Promise<{ url: string; exists: boolean; sizeBytes: number }>;
   openContainingFolder(url: string): Promise<string>;
+  openFile(url: string): Promise<string>;
 }
 
 export interface NotesStorageApi {

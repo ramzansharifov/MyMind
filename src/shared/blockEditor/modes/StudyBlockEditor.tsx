@@ -4,6 +4,8 @@ import {
   Code2,
   Copy,
   Eye,
+  FileUp,
+  Link2,
   Plus,
   GripVertical,
   Heading,
@@ -17,7 +19,9 @@ import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { cn } from "../../utils/classNames";
 import { CodeBlockEditor, CODE_LANGUAGE_OPTIONS } from "../blocks/code/CodeBlockEditor";
+import { FileBlockEditor } from "../blocks/file/FileBlock";
 import { HeadingBlockEditor } from "../blocks/heading/HeadingBlockEditor";
+import { LinkBlockEditor } from "../blocks/link/LinkBlock";
 import { LatexPreview, MarkdownPreview, MarkupBlockEditor } from "../blocks/markup/MarkupBlock";
 import { RichTextEditor } from "../blocks/richText/RichTextEditor";
 import { createRichTextDocument } from "../blocks/richText/richTextCore";
@@ -25,9 +29,11 @@ import {
   createStudyBlockDocument,
   createStudyCodeBlock,
   createStudyDividerBlock,
+  createStudyFileBlock,
   duplicateStudyBlock,
   createStudyHeadingBlock,
   createStudyLatexBlock,
+  createStudyLinkBlock,
   createStudyMarkdownBlock,
   createStudyTextBlock,
   normalizeStudyBlockDocument,
@@ -55,6 +61,8 @@ const BLOCK_INSERT_OPTIONS: Array<{ type: StudyContentBlock["type"]; label: stri
   { type: "latex", label: "LaTeX", icon: Sigma },
   { type: "code", label: "Code", icon: Code2 },
   { type: "divider", label: "Разделитель", icon: Minus },
+  { type: "file", label: "Файл", icon: FileUp },
+  { type: "link", label: "Ссылка", icon: Link2 },
 ];
 
 export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: StudyBlockEditorProps) {
@@ -97,6 +105,8 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
     if (type === "latex") return createStudyLatexBlock();
     if (type === "code") return createStudyCodeBlock();
     if (type === "divider") return createStudyDividerBlock();
+    if (type === "file") return createStudyFileBlock();
+    if (type === "link") return createStudyLinkBlock();
 
     return createStudyTextBlock();
   }
@@ -290,6 +300,24 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
                         )
                       }
                     />
+                  ) : block.type === "file" ? (
+                    <FileBlockEditor
+                      block={block}
+                      onChange={(nextBlock) =>
+                        updateBlock(block.id, (current) =>
+                          current.type === "file" ? nextBlock : current,
+                        )
+                      }
+                    />
+                  ) : block.type === "link" ? (
+                    <LinkBlockEditor
+                      block={block}
+                      onChange={(nextBlock) =>
+                        updateBlock(block.id, (current) =>
+                          current.type === "link" ? nextBlock : current,
+                        )
+                      }
+                    />
                   ) : block.type === "markdown" ? (
                     <MarkupBlockEditor
                       label="Markdown"
@@ -348,10 +376,6 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
                   <BlockInsertDivider
                     isActive={insertSlotAfterId === block.id || insertMenuAfterId === block.id}
                     isOpen={insertMenuAfterId === block.id}
-                    onActivate={() => {
-                      setInsertSlotAfterId(block.id);
-                      setInsertMenuAfterId(null);
-                    }}
                     onToggle={() => {
                       setInsertSlotAfterId(block.id);
                       setInsertMenuAfterId((current) => (current === block.id ? null : block.id));
@@ -366,10 +390,6 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
           <BlockInsertDivider
             isActive={insertSlotAfterId === END_INSERT_SLOT_ID || insertMenuAfterId === END_INSERT_SLOT_ID}
             isOpen={insertMenuAfterId === END_INSERT_SLOT_ID}
-            onActivate={() => {
-              setInsertSlotAfterId(END_INSERT_SLOT_ID);
-              setInsertMenuAfterId(null);
-            }}
             onToggle={() => {
               setInsertSlotAfterId(END_INSERT_SLOT_ID);
               setInsertMenuAfterId((current) => (current === END_INSERT_SLOT_ID ? null : END_INSERT_SLOT_ID));
@@ -404,7 +424,8 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
                 <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-muted">{activeBlock.type === "divider" ? "Вид" : "Разметка"}</span>
 
                 {activeBlock.type === "heading" ? (
-                  <label className={settingsLabelClass}>
+                  <>
+                    <label className={settingsLabelClass}>
                     <span>Уровень</span>
                     <select
                       value={activeBlock.level}
@@ -425,7 +446,27 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
                         </option>
                       ))}
                     </select>
-                  </label>
+                    </label>
+
+                    <label className="flex min-h-control cursor-pointer items-center justify-between gap-3 rounded-control border border-app-border bg-app-surface-strong px-3 py-2 text-sm font-bold text-app-text">
+                      <span>Сворачиваемый раздел</span>
+                      <input
+                        className="h-4 w-4 accent-[var(--accent)]"
+                        type="checkbox"
+                        checked={activeBlock.collapsible}
+                        onChange={(event) =>
+                          updateBlock(activeBlock.id, (current) =>
+                            current.type === "heading"
+                              ? {
+                                  ...current,
+                                  collapsible: event.target.checked,
+                                }
+                              : current,
+                          )
+                        }
+                      />
+                    </label>
+                  </>
                 ) : null}
 
                 {activeBlock.type === "code" ? (
@@ -537,13 +578,11 @@ export function StudyBlockEditor({ value, mode, onChange, sidebarFooter }: Study
 function BlockInsertDivider({
   isActive,
   isOpen,
-  onActivate,
   onToggle,
   onPick,
 }: {
   isActive: boolean;
   isOpen: boolean;
-  onActivate: () => void;
   onToggle: () => void;
   onPick: (type: StudyContentBlock["type"]) => void;
 }) {
@@ -551,12 +590,7 @@ function BlockInsertDivider({
     <div
       className={cn(blockInsertDividerClass, (isActive || isOpen) && blockInsertDividerActiveClass)}
       onClick={() => {
-        if (isActive) {
-          onToggle();
-          return;
-        }
-
-        onActivate();
+        onToggle();
       }}
     >
       <span
@@ -605,6 +639,8 @@ function blockTypeLabel(type: StudyContentBlock["type"]) {
   if (type === "latex") return "LaTeX";
   if (type === "code") return "Code";
   if (type === "divider") return "Разделитель";
+  if (type === "file") return "Файл";
+  if (type === "link") return "Ссылка";
   return "Текст";
 }
 
@@ -614,6 +650,8 @@ function blockTypeIcon(type: StudyContentBlock["type"]) {
 
 function getCollapsedBlockSummary(block: StudyContentBlock) {
   if (block.type === "divider") return "Разделитель";
+  if (block.type === "file") return trimCollapsedBlockSummary(block.name || "Файл");
+  if (block.type === "link") return trimCollapsedBlockSummary(block.title || block.url || "Ссылка");
 
   const text =
     block.type === "text"
@@ -622,6 +660,14 @@ function getCollapsedBlockSummary(block: StudyContentBlock) {
         ? block.text
         : block.source;
   const summary = text.replace(/\s+/g, " ").trim();
+
+  if (!summary) return "Пустой блок";
+
+  return trimCollapsedBlockSummary(summary);
+}
+
+function trimCollapsedBlockSummary(value: string) {
+  const summary = value.replace(/\s+/g, " ").trim();
 
   if (!summary) return "Пустой блок";
 
@@ -643,7 +689,7 @@ function DividerBlockEditor({ block }: { block: Extract<StudyContentBlock, { typ
 }
 
 const studyContentBlockClass =
-  "rounded-panel border border-app-border bg-app-surface-soft p-4 text-app-text transition-colors";
+  "min-w-0 max-w-full rounded-panel border border-app-border bg-app-surface-soft p-4 text-app-text transition-colors";
 const studyContentBlockActiveClass =
   "border-[color-mix(in_srgb,var(--accent)_50%,var(--border))] shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent)_28%,transparent)]";
 const studyContentBlockCollapsedClass =
@@ -651,7 +697,7 @@ const studyContentBlockCollapsedClass =
 const blockGripButtonClass =
   "grid h-6 w-6 shrink-0 place-items-center rounded-control text-app-muted transition-colors hover:bg-app-surface-strong hover:text-app-accent-strong";
 const collapsedBlockPreviewClass =
-  "truncate rounded-control border border-dashed border-app-border bg-app-surface px-3 py-2 text-sm text-app-muted";
+  "block min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-control border border-dashed border-app-border bg-app-surface px-3 py-2 text-sm text-app-muted";
 const iconButtonClass =
   "inline-flex h-9 w-9 items-center justify-center rounded-control border border-app-border bg-app-surface-strong text-app-muted transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:text-app-accent-strong disabled:cursor-not-allowed disabled:opacity-45";
 const iconButtonActiveClass =
