@@ -87,7 +87,7 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
   async function saveNote(note: Note) {
     await noteStorageClient.saveNote(note);
     await loadNotes();
-    setEditorNoteId(undefined);
+    setEditorNoteId(note.id);
   }
 
   async function archiveNote(note: Note) {

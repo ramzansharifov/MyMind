@@ -14,7 +14,7 @@ import {
   Search,
   Trash2,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type { BoardsData } from '../boards/types';
 import {
   StudyBlockEditor,
@@ -47,6 +47,8 @@ type StudyMode = 'edit' | 'read';
 type SaveMaterialOptions = { source?: 'manual' | 'auto' | 'flush' };
 type StudyTreeMenuState = { nodeId: string; x: number; y: number };
 type StudyTreeDropTarget = { parentId: string | null };
+type StudyTreeRenameState = { nodeId: string; title: string };
+type StudyTreePointerDragState = { nodeId: string; startX: number; startY: number; isDragging: boolean };
 
 export function StudyPage({ data, onChange }: StudyPageProps) {
   const safeData = useMemo(() => normalizeStudyData(data), [data]);
@@ -64,6 +66,7 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
   const [nodePendingDelete, setNodePendingDelete] = useState<StudyNode | null>(null);
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
   const [treeDropTarget, setTreeDropTarget] = useState<StudyTreeDropTarget | null>(null);
+  const [renamingNode, setRenamingNode] = useState<StudyTreeRenameState | null>(null);
 
   const activeMaterialRef = useRef<StudyMaterial | null>(null);
   const draftContentRef = useRef<StudyBlockDocument>(draftContent);
@@ -72,6 +75,9 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
   const selectedMaterialIdRef = useRef<string | null>(null);
   const autoSaveTimerRef = useRef<number | null>(null);
   const draftVersionRef = useRef(0);
+  const pointerDragRef = useRef<StudyTreePointerDragState | null>(null);
+  const suppressTreeClickRef = useRef(false);
+  const previousUserSelectRef = useRef<string | null>(null);
 
   const selectedNode = safeData.nodes.find((node) => node.id === safeData.selectedNodeId) ?? safeData.nodes[0] ?? null;
   const selectedMaterialId = selectedNode?.type === 'material' ? selectedNode.materialId : null;
@@ -306,12 +312,62 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
     });
   }
 
-  async function renameNode(targetNode: StudyNode | null) {
+  function handleTreeNodeSelect(node: StudyNode) {
+    if (suppressTreeClickRef.current) return;
+    void selectNode(node);
+  }
+
+  function startRenameNode(targetNode: StudyNode | null) {
     if (!targetNode) return;
 
-    const title = window.prompt('Название', targetNode.title)?.trim();
+    const ancestorIds = getStudyNodePath(safeData.nodes, targetNode)
+      .slice(0, -1)
+      .map((node) => node.id);
 
-    if (!title) return;
+    if (ancestorIds.length > 0) {
+      updateStudy({
+        ...safeData,
+        nodes: safeData.nodes.map((node) =>
+          ancestorIds.includes(node.id)
+            ? {
+                ...node,
+                isExpanded: true,
+              }
+            : node,
+        ),
+      });
+    }
+
+    setTreeMenu(null);
+    setSearch('');
+    setRenamingNode({ nodeId: targetNode.id, title: targetNode.title });
+  }
+
+  function cancelRenameNode() {
+    setRenamingNode(null);
+  }
+
+  function updateRenameDraft(nodeId: string, title: string) {
+    setRenamingNode((current) => (current?.nodeId === nodeId ? { ...current, title } : current));
+  }
+
+  async function commitRenameNode() {
+    const pendingRename = renamingNode;
+    if (!pendingRename) return;
+
+    const targetNode = safeData.nodes.find((node) => node.id === pendingRename.nodeId) ?? null;
+    if (!targetNode) {
+      setRenamingNode(null);
+      return;
+    }
+
+    const title = pendingRename.title.trim();
+
+    if (!title || title === targetNode.title) {
+      setRenamingNode(null);
+      return;
+    }
+
     if (!(await flushPendingMaterialSave())) return;
 
     const timestamp = nowIso();
@@ -344,6 +400,7 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
       ...safeData,
       nodes: safeData.nodes.map((node) => (node.id === targetNode.id ? { ...node, title, updatedAt: timestamp } : node)),
     });
+    setRenamingNode(null);
   }
 
   async function deleteNode(targetNode: StudyNode | null) {
@@ -427,10 +484,6 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
     return true;
   }
 
-  function draggedIdFromEvent(event: ReactDragEvent) {
-    return draggedNodeId || event.dataTransfer.getData('application/x-study-node') || event.dataTransfer.getData('text/plain') || null;
-  }
-
   async function moveNodeToParent(nodeId: string, parentId: string | null) {
     if (!canMoveNodeToParent(nodeId, parentId)) return;
     if (!(await flushPendingMaterialSave())) return;
@@ -463,80 +516,115 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
     });
   }
 
-  function handleNodeDragStart(event: ReactDragEvent, node: StudyNode) {
-    event.stopPropagation();
-    setTreeMenu(null);
-    setDraggedNodeId(node.id);
-    setTreeDropTarget(null);
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('application/x-study-node', node.id);
-    event.dataTransfer.setData('text/plain', node.id);
+  function getPointerDropParentId(clientX: number, clientY: number, nodeId: string) {
+    const target = document.elementFromPoint(clientX, clientY);
+    const targetElement = target instanceof HTMLElement ? target.closest<HTMLElement>('[data-study-drop-target]') : null;
+    const rawParentId = targetElement?.dataset.studyDropTarget;
+
+    if (!rawParentId) return undefined;
+
+    const parentId = rawParentId === 'root' ? null : rawParentId;
+    return canMoveNodeToParent(nodeId, parentId) ? parentId : undefined;
   }
 
-  function handleNodeDragEnd() {
-    setDraggedNodeId(null);
-    setTreeDropTarget(null);
-  }
-
-  function handleFolderDragOver(event: ReactDragEvent, node: StudyNode) {
-    event.stopPropagation();
-
-    const nodeId = draggedIdFromEvent(event);
-    if (node.type !== 'folder' || !nodeId || !canMoveNodeToParent(nodeId, node.id)) {
-      setTreeDropTarget(null);
+  function setTreeUserSelectDisabled(disabled: boolean) {
+    if (disabled) {
+      if (previousUserSelectRef.current === null) {
+        previousUserSelectRef.current = document.body.style.userSelect;
+      }
+      document.body.style.userSelect = 'none';
       return;
     }
 
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-    setTreeDropTarget({ parentId: node.id });
+    if (previousUserSelectRef.current !== null) {
+      document.body.style.userSelect = previousUserSelectRef.current;
+      previousUserSelectRef.current = null;
+    }
   }
 
-  function handleFolderDragLeave(event: ReactDragEvent, node: StudyNode) {
-    if (!treeDropTarget || treeDropTarget.parentId !== node.id) return;
-    const nextTarget = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-    if (nextTarget && event.currentTarget.contains(nextTarget)) return;
-    setTreeDropTarget(null);
+  function handleTreeNodePointerDown(event: ReactPointerEvent, node: StudyNode) {
+    if (event.button !== 0 || renamingNode?.nodeId === node.id) return;
+
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    if (target?.closest('[data-study-tree-no-drag="true"]')) return;
+
+    setTreeMenu(null);
+    pointerDragRef.current = {
+      nodeId: node.id,
+      startX: event.clientX,
+      startY: event.clientY,
+      isDragging: false,
+    };
   }
 
-  function handleFolderDrop(event: ReactDragEvent, node: StudyNode) {
-    event.preventDefault();
-    event.stopPropagation();
+  useEffect(() => {
+    function finishPointerDrag(event: PointerEvent, shouldDrop: boolean) {
+      const drag = pointerDragRef.current;
+      if (!drag) return;
 
-    const nodeId = draggedIdFromEvent(event);
-    setDraggedNodeId(null);
-    setTreeDropTarget(null);
+      const wasDragging = drag.isDragging;
+      const parentId = wasDragging && shouldDrop ? getPointerDropParentId(event.clientX, event.clientY, drag.nodeId) : undefined;
 
-    if (!nodeId || node.type !== 'folder') return;
-    void moveNodeToParent(nodeId, node.id);
-  }
+      pointerDragRef.current = null;
+      setDraggedNodeId(null);
+      setTreeDropTarget(null);
+      setTreeUserSelectDisabled(false);
 
-  function handleRootDragOver(event: ReactDragEvent) {
-    const nodeId = draggedIdFromEvent(event);
-    if (!nodeId || !canMoveNodeToParent(nodeId, null)) return;
+      if (!wasDragging) {
+        suppressTreeClickRef.current = false;
+        return;
+      }
 
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-    setTreeDropTarget({ parentId: null });
-  }
+      suppressTreeClickRef.current = true;
+      window.setTimeout(() => {
+        suppressTreeClickRef.current = false;
+      }, 0);
 
-  function handleRootDrop(event: ReactDragEvent) {
-    event.preventDefault();
+      if (parentId !== undefined) {
+        void moveNodeToParent(drag.nodeId, parentId);
+      }
+    }
 
-    const nodeId = draggedIdFromEvent(event);
-    setDraggedNodeId(null);
-    setTreeDropTarget(null);
+    function handlePointerMove(event: PointerEvent) {
+      const drag = pointerDragRef.current;
+      if (!drag) return;
 
-    if (!nodeId) return;
-    void moveNodeToParent(nodeId, null);
-  }
+      const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+      if (!drag.isDragging && distance < 6) return;
 
-  function handleRootDragLeave(event: ReactDragEvent) {
-    if (!treeDropTarget || treeDropTarget.parentId !== null) return;
-    const nextTarget = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-    if (nextTarget && event.currentTarget.contains(nextTarget)) return;
-    setTreeDropTarget(null);
-  }
+      if (!drag.isDragging) {
+        drag.isDragging = true;
+        suppressTreeClickRef.current = true;
+        setDraggedNodeId(drag.nodeId);
+        setTreeUserSelectDisabled(true);
+      }
+
+      event.preventDefault();
+      window.getSelection()?.removeAllRanges();
+
+      const parentId = getPointerDropParentId(event.clientX, event.clientY, drag.nodeId);
+      setTreeDropTarget(parentId === undefined ? null : { parentId });
+    }
+
+    function handlePointerUp(event: PointerEvent) {
+      finishPointerDrag(event, true);
+    }
+
+    function handlePointerCancel(event: PointerEvent) {
+      finishPointerDrag(event, false);
+    }
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerCancel);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerCancel);
+      setTreeUserSelectDisabled(false);
+    };
+  }, [safeData]);
 
   function openTreeMenu(event: ReactMouseEvent, node: StudyNode) {
     event.preventDefault();
@@ -657,13 +745,17 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
           ) : null}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div
+            className={cn(
+              'min-h-0 flex-1 overflow-y-auto rounded-panel pr-1 transition-colors',
+              draggedNodeId && treeDropTarget?.parentId === null && 'bg-[color-mix(in_srgb,var(--accent)_5%,transparent)]',
+            )}
+            data-study-drop-target="root"
+          >
           {draggedNodeId ? (
             <div
               className={cn(rootDropClass, treeDropTarget?.parentId === null && rootDropActiveClass)}
-              onDragOver={handleRootDragOver}
-              onDragLeave={handleRootDragLeave}
-              onDrop={handleRootDrop}
+              data-study-drop-target="root"
             >
               Перенести в корень
             </div>
@@ -678,16 +770,17 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
                 node={node}
                 nodes={visibleNodes}
                 selectedNodeId={selectedNode?.id ?? null}
-                onSelect={selectNode}
+                onSelect={handleTreeNodeSelect}
                 onToggle={toggleFolder}
                 onContextMenu={openTreeMenu}
-                onDragStart={handleNodeDragStart}
-                onDragEnd={handleNodeDragEnd}
-                onDragOverFolder={handleFolderDragOver}
-                onDragLeaveFolder={handleFolderDragLeave}
-                onDropOnFolder={handleFolderDrop}
+                onPointerDown={handleTreeNodePointerDown}
                 draggedNodeId={draggedNodeId}
                 dropTargetParentId={treeDropTarget?.parentId ?? undefined}
+                renamingNodeId={renamingNode?.nodeId ?? null}
+                renameDraft={renamingNode?.title ?? ''}
+                onRenameDraftChange={updateRenameDraft}
+                onRenameCommit={commitRenameNode}
+                onRenameCancel={cancelRenameNode}
                 forceExpanded={isSearchActive}
               />
             ))
@@ -708,7 +801,7 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
                 </button>
               </>
             ) : null}
-            <button className={treeMenuButtonClass} type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => renameNode(treeMenuNode))}>
+            <button className={treeMenuButtonClass} type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => startRenameNode(treeMenuNode))}>
               <Pencil size={15} />
               Переименовать
             </button>
@@ -721,24 +814,26 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
       </aside>
 
       <main className="h-full min-h-0 min-w-0 overflow-y-auto p-6">
+        <nav className="mb-2 flex flex-wrap items-center gap-1.5 px-1 text-xs text-app-muted" aria-label="Путь">
+          <span>Обучение</span>
+          {selectedPath.map((node) => (
+            <button className="after:ml-1.5 after:text-app-muted after:content-['/'] last:after:hidden hover:text-app-accent-strong" key={node.id} type="button" onClick={() => void selectNode(node)}>
+              {node.title}
+            </button>
+          ))}
+        </nav>
+
         <div className="mb-4 flex items-start justify-between gap-4 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-5 [backdrop-filter:var(--glass-blur)] shadow-panel max-[900px]:flex-col">
           <div className="min-w-0">
-            <nav className="mb-3 flex flex-wrap items-center gap-1.5 text-xs text-app-muted" aria-label="Путь">
-              <span>Обучение</span>
-              {selectedPath.map((node) => (
-                <button className="after:ml-1.5 after:text-app-muted after:content-['/'] last:after:hidden hover:text-app-accent-strong" key={node.id} type="button" onClick={() => void selectNode(node)}>
-                  {node.title}
-                </button>
-              ))}
-            </nav>
-
-            <span className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-accent-strong">{selectedNode?.type === 'folder' ? 'Папка' : 'Материал'}</span>
-            <h1 className="mt-2 truncate text-[34px] font-extrabold leading-tight text-app-text">{selectedNode?.title ?? 'Обучение'}</h1>
-
-            <div className={cn(saveStatusClass, saveStatusTone === 'dirty' && 'text-app-warning', saveStatusTone === 'saving' && 'text-app-accent-strong')}>
-              <span className={cn("h-2 w-2 rounded-full bg-app-positive", saveStatusTone === 'dirty' && 'bg-app-warning', saveStatusTone === 'saving' && 'bg-app-accent-strong')} aria-hidden="true" />
-              {saveStatusLabel}
+            <div className="mb-2 flex flex-wrap items-center gap-3">
+              <span className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-accent-strong">{selectedNode?.type === 'folder' ? 'Папка' : 'Материал'}</span>
+              <div className={cn(saveStatusClass, saveStatusTone === 'dirty' && 'text-app-warning', saveStatusTone === 'saving' && 'text-app-accent-strong')}>
+                <span className={cn("h-2 w-2 rounded-full bg-app-positive", saveStatusTone === 'dirty' && 'bg-app-warning', saveStatusTone === 'saving' && 'bg-app-accent-strong')} aria-hidden="true" />
+                {saveStatusLabel}
+              </div>
             </div>
+
+            <h1 className="truncate text-[34px] font-extrabold leading-tight text-app-text">{selectedNode?.title ?? 'Обучение'}</h1>
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -754,13 +849,14 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
               </button>
             </div>
 
-            <button className={ghostButtonClass} type="button" onClick={() => void renameNode(selectedNode)} disabled={!selectedNode}>
+            <button className={ghostButtonClass} type="button" onClick={() => startRenameNode(selectedNode)} disabled={!selectedNode}>
               <Pencil size={16} />
               Переименовать
             </button>
 
-            <button className={dangerIconButtonClass} type="button" onClick={() => requestDeleteNode(selectedNode)} disabled={!selectedNode} aria-label="Удалить" title="Удалить">
+            <button className={dangerButtonClass} type="button" onClick={() => requestDeleteNode(selectedNode)} disabled={!selectedNode}>
               <Trash2 size={18} />
+              Удалить
             </button>
           </div>
         </div>
@@ -887,13 +983,14 @@ function StudyTreeNode({
   onSelect,
   onToggle,
   onContextMenu,
-  onDragStart,
-  onDragEnd,
-  onDragOverFolder,
-  onDragLeaveFolder,
-  onDropOnFolder,
+  onPointerDown,
   draggedNodeId,
   dropTargetParentId,
+  renamingNodeId,
+  renameDraft,
+  onRenameDraftChange,
+  onRenameCommit,
+  onRenameCancel,
   forceExpanded,
 }: {
   node: StudyNode;
@@ -902,13 +999,14 @@ function StudyTreeNode({
   onSelect: (node: StudyNode) => void | Promise<void>;
   onToggle: (nodeId: string) => void;
   onContextMenu: (event: ReactMouseEvent, node: StudyNode) => void;
-  onDragStart: (event: ReactDragEvent, node: StudyNode) => void;
-  onDragEnd: () => void;
-  onDragOverFolder: (event: ReactDragEvent, node: StudyNode) => void;
-  onDragLeaveFolder: (event: ReactDragEvent, node: StudyNode) => void;
-  onDropOnFolder: (event: ReactDragEvent, node: StudyNode) => void;
+  onPointerDown: (event: ReactPointerEvent, node: StudyNode) => void;
   draggedNodeId: string | null;
   dropTargetParentId: string | null | undefined;
+  renamingNodeId: string | null;
+  renameDraft: string;
+  onRenameDraftChange: (nodeId: string, title: string) => void;
+  onRenameCommit: () => void | Promise<void>;
+  onRenameCancel: () => void;
   forceExpanded: boolean;
 }) {
   const children = nodes.filter((item) => item.parentId === node.id).sort((a, b) => a.order - b.order);
@@ -917,23 +1015,22 @@ function StudyTreeNode({
   const isActive = selectedNodeId === node.id;
   const isDragging = draggedNodeId === node.id;
   const isDropTarget = isFolder && dropTargetParentId === node.id;
+  const isRenaming = renamingNodeId === node.id;
 
   return (
     <div className="grid gap-1">
       <div
-        className={cn(treeItemClass, isActive && treeItemActiveClass, isDragging && 'opacity-45', isDropTarget && 'border-[color-mix(in_srgb,var(--accent)_64%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_14%,var(--surface-strong))]')}
-        draggable
+        className={cn(treeItemClass, !isRenaming && 'cursor-grab active:cursor-grabbing', isActive && treeItemActiveClass, isDragging && 'opacity-45', isDropTarget && 'border-[color-mix(in_srgb,var(--accent)_64%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_14%,var(--surface-strong))]')}
+        data-study-drop-target={isFolder ? node.id : undefined}
         onContextMenu={(event) => onContextMenu(event, node)}
-        onDragStart={(event) => onDragStart(event, node)}
-        onDragEnd={onDragEnd}
-        onDragOver={(event) => onDragOverFolder(event, node)}
-        onDragLeave={(event) => onDragLeaveFolder(event, node)}
-        onDrop={(event) => onDropOnFolder(event, node)}
+        onPointerDown={(event) => onPointerDown(event, node)}
       >
         {isFolder ? (
           <button
             className="grid h-7 w-7 shrink-0 place-items-center rounded-control text-app-muted transition-colors hover:bg-app-surface-strong hover:text-app-accent-strong disabled:opacity-30"
             type="button"
+            data-study-tree-no-drag="true"
+            onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
               onToggle(node.id);
@@ -947,10 +1044,22 @@ function StudyTreeNode({
           <span className="h-7 w-7 shrink-0" />
         )}
 
-        <button className="flex min-w-0 flex-1 items-center gap-2 rounded-control px-1 py-1 text-left text-app-text" type="button" onClick={() => void onSelect(node)}>
-          {isFolder ? <Folder size={17} /> : <FileText size={17} />}
-          <span className="truncate text-sm font-bold">{node.title}</span>
-        </button>
+        {isRenaming ? (
+          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-control px-1 py-1 text-left text-app-text">
+            {isFolder ? <Folder size={17} /> : <FileText size={17} />}
+            <StudyTreeRenameInput
+              value={renameDraft}
+              onChange={(title) => onRenameDraftChange(node.id, title)}
+              onCommit={onRenameCommit}
+              onCancel={onRenameCancel}
+            />
+          </div>
+        ) : (
+          <button className="flex min-w-0 flex-1 items-center gap-2 rounded-control px-1 py-1 text-left text-app-text" type="button" onClick={() => void onSelect(node)}>
+            {isFolder ? <Folder size={17} /> : <FileText size={17} />}
+            <span className="truncate text-sm font-bold">{node.title}</span>
+          </button>
+        )}
       </div>
 
       {children.length > 0 && isExpanded ? (
@@ -964,19 +1073,71 @@ function StudyTreeNode({
               onSelect={onSelect}
               onToggle={onToggle}
               onContextMenu={onContextMenu}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-              onDragOverFolder={onDragOverFolder}
-              onDragLeaveFolder={onDragLeaveFolder}
-              onDropOnFolder={onDropOnFolder}
+              onPointerDown={onPointerDown}
               draggedNodeId={draggedNodeId}
               dropTargetParentId={dropTargetParentId}
+              renamingNodeId={renamingNodeId}
+              renameDraft={renameDraft}
+              onRenameDraftChange={onRenameDraftChange}
+              onRenameCommit={onRenameCommit}
+              onRenameCancel={onRenameCancel}
               forceExpanded={forceExpanded}
             />
           ))}
         </div>
       ) : null}
     </div>
+  );
+}
+
+function StudyTreeRenameInput({
+  value,
+  onChange,
+  onCommit,
+  onCancel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onCommit: () => void | Promise<void>;
+  onCancel: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const cancelledRef = useRef(false);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  return (
+    <input
+      ref={inputRef}
+      className="min-h-8 min-w-0 flex-1 rounded-control border border-[color-mix(in_srgb,var(--accent)_54%,var(--border))] bg-app-surface-strong px-2 text-sm font-bold text-app-text outline-none transition-colors focus:border-[color-mix(in_srgb,var(--accent)_76%,var(--border))] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_14%,transparent)]"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      onDragStart={(event) => event.stopPropagation()}
+      onBlur={() => {
+        if (cancelledRef.current) return;
+        void onCommit();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          event.stopPropagation();
+          cancelledRef.current = false;
+          void onCommit();
+        }
+
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          cancelledRef.current = true;
+          onCancel();
+        }
+      }}
+    />
   );
 }
 
@@ -1001,8 +1162,8 @@ const iconButtonClass =
   'inline-flex h-10 w-10 items-center justify-center rounded-control border border-app-border bg-app-surface-strong text-app-muted transition-colors hover:border-[color-mix(in_srgb,var(--accent)_42%,var(--border))] hover:text-app-accent-strong disabled:cursor-not-allowed disabled:opacity-45';
 const primaryIconButtonClass =
   'inline-flex h-10 w-10 items-center justify-center rounded-control border border-[color-mix(in_srgb,var(--accent)_58%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_16%,var(--surface-strong))] text-app-accent-strong transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_22%,var(--surface-strong))]';
-const dangerIconButtonClass =
-  'inline-flex h-10 w-10 items-center justify-center rounded-control border border-[color-mix(in_srgb,var(--danger)_46%,var(--border))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--surface-strong))] text-app-danger transition-colors hover:border-app-danger hover:bg-[color-mix(in_srgb,var(--danger)_18%,var(--surface-strong))] disabled:cursor-not-allowed disabled:opacity-45';
+const dangerButtonClass =
+  'inline-flex min-h-control items-center justify-center gap-2 rounded-control border border-[color-mix(in_srgb,var(--danger)_46%,var(--border))] bg-[color-mix(in_srgb,var(--danger)_12%,var(--surface-strong))] px-3.5 py-2.5 text-sm font-bold text-app-danger transition-colors hover:border-app-danger hover:bg-[color-mix(in_srgb,var(--danger)_18%,var(--surface-strong))] disabled:cursor-not-allowed disabled:opacity-45';
 const statPillClass =
   'inline-flex min-h-9 items-center justify-center gap-2 rounded-control border border-app-border bg-app-surface-soft px-3 text-sm font-bold text-app-muted';
 const rootDropClass =
@@ -1012,7 +1173,7 @@ const rootDropActiveClass =
 const treeMenuButtonClass =
   'flex w-full items-center gap-2 rounded-control border border-transparent px-3 py-2 text-left transition-colors hover:border-app-border hover:bg-app-surface-strong';
 const saveStatusClass =
-  'mt-3 inline-flex w-fit items-center gap-2 rounded-full border border-app-border bg-app-surface-soft px-3 py-1.5 text-xs font-bold text-app-muted';
+  'inline-flex w-fit items-center gap-2 rounded-full border border-app-border bg-app-surface-soft px-3 py-1.5 text-xs font-bold text-app-muted';
 const modeToggleButtonClass =
   'inline-flex min-h-9 items-center gap-2 rounded-control px-3 py-2 text-sm font-bold text-app-muted transition-colors hover:text-app-text';
 const modeToggleActiveClass =

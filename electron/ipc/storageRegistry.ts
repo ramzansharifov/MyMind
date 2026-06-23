@@ -1,4 +1,4 @@
-export type CollectionName =
+﻿export type CollectionName =
   | 'movies'
   | 'workouts'
   | 'todos'
@@ -8,8 +8,6 @@ export type CollectionName =
   | 'journal_entries'
   | 'notes'
   | 'templates'
-  | 'study'
-  | 'boards'
   | 'projects'
   | 'contacts'
   | 'health'
@@ -17,37 +15,32 @@ export type CollectionName =
   | 'inventory'
   | 'app_settings';
 
-export const collectionFiles: Record<CollectionName, string> = {
-  movies: 'movies.json',
-  workouts: 'workouts.json',
-  todos: 'todos.json',
-  finance: 'finance.json',
-  habits: 'habits.json',
-  calendar_events: 'calendar_events.json',
-  journal_entries: 'journal_entries.json',
-  notes: 'notes.json',
-  templates: 'templates.json',
-  study: 'study.json',
-  boards: 'boards.json',
-  projects: 'projects.json',
-  contacts: 'contacts.json',
-  health: 'health.json',
-  goals: 'goals.json',
-  inventory: 'inventory.json',
-  app_settings: 'app_settings.json',
-};
-
-export const listCollections = new Set<CollectionName>([
+export const collections = [
   'movies',
+  'workouts',
   'todos',
+  'finance',
+  'habits',
   'calendar_events',
   'journal_entries',
   'notes',
   'templates',
-  'study',
-  'boards',
   'projects',
   'contacts',
+  'health',
+  'goals',
+  'inventory',
+  'app_settings',
+] as const satisfies readonly CollectionName[];
+
+const collectionSet = new Set<string>(collections);
+
+export const listCollections = new Set<CollectionName>([
+  'movies',
+  'calendar_events',
+  'journal_entries',
+  'templates',
+  'projects',
   'goals',
   'inventory',
 ]);
@@ -72,11 +65,14 @@ export function defaultValue(collectionName: CollectionName, dataDirectory: stri
   if (collectionName === 'health') {
     return { entries: [], metrics: [] };
   }
-  if (collectionName === 'study') {
-    return { selectedNodeId: null, nodes: [] };
+  if (collectionName === 'notes') {
+    return { items: [], groups: [] };
   }
-  if (collectionName === 'boards') {
-    return { boards: [], folders: [] };
+  if (collectionName === 'templates') {
+    return { items: [], groups: [] };
+  }
+  if (collectionName === 'contacts') {
+    return { items: [], groups: [] };
   }
   if (collectionName === 'app_settings') {
     return {
@@ -97,7 +93,7 @@ export function defaultValue(collectionName: CollectionName, dataDirectory: stri
 }
 
 export function assertCollectionName(value: string): CollectionName {
-  if (value in collectionFiles) {
+  if (collectionSet.has(value)) {
     return value as CollectionName;
   }
   throw new Error(`Unknown storage collection: ${value}`);

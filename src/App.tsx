@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from './shared/components/AppShell';
 import { CancelButton, SaveButton } from './shared/components/ActionButtons';
 import { LoadingState } from './shared/components/LoadingState';
@@ -146,7 +146,7 @@ export function App() {
       return (
         <LoadingState
           title="Loading module"
-          message="Pulling the needed local collections into memory..."
+          message="Pulling the needed SQLite-backed collections into memory..."
           detail={activeLoads ? `${activeLoads} collection${activeLoads === 1 ? '' : 's'} in progress` : undefined}
           variant="page"
         />
@@ -375,3 +375,4 @@ function ReminderModal({ reminder, onDismiss, onSnooze }: { reminder: AppReminde
     </Modal>
   );
 }
+
