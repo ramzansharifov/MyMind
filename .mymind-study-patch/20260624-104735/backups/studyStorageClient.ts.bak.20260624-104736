@@ -1,13 +1,10 @@
 import { storageClient } from "../../../shared/storage/storageClient";
 import type { StudyData, StudyMaterial, StudyMaterialIndexItem } from "../types";
-import { normalizeStudyData } from "../studyUtils";
-
-let treeSaveQueue: Promise<void> = Promise.resolve();
 
 function requireStudyApi() {
   if (!window.mymind?.study) {
     throw new Error(
-      "Study storage API is not available. Fully restart the Electron app to load the updated preload script.",
+      "Study storage API is not available. Restart the Electron app to load the updated preload script.",
     );
   }
 
@@ -32,17 +29,6 @@ export const studyStorageClient = {
   },
 
   saveTree(data: StudyData): Promise<StudyData> {
-    const normalized = normalizeStudyData(data);
-
-    const saveRequest = treeSaveQueue
-      .catch(() => undefined)
-      .then(async () => normalizeStudyData(await storageClient.saveAll("study", normalized)));
-
-    treeSaveQueue = saveRequest.then(
-      () => undefined,
-      () => undefined,
-    );
-
-    return saveRequest;
+    return storageClient.saveAll("study", data);
   },
 };

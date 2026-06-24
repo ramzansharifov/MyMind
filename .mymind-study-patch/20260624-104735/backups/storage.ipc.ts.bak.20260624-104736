@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, Notification, shell } from 'electron';
+﻿import { app, dialog, ipcMain, Notification, shell } from 'electron';
 import path from 'node:path';
 import { assertCollectionName, type CollectionName } from './storageRegistry';
 import {
@@ -30,14 +30,17 @@ import {
   readNoteFile,
   readNoteIndex,
   readSearchIndex,
+  readStudyMaterial,
+  readStudyMaterialIndex,
   saveGlobalAsset,
   saveNoteAsset,
   saveNoteDraft,
   saveNoteFile,
+  saveStudyMaterial,
   updateCollectionItem,
   writeCollection,
+  deleteStudyMaterial,
 } from '../db/sqliteRepository';
-import { deleteStudyMaterial, readStudyMaterial, readStudyMaterialIndex, saveStudyMaterial } from '../db/studyRepository';
 
 type NoteFile = {
   id: string;
