@@ -36,8 +36,6 @@ export function App() {
   const [pendingNavigation, setPendingNavigation] = useState<ModuleKey | null>(null);
   const [noteEditorDirty, setNoteEditorDirty] = useState(false);
   const [noteEditorActions, setNoteEditorActions] = useState<NoteEditorNavigationActions | null>(null);
-  const [studyEditorDirty, setStudyEditorDirty] = useState(false);
-  const [studyEditorActions, setStudyEditorActions] = useState<StudyEditorNavigationActions | null>(null);
   const {
     data,
     setData,
@@ -71,64 +69,37 @@ export function App() {
         return;
       }
 
-      if (activeModule === 'study' && studyEditorDirty && studyEditorActions) {
-        setPendingNavigation(module);
-        return;
-      }
-
       setActiveModule(module);
     },
-    [activeModule, noteEditorActions, noteEditorDirty, studyEditorActions, studyEditorDirty],
+    [activeModule, noteEditorActions, noteEditorDirty],
   );
 
   async function saveNoteAndNavigate() {
     const target = pendingNavigation;
-    const actions = activeModule === 'study' ? studyEditorActions : noteEditorActions;
-
+    const actions = noteEditorActions;
     if (!target || !actions) {
       setPendingNavigation(null);
       return;
     }
 
-    try {
-      await actions.save();
-    } catch {
-      return;
-    }
-
+    await actions.save();
     setPendingNavigation(null);
-
-    if (activeModule === 'study') {
-      setStudyEditorDirty(false);
-      setStudyEditorActions(null);
-    } else {
-      setNoteEditorDirty(false);
-      setNoteEditorActions(null);
-    }
-
+    setNoteEditorDirty(false);
+    setNoteEditorActions(null);
     setActiveModule(target);
   }
 
   function discardNoteAndNavigate() {
     const target = pendingNavigation;
-    const actions = activeModule === 'study' ? studyEditorActions : noteEditorActions;
-
     if (!target) {
       setPendingNavigation(null);
       return;
     }
 
-    actions?.discard();
+    noteEditorActions?.discard();
     setPendingNavigation(null);
-
-    if (activeModule === 'study') {
-      setStudyEditorDirty(false);
-      setStudyEditorActions(null);
-    } else {
-      setNoteEditorDirty(false);
-      setNoteEditorActions(null);
-    }
-
+    setNoteEditorDirty(false);
+    setNoteEditorActions(null);
     setActiveModule(target);
   }
 
@@ -249,9 +220,7 @@ export function App() {
               }));
               requestNavigate('boards');
             }}
-          
-             onEditorDirtyChange={setStudyEditorDirty}
-             onEditorActionsChange={setStudyEditorActions}/>
+          />
         );
       case 'boards':
         return <BoardsPage data={data.boards} onChange={(boards) => setData((current) => ({ ...current, boards }))} />;
@@ -340,21 +309,16 @@ interface NoteEditorNavigationActions {
   discard: () => void;
 }
 
-interface StudyEditorNavigationActions {
-  save: () => void | Promise<void>;
-  discard: () => void;
-}
-
 function UnsavedNoteChangesDialog({ onCancel, onDiscard, onSave }: { onCancel: () => void; onDiscard: () => void; onSave: () => void }) {
   return (
     <Modal
-      title="Несохранённые изменения"
-      subtitle="Сохрани или отбрось изменения перед переходом в другой модуль."
+      title="Unsaved note changes"
+      subtitle="Save or discard the current note before leaving Notes."
       size="sm"
       onClose={onCancel}
       footer={
         <>
-          <CancelButton onClick={onCancel}>Отмена</CancelButton>
+          <CancelButton onClick={onCancel}>Cancel</CancelButton>
           <button
             className="inline-flex min-h-control items-center justify-center gap-2 whitespace-nowrap rounded-control border border-[color-mix(in_srgb,var(--danger)_72%,var(--border))] bg-[var(--button-bg-danger)] px-3.5 py-2.5 text-app-danger transition-[border-color,box-shadow,transform,background,color] duration-150 hover:-translate-y-px hover:border-[color-mix(in_srgb,var(--danger)_88%,var(--border))] hover:bg-[var(--button-bg-danger-hover)] hover:text-[color-mix(in_srgb,var(--danger)_92%,white)] hover:shadow-[0_8px_22px_var(--shadow)]"
             type="button"
@@ -362,11 +326,11 @@ function UnsavedNoteChangesDialog({ onCancel, onDiscard, onSave }: { onCancel: (
           >
             Discard
           </button>
-          <SaveButton label="Сохранить" type="button" onClick={onSave} />
+          <SaveButton label="Save" type="button" onClick={onSave} />
         </>
       }
     >
-      <p className="text-app-muted">В текущем редакторе есть несохранённые изменения.</p>
+      <p className="text-app-muted">The note editor has unsaved changes.</p>
     </Modal>
   );
 }

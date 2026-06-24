@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu, protocol, shell } from 'electron';
 import path from 'node:path';
 import os from 'node:os';
 import { registerStorageIpc } from './ipc/storage.ipc';
+import { closeDatabase } from './db/sqliteRepository';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -94,6 +95,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+app.on('before-quit', () => {
+  closeDatabase();
 });
 
 export function openPathInShell(targetPath: string) {

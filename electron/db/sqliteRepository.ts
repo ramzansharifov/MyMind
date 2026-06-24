@@ -1435,9 +1435,15 @@ async function snapshotDatabaseTo(targetPath: string) {
   db.exec(`VACUUM INTO '${escaped}'`);
 }
 
-function closeDatabase() {
+export function closeDatabase() {
   if (!database) {
     return;
+  }
+
+  try {
+    database.pragma('wal_checkpoint(TRUNCATE)');
+  } catch {
+    // The database may already be closing; the next startup can still recover WAL.
   }
 
   database.close();

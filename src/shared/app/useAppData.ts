@@ -168,7 +168,11 @@ export function useAppData(activeModule: ModuleKey, setActiveModule: Dispatch<Se
   }
 
   async function saveChangedData(nextData: AppData, previousData: AppData) {
-    const trackedCollections = Array.from(new Set([...dataCollections, ...loadedCollectionsRef.current]));
+    const trackedCollections = Array.from(loadedCollectionsRef.current);
+
+    if (trackedCollections.length === 0) {
+      return;
+    }
 
     await Promise.all(
       trackedCollections

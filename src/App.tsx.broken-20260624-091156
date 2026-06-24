@@ -1,4 +1,4 @@
-﻿import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from './shared/components/AppShell';
 import { CancelButton, SaveButton } from './shared/components/ActionButtons';
 import { LoadingState } from './shared/components/LoadingState';
@@ -35,9 +35,9 @@ export function App() {
   const [activeModule, setActiveModule] = useState<ModuleKey>('dashboard');
   const [pendingNavigation, setPendingNavigation] = useState<ModuleKey | null>(null);
   const [noteEditorDirty, setNoteEditorDirty] = useState(false);
-  const [noteEditorActions, setNoteEditorActions] = useState<NoteEditorNavigationActions | null>(null);
+  const [noteEditorActions, setNoteEditorActions] = useState<EditorNavigationActions | null>(null);
   const [studyEditorDirty, setStudyEditorDirty] = useState(false);
-  const [studyEditorActions, setStudyEditorActions] = useState<StudyEditorNavigationActions | null>(null);
+  const [studyEditorActions, setStudyEditorActions] = useState<EditorNavigationActions | null>(null);
   const {
     data,
     setData,
@@ -81,7 +81,7 @@ export function App() {
     [activeModule, noteEditorActions, noteEditorDirty, studyEditorActions, studyEditorDirty],
   );
 
-  async function saveNoteAndNavigate() {
+  async function savePendingEditorAndNavigate() {
     const target = pendingNavigation;
     const actions = activeModule === 'study' ? studyEditorActions : noteEditorActions;
 
@@ -109,7 +109,7 @@ export function App() {
     setActiveModule(target);
   }
 
-  function discardNoteAndNavigate() {
+  function discardPendingEditorAndNavigate() {
     const target = pendingNavigation;
     const actions = activeModule === 'study' ? studyEditorActions : noteEditorActions;
 
@@ -129,6 +129,13 @@ export function App() {
       setNoteEditorActions(null);
     }
 
+    setActiveModule(target);
+  }
+
+    noteEditorActions?.discard();
+    setPendingNavigation(null);
+    setNoteEditorDirty(false);
+    setNoteEditorActions(null);
     setActiveModule(target);
   }
 
@@ -249,9 +256,9 @@ export function App() {
               }));
               requestNavigate('boards');
             }}
-          
              onEditorDirtyChange={setStudyEditorDirty}
-             onEditorActionsChange={setStudyEditorActions}/>
+             onEditorActionsChange={setStudyEditorActions}
+          />
         );
       case 'boards':
         return <BoardsPage data={data.boards} onChange={(boards) => setData((current) => ({ ...current, boards }))} />;
@@ -323,10 +330,10 @@ export function App() {
       >
         <Suspense fallback={<LoadingState title="Opening module" message="Loading interface and tools..." variant="page" />}>{page}</Suspense>
         {pendingNavigation ? (
-          <UnsavedNoteChangesDialog
+          <UnsavedChangesDialog
             onCancel={() => setPendingNavigation(null)}
-            onDiscard={discardNoteAndNavigate}
-            onSave={() => void saveNoteAndNavigate()}
+            onDiscard={discardPendingEditorAndNavigate}
+            onSave={() => void savePendingEditorAndNavigate()}
           />
         ) : null}
         {activeReminder ? <ReminderModal reminder={activeReminder} onDismiss={() => dismissReminder(activeReminder)} onSnooze={() => snoozeReminder(activeReminder)} /> : null}
@@ -335,17 +342,12 @@ export function App() {
   );
 }
 
-interface NoteEditorNavigationActions {
-  save: () => void;
-  discard: () => void;
-}
-
-interface StudyEditorNavigationActions {
+interface EditorNavigationActions {
   save: () => void | Promise<void>;
   discard: () => void;
 }
 
-function UnsavedNoteChangesDialog({ onCancel, onDiscard, onSave }: { onCancel: () => void; onDiscard: () => void; onSave: () => void }) {
+function UnsavedChangesDialog({ onCancel, onDiscard, onSave }: { onCancel: () => void; onDiscard: () => void; onSave: () => void }) {
   return (
     <Modal
       title="Несохранённые изменения"
