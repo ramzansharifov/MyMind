@@ -25,6 +25,7 @@ import type { AppSettings, ContentGroup, GroupedContentData, ModuleGroupIconKey,
 import { localDateOnly, weekdayNumber } from '../utils/dateUtils';
 
 export interface AppData {
+  [collectionName: string]: unknown;
   movies: Movie[];
   workouts: WorkoutData;
   todos: TodoData;
@@ -316,6 +317,13 @@ export function setDataCollection(data: AppData, collectionName: AppCollectionNa
     case 'inventory':
       return { ...data, inventory: Array.isArray(value) ? value as InventoryItem[] : [] };
   }
+  // Dynamic SQLite-backed collection fallback.
+  // Needed for modules added after the original fixed AppData union,
+  // for example: study, boards, tables, nutrition, and future modules.
+  return {
+    ...data,
+    [collectionName]: value,
+  } as AppData;
 }
 
 function normalizeLegacyEventReminder(event: {

@@ -70,6 +70,16 @@ type NoteSearchIndexItem = {
   updatedAt: string;
 };
 
+type StudyMaterial = {
+  id: string;
+  title: string;
+  editorContent: unknown;
+  plainText: string;
+  boardLinks: unknown[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 let database: SqliteDatabase | null = null;
 let legacyCleanupStarted = false;
 
@@ -211,6 +221,18 @@ function initializeDatabase(db: SqliteDatabase) {
       html TEXT,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS study_materials (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      editor_content TEXT NOT NULL CHECK (json_valid(editor_content)),
+      plain_text TEXT NOT NULL,
+      board_links TEXT NOT NULL CHECK (json_valid(board_links)),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_study_materials_updated_at ON study_materials(updated_at);
   `);
 
   const now = nowIso();
@@ -396,6 +418,117 @@ function sanitizeNoteId(value: unknown) {
     throw new Error('Invalid note id.');
   }
   return id.replace(/[^a-zA-Z0-9_-]/g, '-');
+}
+
+function sanitizeStudyMaterialId(value: unknown) {
+  const id = String(value ?? '').trim();
+  if (!id || /[\\/]/.test(id) || id.includes('..')) {
+    throw new Error('Invalid study material id.');
+  }
+  return id.replace(/[^a-zA-Z0-9_-]/g, '-');
+}
+
+function studyMaterialFromRow(row: Record<string, unknown>): StudyMaterial {
+  const boardLinks = parseJson(String(row.board_links ?? '[]'), []);
+
+  return {
+    id: String(row.id),
+    title: String(row.title ?? ''),
+    editorContent: parseJson(String(row.editor_content ?? 'null'), null),
+    plainText: String(row.plain_text ?? ''),
+    boardLinks: Array.isArray(boardLinks) ? boardLinks : [],
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+function normalizeStudyMaterial(material: Partial<StudyMaterial> & { id: string }): StudyMaterial {
+  const timestamp = nowIso();
+  const boardLinks = Array.isArray(material.boardLinks) ? material.boardLinks : [];
+
+  return {
+    id: sanitizeStudyMaterialId(material.id),
+    title: String(material.title ?? 'Новый материал'),
+    editorContent: material.editorContent ?? null,
+    plainText: String(material.plainText ?? ''),
+    boardLinks,
+    createdAt: material.createdAt ?? timestamp,
+    updatedAt: material.updatedAt ?? timestamp,
+  };
+}
+
+export async function readStudyMaterialIndex() {
+  const rows = getDb()
+    .prepare(
+      `
+        SELECT id, title, plain_text, board_links, created_at, updated_at
+        FROM study_materials
+        ORDER BY updated_at DESC
+      `,
+    )
+    .all() as Record<string, unknown>[];
+
+  return rows.map((row) => {
+    const boardLinks = parseJson(String(row.board_links ?? '[]'), []);
+
+    return {
+      id: String(row.id),
+      title: String(row.title ?? ''),
+      plainText: String(row.plain_text ?? ''),
+      boardCount: Array.isArray(boardLinks) ? boardLinks.length : 0,
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at),
+    };
+  });
+}
+
+export async function readStudyMaterial(materialId: string) {
+  const row = getDb()
+    .prepare(
+      `
+        SELECT id, title, editor_content, plain_text, board_links, created_at, updated_at
+        FROM study_materials
+        WHERE id = ?
+      `,
+    )
+    .get(sanitizeStudyMaterialId(materialId)) as Record<string, unknown> | undefined;
+
+  return row ? studyMaterialFromRow(row) : null;
+}
+
+export async function saveStudyMaterial(material: Partial<StudyMaterial> & { id: string }) {
+  const timestamp = nowIso();
+  const normalized = normalizeStudyMaterial({ ...material, updatedAt: timestamp });
+
+  getDb()
+    .prepare(
+      `
+        INSERT INTO study_materials (id, title, editor_content, plain_text, board_links, created_at, updated_at)
+        VALUES (@id, @title, @editorContent, @plainText, @boardLinks, @createdAt, @updatedAt)
+        ON CONFLICT(id) DO UPDATE SET
+          title = excluded.title,
+          editor_content = excluded.editor_content,
+          plain_text = excluded.plain_text,
+          board_links = excluded.board_links,
+          updated_at = excluded.updated_at
+      `,
+    )
+    .run({
+      id: normalized.id,
+      title: normalized.title,
+      editorContent: stringifyJson(normalized.editorContent),
+      plainText: normalized.plainText,
+      boardLinks: stringifyJson(normalized.boardLinks),
+      createdAt: normalized.createdAt,
+      updatedAt: timestamp,
+    });
+
+  return readStudyMaterial(normalized.id);
+}
+
+export async function deleteStudyMaterial(materialId: string) {
+  getDb().prepare('DELETE FROM study_materials WHERE id = ?').run(sanitizeStudyMaterialId(materialId));
+  return true;
 }
 
 function sanitizeAssetFileName(value: unknown) {

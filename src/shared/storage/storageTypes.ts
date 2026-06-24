@@ -17,26 +17,10 @@ import type { TodoData } from '../../modules/todos/types';
 import type { WorkoutData } from '../../modules/workouts/types';
 import type { AppSettings } from '../types/common';
 
-export type CollectionName =
-  | 'movies'
-  | 'workouts'
-  | 'todos'
-  | 'finance'
-  | 'habits'
-  | 'calendar_events'
-  | 'journal_entries'
-  | 'notes'
-  | 'templates'
-  | 'study'
-  | 'boards'
-  | 'projects'
-  | 'contacts'
-  | 'health'
-  | 'goals'
-  | 'inventory'
-  | 'app_settings';
+export type CollectionName = string;
 
 export interface CollectionMap {
+  [key: string]: unknown;
   movies: Movie[];
   workouts: WorkoutData;
   todos: TodoData;

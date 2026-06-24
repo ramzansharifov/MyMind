@@ -30,12 +30,16 @@ import {
   readNoteFile,
   readNoteIndex,
   readSearchIndex,
+  readStudyMaterial,
+  readStudyMaterialIndex,
   saveGlobalAsset,
   saveNoteAsset,
   saveNoteDraft,
   saveNoteFile,
+  saveStudyMaterial,
   updateCollectionItem,
   writeCollection,
+  deleteStudyMaterial,
 } from '../db/sqliteRepository';
 
 type NoteFile = {
@@ -205,6 +209,22 @@ export function registerStorageIpc() {
 
   ipcMain.handle('notes:invalidateHtmlCache', async (_event, noteId: string) => {
     return invalidateNoteHtmlCache(noteId);
+  });
+
+  ipcMain.handle('study:listIndex', async () => {
+    return readStudyMaterialIndex();
+  });
+
+  ipcMain.handle('study:get', async (_event, materialId: string) => {
+    return readStudyMaterial(materialId);
+  });
+
+  ipcMain.handle('study:save', async (_event, material: { id: string }) => {
+    return saveStudyMaterial(material);
+  });
+
+  ipcMain.handle('study:delete', async (_event, materialId: string) => {
+    return deleteStudyMaterial(materialId);
   });
 
   ipcMain.handle('storage:exportBackup', async () => {

@@ -8,6 +8,8 @@
   | 'journal_entries'
   | 'notes'
   | 'templates'
+  | 'study'
+  | 'boards'
   | 'projects'
   | 'contacts'
   | 'health'
@@ -25,6 +27,8 @@ export const collections = [
   'journal_entries',
   'notes',
   'templates',
+  'study',
+  'boards',
   'projects',
   'contacts',
   'health',
@@ -70,6 +74,27 @@ export function defaultValue(collectionName: CollectionName, dataDirectory: stri
   }
   if (collectionName === 'templates') {
     return { items: [], groups: [] };
+  }
+  if (collectionName === 'study') {
+    return { selectedNodeId: null, nodes: [] };
+  }
+  if (collectionName === 'boards') {
+    const timestamp = nowIso();
+    return {
+      activeBoardId: null,
+      folders: [
+        {
+          id: 'boards-folder-study',
+          title: 'Обучение',
+          parentId: null,
+          order: 0,
+          systemKey: 'study',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        },
+      ],
+      boards: [],
+    };
   }
   if (collectionName === 'contacts') {
     return { items: [], groups: [] };
