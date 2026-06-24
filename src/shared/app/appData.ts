@@ -156,7 +156,51 @@ export const dataCollections: AppCollectionName[] = [
 
 export const reminderCollections: AppCollectionName[] = ['todos', 'habits', 'calendar_events'];
 
-export const moduleCollections: Record<ModuleKey, AppCollectionName[]> = {
+function getAppDataKeyForCollection(collectionName: AppCollectionName): string {
+  switch (collectionName) {
+    case 'calendar_events':
+      return 'calendarEvents';
+    case 'journal_entries':
+      return 'journalEntries';
+    default:
+      return collectionName;
+  }
+}
+
+function getDefaultDynamicCollectionValue(collectionName: AppCollectionName) {
+  switch (collectionName) {
+    case 'todos':
+    case 'notes':
+    case 'templates':
+    case 'contacts':
+      return { items: [], groups: [] };
+    case 'finance':
+      return { startingBalance: 0, startedAt: null, transactions: [], savingsGoals: [], tags: [] };
+    case 'habits':
+      return { habits: [], logs: [] };
+    case 'health':
+      return { entries: [], metrics: [] };
+    case 'workouts':
+      return {
+        exercises: [],
+        exerciseGroups: [],
+        plans: [],
+        sessions: [],
+        startingPosition: null,
+        progressRecords: [],
+        nutritionEntries: [],
+      };
+    case 'study':
+      return emptyStudyData;
+    case 'boards':
+      return emptyBoardsData;
+    default:
+      return [];
+  }
+}
+
+
+export const moduleCollections: Record<string, AppCollectionName[]> = {
   dashboard: dataCollections,
   movies: ['movies'],
   workouts: ['workouts'],
@@ -265,10 +309,6 @@ export function getDataCollection(data: AppData, collectionName: AppCollectionNa
       return data.notes;
     case 'templates':
       return data.templates;
-    case 'study':
-      return data.study;
-    case 'boards':
-      return data.boards;
     case 'projects':
       return data.projects;
     case 'contacts':
@@ -279,6 +319,10 @@ export function getDataCollection(data: AppData, collectionName: AppCollectionNa
       return data.goals;
     case 'inventory':
       return data.inventory;
+    default: {
+      const key = getAppDataKeyForCollection(collectionName);
+      return (data as Record<string, unknown>)[key] ?? getDefaultDynamicCollectionValue(collectionName);
+    }
   }
 }
 
@@ -302,10 +346,6 @@ export function setDataCollection(data: AppData, collectionName: AppCollectionNa
       return { ...data, notes: normalizeGroupedContentData<Note>(value, (note) => migrateNote(note)) };
     case 'templates':
       return { ...data, templates: normalizeGroupedContentData<TextTemplate>(value) };
-    case 'study':
-      return { ...data, study: normalizeStudyData(value) };
-    case 'boards':
-      return { ...data, boards: normalizeBoardsData(value) };
     case 'projects':
       return { ...data, projects: Array.isArray(value) ? value as Project[] : [] };
     case 'contacts':
@@ -316,14 +356,14 @@ export function setDataCollection(data: AppData, collectionName: AppCollectionNa
       return { ...data, goals: Array.isArray(value) ? value as Goal[] : [] };
     case 'inventory':
       return { ...data, inventory: Array.isArray(value) ? value as InventoryItem[] : [] };
+    default: {
+      const key = getAppDataKeyForCollection(collectionName);
+      return {
+        ...data,
+        [key]: value ?? getDefaultDynamicCollectionValue(collectionName),
+      } as AppData;
+    }
   }
-  // Dynamic SQLite-backed collection fallback.
-  // Needed for modules added after the original fixed AppData union,
-  // for example: study, boards, tables, nutrition, and future modules.
-  return {
-    ...data,
-    [collectionName]: value,
-  } as AppData;
 }
 
 function normalizeLegacyEventReminder(event: {

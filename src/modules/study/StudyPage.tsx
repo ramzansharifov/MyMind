@@ -78,6 +78,7 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
   const pointerDragRef = useRef<StudyTreePointerDragState | null>(null);
   const suppressTreeClickRef = useRef(false);
   const previousUserSelectRef = useRef<string | null>(null);
+  const hasReconciledMaterialIndexRef = useRef(false);
 
   const selectedNode = safeData.nodes.find((node) => node.id === safeData.selectedNodeId) ?? safeData.nodes[0] ?? null;
   const selectedMaterialId = selectedNode?.type === 'material' ? selectedNode.materialId : null;
@@ -229,8 +230,70 @@ export function StudyPage({ data, onChange }: StudyPageProps) {
   }, [activeMaterial?.id, draftContent, draftPlainText, hasUnsavedChanges, isLoading, isSaving]);
 
   function updateStudy(next: StudyData) {
-    onChange(normalizeStudyData(next));
+    const normalized = normalizeStudyData(next);
+    onChange(normalized);
+    void studyStorageClient.saveTree(normalized).catch((error) => {
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось сохранить структуру обучения.');
+    });
   }
+
+  useEffect(() => {
+    if (hasReconciledMaterialIndexRef.current) return;
+    hasReconciledMaterialIndexRef.current = true;
+
+    let cancelled = false;
+
+    async function reconcileMaterialIndex() {
+      try {
+        const index = await studyStorageClient.listIndex();
+
+        if (cancelled || index.length === 0) return;
+
+        const existingMaterialIds = new Set(
+          safeData.nodes
+            .filter((node) => node.type === 'material' && node.materialId)
+            .map((node) => node.materialId as string),
+        );
+        const existingNodeIds = new Set(safeData.nodes.map((node) => node.id));
+        const missingMaterials = index.filter((item) => !existingMaterialIds.has(item.id));
+
+        if (missingMaterials.length === 0) return;
+
+        const restoredNodes: StudyNode[] = missingMaterials.map((item, indexOffset) => {
+          const nodeId = existingNodeIds.has(item.id) ? `study-node-${item.id}` : item.id;
+          existingNodeIds.add(nodeId);
+
+          return {
+            id: nodeId,
+            type: 'material',
+            parentId: null,
+            title: item.title || 'Новый материал',
+            materialId: item.id,
+            isExpanded: true,
+            order: Date.parse(item.updatedAt) || Date.now() + indexOffset,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+          };
+        });
+
+        updateStudy({
+          ...safeData,
+          selectedNodeId: safeData.selectedNodeId ?? restoredNodes[0]?.id ?? null,
+          nodes: [...safeData.nodes, ...restoredNodes],
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setErrorMessage(error instanceof Error ? error.message : 'Не удалось восстановить материалы обучения.');
+        }
+      }
+    }
+
+    void reconcileMaterialIndex();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [safeData]);
 
   async function flushPendingMaterialSave() {
     if (!hasUnsavedChangesRef.current || !activeMaterialRef.current) return true;

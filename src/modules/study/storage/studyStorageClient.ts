@@ -1,4 +1,5 @@
-import type { StudyMaterial, StudyMaterialIndexItem } from "../types";
+import { storageClient } from "../../../shared/storage/storageClient";
+import type { StudyData, StudyMaterial, StudyMaterialIndexItem } from "../types";
 
 function requireStudyApi() {
   if (!window.mymind?.study) {
@@ -25,5 +26,9 @@ export const studyStorageClient = {
 
   deleteMaterial(materialId: string): Promise<boolean> {
     return requireStudyApi().delete(materialId);
+  },
+
+  saveTree(data: StudyData): Promise<StudyData> {
+    return storageClient.saveAll("study", data);
   },
 };

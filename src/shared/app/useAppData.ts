@@ -11,12 +11,27 @@ import {
   moduleCollections,
   normalizeSettings,
   normalizeCollectionValue,
+  getDataCollection,
   reminderCollections,
   setDataCollection,
   type AppCollectionName,
   type AppData,
 } from './appData';
 
+
+function resolveModuleCollections(moduleKey: ModuleKey): AppCollectionName[] {
+  const configured = moduleCollections[moduleKey];
+
+  if (configured?.length) {
+    return configured;
+  }
+
+  if (moduleKey === 'dashboard' || moduleKey === 'settings') {
+    return dataCollections;
+  }
+
+  return [moduleKey as AppCollectionName];
+}
 export function useAppData(activeModule: ModuleKey, setActiveModule: Dispatch<SetStateAction<ModuleKey>>) {
   const [data, setData] = useState<AppData>(emptyData);
   const [dataDirectory, setDataDirectory] = useState('');
@@ -49,7 +64,7 @@ export function useAppData(activeModule: ModuleKey, setActiveModule: Dispatch<Se
       setActiveModule(startModule);
       setIsLoading(false);
       isHydratingRef.current = false;
-      void loadCollections([...reminderCollections, ...moduleCollections[startModule]], { runWorkspaceMaintenance: startModule === 'dashboard' });
+      void loadCollections([...reminderCollections, ...resolveModuleCollections(startModule)], { runWorkspaceMaintenance: startModule === 'dashboard' });
     } catch (error) {
       console.error('Failed to load data:', error);
       setStatusMessage('Error loading data. Check console for details.');
@@ -145,45 +160,26 @@ export function useAppData(activeModule: ModuleKey, setActiveModule: Dispatch<Se
   }
 
   async function saveWholeData(nextData: AppData) {
-    await Promise.all([
-      storageClient.saveAll('movies', nextData.movies),
-      storageClient.saveAll('workouts', nextData.workouts),
-      storageClient.saveAll('todos', nextData.todos),
-      storageClient.saveAll('finance', nextData.finance),
-      storageClient.saveAll('habits', nextData.habits),
-      storageClient.saveAll('calendar_events', nextData.calendarEvents),
-      storageClient.saveAll('journal_entries', nextData.journalEntries),
-      storageClient.saveAll('notes', nextData.notes),
-      storageClient.saveAll('templates', nextData.templates),
-      storageClient.saveAll('study', nextData.study),
-      storageClient.saveAll('boards', nextData.boards),
-      storageClient.saveAll('projects', nextData.projects),
-      storageClient.saveAll('contacts', nextData.contacts),
-      storageClient.saveAll('health', nextData.health),
-      storageClient.saveAll('goals', nextData.goals),
-      storageClient.saveAll('inventory', nextData.inventory),
-    ]);
+    await Promise.all(
+      dataCollections.map((collectionName) =>
+        storageClient.saveAll(collectionName, getDataCollection(nextData, collectionName)),
+      ),
+    );
   }
 
   async function saveChangedData(nextData: AppData, previousData: AppData) {
-    await Promise.all([
-      nextData.movies !== previousData.movies ? storageClient.saveAll('movies', nextData.movies) : null,
-      nextData.workouts !== previousData.workouts ? storageClient.saveAll('workouts', nextData.workouts) : null,
-      nextData.todos !== previousData.todos ? storageClient.saveAll('todos', nextData.todos) : null,
-      nextData.finance !== previousData.finance ? storageClient.saveAll('finance', nextData.finance) : null,
-      nextData.habits !== previousData.habits ? storageClient.saveAll('habits', nextData.habits) : null,
-      nextData.calendarEvents !== previousData.calendarEvents ? storageClient.saveAll('calendar_events', nextData.calendarEvents) : null,
-      nextData.journalEntries !== previousData.journalEntries ? storageClient.saveAll('journal_entries', nextData.journalEntries) : null,
-      nextData.notes !== previousData.notes ? storageClient.saveAll('notes', nextData.notes) : null,
-      nextData.templates !== previousData.templates ? storageClient.saveAll('templates', nextData.templates) : null,
-      nextData.study !== previousData.study ? storageClient.saveAll('study', nextData.study) : null,
-      nextData.boards !== previousData.boards ? storageClient.saveAll('boards', nextData.boards) : null,
-      nextData.projects !== previousData.projects ? storageClient.saveAll('projects', nextData.projects) : null,
-      nextData.contacts !== previousData.contacts ? storageClient.saveAll('contacts', nextData.contacts) : null,
-      nextData.health !== previousData.health ? storageClient.saveAll('health', nextData.health) : null,
-      nextData.goals !== previousData.goals ? storageClient.saveAll('goals', nextData.goals) : null,
-      nextData.inventory !== previousData.inventory ? storageClient.saveAll('inventory', nextData.inventory) : null,
-    ].filter(Boolean));
+    const trackedCollections = Array.from(new Set([...dataCollections, ...loadedCollectionsRef.current]));
+
+    await Promise.all(
+      trackedCollections
+        .map((collectionName) => {
+          const nextValue = getDataCollection(nextData, collectionName);
+          const previousValue = getDataCollection(previousData, collectionName);
+
+          return nextValue !== previousValue ? storageClient.saveAll(collectionName, nextValue) : null;
+        })
+        .filter(Boolean),
+    );
   }
 
   async function saveSettings(nextSettings: AppSettings) {
@@ -262,7 +258,7 @@ export function useAppData(activeModule: ModuleKey, setActiveModule: Dispatch<Se
     if (isLoading) {
       return;
     }
-    void loadCollections(moduleCollections[activeModule], { runWorkspaceMaintenance: activeModule === 'dashboard' || activeModule === 'settings' });
+    void loadCollections(resolveModuleCollections(activeModule), { runWorkspaceMaintenance: activeModule === 'dashboard' || activeModule === 'settings' });
   }, [activeModule, isLoading]);
 
   useEffect(() => {
