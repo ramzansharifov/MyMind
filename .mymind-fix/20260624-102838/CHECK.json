@@ -1,0 +1,11 @@
+﻿{
+    "repoRoot":  "C:\\Users\\ramza\\Desktop\\MyMind",
+    "runtimeDb":  "C:\\Users\\ramza\\Documents\\MyMind\\data\\mymind.sqlite",
+    "preloadStudyBridge":  true,
+    "ipcStudyHandlers":  true,
+    "appStudyPage":  true,
+    "appStudyCase":  true,
+    "smokeResult":  "C:\\Users\\ramza\\Desktop\\MyMind\\.mymind-fix\\20260624-102838\\artifacts\\smoke-study-result.json",
+    "backups":  "C:\\Users\\ramza\\Desktop\\MyMind\\.mymind-fix\\20260624-102838\\backups",
+    "logs":  "C:\\Users\\ramza\\Desktop\\MyMind\\.mymind-fix\\20260624-102838\\logs"
+}
