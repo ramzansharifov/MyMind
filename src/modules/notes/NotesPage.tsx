@@ -1,11 +1,11 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { GroupedCollectionLayout } from '../../shared/components/GroupedCollectionLayout';
 import { LoadingState } from '../../shared/components/LoadingState';
-import { PageHeader } from '../../shared/components/PageHeader';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { ModulePageShell } from '../../shared/components/ModulePageShell';
+import { useI18n } from '../../shared/i18n';
 import type { ContentGroup } from '../../shared/types/common';
 import { cn } from '../../shared/utils/classNames';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
@@ -166,20 +166,19 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
   }
 
   return (
-    <section>
-      <PageHeader
-        title="Notes"
-        subtitle="Knowledge, ideas, references, and durable thinking that are not tied to a diary date."
-        actions={
-          <AddButton
-            label="Add note"
-            onClick={() => {
-              setEditorInitialMode('edit');
-              setEditorNoteId(null);
-            }}
-          />
-        }
-      />
+    <ModulePageShell
+      title="Notes"
+      subtitle="Knowledge, ideas, references, and durable thinking that are not tied to a diary date."
+      actions={
+        <AddButton
+          label="Add note"
+          onClick={() => {
+            setEditorInitialMode('edit');
+            setEditorNoteId(null);
+          }}
+        />
+      }
+    >
       <GroupedCollectionLayout
         filters={
           <CollapsibleFilters
@@ -270,7 +269,7 @@ export function NotesPage({ data, onChange, onEditorDirtyChange, onEditorActions
             </div>
           )}
       </GroupedCollectionLayout>
-    </section>
+    </ModulePageShell>
   );
 }
 

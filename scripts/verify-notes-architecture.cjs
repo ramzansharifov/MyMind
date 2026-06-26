@@ -16,7 +16,7 @@ const assertNotIncludes = (file, token) => {
   }
 };
 
-assertIncludes('src/modules/notes/NoteEditorWorkspace.tsx', 'note-plain-textarea');
+assertIncludes('src/modules/notes/NoteEditorWorkspace.tsx', 'StudyBlockEditor');
 assertIncludes('src/modules/notes/NoteEditorPage.tsx', "from './NoteEditorWorkspace'");
 assertIncludes('src/shared/components/SimpleEntityPage.tsx', 'useCollectionItems');
 assertNotIncludes('src/vite-env.d.ts', 'tldraw');

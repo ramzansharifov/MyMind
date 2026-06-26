@@ -1,10 +1,10 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+﻿import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { EmptyState } from '../../shared/components/EmptyState';
-import { PageHeader } from '../../shared/components/PageHeader';
+import { ModulePageShell } from '../../shared/components/ModulePageShell';
 import { Tooltip } from '../../shared/components/Tooltip';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
 import { cn } from '../../shared/utils/classNames';
 import { formatDate, todayDateOnly } from '../../shared/utils/dateUtils';
@@ -95,13 +95,11 @@ export function CalendarPage({ events, onChange }: CalendarPageProps) {
   }
 
   return (
-    <section>
-      <PageHeader
-        title="Calendar"
-        subtitle="Important dates, tags, and in-app reminders."
-        actions={<AddButton label="Add important date" onClick={() => openNewEvent(todayDateOnly())} />}
-      />
-
+    <ModulePageShell
+      title="Calendar"
+      subtitle="Important dates, tags, and in-app reminders."
+      actions={<AddButton label="Add important date" onClick={() => openNewEvent(todayDateOnly())} />}
+    >
       <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)] items-start gap-[18px] max-[1100px]:grid-cols-1">
         <section className={panelClass}>
           <div className="mb-4 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
@@ -177,7 +175,7 @@ export function CalendarPage({ events, onChange }: CalendarPageProps) {
       </div>
       {activeEvents.length === 0 ? <EmptyState title="No upcoming events" message="Add appointments, dates, and reminders." /> : null}
       {editing !== undefined ? <CalendarEventForm event={editing} defaultDate={draftDate ?? undefined} onCancel={closeForm} onSave={saveEvent} /> : null}
-    </section>
+    </ModulePageShell>
   );
 }
 

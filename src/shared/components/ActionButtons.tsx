@@ -1,9 +1,9 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+﻿import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Archive, ArrowLeft, Pencil, Pin, PinOff, Plus, Save, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Tooltip } from './Tooltip';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '../i18n';
 import { cn } from '../utils/classNames';
 
 export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger' | 'archive';

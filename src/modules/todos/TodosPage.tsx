@@ -1,14 +1,12 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
-import { ContentGroupWorkspaceHeader, GroupFormDialog } from '../../shared/components/ContentGroupsPanel';
 import { EmptyState } from '../../shared/components/EmptyState';
-import { GroupsSidebar } from '../../shared/components/GroupsSidebar';
-import { PageHeader } from '../../shared/components/PageHeader';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { GroupedCollectionLayout } from '../../shared/components/GroupedCollectionLayout';
+import { ModulePageShell } from '../../shared/components/ModulePageShell';
+import { useI18n } from '../../shared/i18n';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
 import { cn } from '../../shared/utils/classNames';
-import { createId } from '../../shared/utils/idGenerator';
 import { filterTodos, todoGroups, todoItems, todoTags } from './todoUtils';
 import { TodoCard } from './TodoCard';
 import { TodoForm } from './TodoForm';
@@ -25,12 +23,11 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
   const [tags, setTags] = useState<string[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeGroupId, setActiveGroupId] = useState('all');
-  const [newGroupTitle, setNewGroupTitle] = useState('');
-  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [editing, setEditing] = useState<TodoItem | null | undefined>(undefined);
   const [draftGroupId, setDraftGroupId] = useState('pending');
   const items = todoItems(data);
   const groups = todoGroups(data);
+  const customGroups = data.groups ?? [];
   const activeTodos = items.filter((todo) => !isHiddenFromRegularLists(todo));
   const searched = filterTodos(activeTodos, query, 'all', 'all', '');
   const filteredByButtons = searched.filter((todo) => {
@@ -71,31 +68,27 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
     onChange({ ...data, items: items.map((item) => (item.id === todo.id ? { ...item, pinnedAt: item.pinnedAt ? null : timestamp, updatedAt: timestamp } : item)) });
   }
 
-  function addGroup(event?: FormEvent<HTMLFormElement>) {
-    event?.preventDefault();
-    const title = newGroupTitle.trim();
-    if (!title) {
-      return;
-    }
+  function saveGroups(nextGroups: TodoGroup[]) {
     const timestamp = new Date().toISOString();
-    const group: TodoGroup = {
-      id: createId('todo-group'),
-      title,
-      kind: 'custom',
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    };
-    onChange({ ...data, groups: [...data.groups, group] });
-    setActiveGroupId(group.id);
-    setNewGroupTitle('');
-    setIsCreatingGroup(false);
+    const systemIds = new Set(['all', 'pending', 'completed']);
+    onChange({
+      ...data,
+      groups: nextGroups
+        .filter((group) => !systemIds.has(group.id))
+        .map((group) => ({
+          ...group,
+          kind: group.kind ?? 'custom',
+          createdAt: group.createdAt ?? timestamp,
+          updatedAt: group.updatedAt ?? timestamp,
+        })),
+    });
   }
 
   function renameGroup(groupId: string, title: string) {
     const timestamp = new Date().toISOString();
     onChange({
       ...data,
-      groups: data.groups.map((group) => (group.id === groupId ? { ...group, title, updatedAt: timestamp } : group)),
+      groups: customGroups.map((group) => (group.id === groupId ? { ...group, title, updatedAt: timestamp } : group)),
     });
   }
 
@@ -103,7 +96,7 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
     const timestamp = new Date().toISOString();
     onChange({
       ...data,
-      groups: data.groups.filter((group) => group.id !== groupId),
+      groups: customGroups.filter((group) => group.id !== groupId),
       items: items.map((todo) => (todo.groupId === groupId ? { ...todo, groupId: 'pending', updatedAt: timestamp } : todo)),
     });
     setActiveGroupId('all');
@@ -140,16 +133,13 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
   }
 
   return (
-    <section>
-      <PageHeader
-        title="Todo"
-        subtitle="Grouped tasks with global search, tags, priority, and due dates."
-        actions={
-          <AddButton label="Add task" onClick={() => openNewTask()} />
-        }
-      />
-      <div className="grid grid-cols-[260px_minmax(0,1fr)] items-start gap-[18px] max-[980px]:grid-cols-1">
-        <div className="col-span-full">
+    <ModulePageShell
+      title="Todo"
+      subtitle="Grouped tasks with global search, tags, priority, and due dates."
+      actions={<AddButton label="Add task" onClick={() => openNewTask()} />}
+    >
+      <GroupedCollectionLayout<TodoItem, TodoGroup>
+        filters={
           <CollapsibleFilters
             query={query}
             placeholder="Search tasks"
@@ -158,124 +148,90 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
             onQueryChange={setQuery}
             onToggle={() => setFiltersOpen((current) => !current)}
           >
-              <div className={filterChoiceGroupClass}>
-                <div className={filterChoiceHeadingClass}>
-                  <strong className="text-app-text">{t('Priority')}</strong>
-                  {priorities.length > 0 ? <button className={filterClearInlineClass} type="button" onClick={() => setPriorities([])}>{t('Clear')}</button> : null}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {priorityFilterOptions.map((option) => (
-                    <button
-                      className={cn(filterChipClass, priorities.includes(option.value) && filterChipActiveClass)}
-                      type="button"
-                      key={option.value}
-                      aria-pressed={priorities.includes(option.value)}
-                      onClick={() => togglePriorityFilter(option.value)}
-                    >
-                      <span className={cn(priorityDotClass, priorityDotClasses[option.value])} aria-hidden="true" />
-                      {t(option.label)}
-                    </button>
-                  ))}
-                </div>
+            <div className={filterChoiceGroupClass}>
+              <div className={filterChoiceHeadingClass}>
+                <strong className="text-app-text">{t('Priority')}</strong>
+                {priorities.length > 0 ? <button className={filterClearInlineClass} type="button" onClick={() => setPriorities([])}>{t('Clear')}</button> : null}
               </div>
-              <div className={filterChoiceGroupClass}>
-                <div className={filterChoiceHeadingClass}>
-                  <strong className="text-app-text">{t('Tag')}</strong>
-                  {tags.length > 0 ? <button className={filterClearInlineClass} type="button" onClick={() => setTags([])}>{t('Clear')}</button> : null}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {availableTags.length > 0 ? (
-                    availableTags.map((item) => (
-                      <button
-                        className={cn(filterChipClass, tags.includes(item) && filterChipActiveClass)}
-                        type="button"
-                        key={item}
-                        aria-pressed={tags.includes(item)}
-                        onClick={() => toggleTagFilter(item)}
-                      >
-                        {item}
-                      </button>
-                    ))
-                  ) : (
-                    <span className="text-sm text-app-muted">{t('No tags yet.')}</span>
-                  )}
-                </div>
-              </div>
-              {activeFilterCount > 0 ? (
-                <button className={ghostButtonClass} type="button" onClick={clearFilters}>
-                  {t('Clear filters')}
-                </button>
-              ) : null}
-          </CollapsibleFilters>
-        </div>
-
-        <GroupsSidebar
-          title="Groups"
-          totalCount={activeTodos.length}
-          groups={groups}
-          activeGroupId={activeGroupId}
-          ariaLabel="Task groups"
-          getGroupCount={(groupId) => activeTodos.filter((todo) => matchesGroup(todo, groupId)).length}
-          onActiveGroupChange={setActiveGroupId}
-          onCreateGroup={() => setIsCreatingGroup(true)}
-        >
-          {isCreatingGroup ? (
-            <GroupFormDialog
-              title="Create group"
-              saveLabel="Add group"
-              value={newGroupTitle}
-              onChange={setNewGroupTitle}
-              onCancel={() => {
-                setIsCreatingGroup(false);
-                setNewGroupTitle('');
-              }}
-              onSubmit={addGroup}
-            />
-          ) : null}
-        </GroupsSidebar>
-
-        <section className="min-w-0 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-4 text-app-text [backdrop-filter:var(--glass-blur)] shadow-panel">
-          {query.trim() ? (
-            <div className="mb-4 border-b border-[var(--line-soft)] pb-3">
-              <div className="min-w-0">
-                <span className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-app-accent-strong">{t('Search results')}</span>
-                <h2 className="text-xl font-extrabold text-app-text">{t('Search results')}</h2>
-                <small className="text-app-muted">
-                  {filtered.length} {t('tasks')}
-                </small>
+              <div className="flex flex-wrap gap-2">
+                {priorityFilterOptions.map((option) => (
+                  <button
+                    className={cn(filterChipClass, priorities.includes(option.value) && filterChipActiveClass)}
+                    type="button"
+                    key={option.value}
+                    aria-pressed={priorities.includes(option.value)}
+                    onClick={() => togglePriorityFilter(option.value)}
+                  >
+                    <span className={cn(priorityDotClass, priorityDotClasses[option.value])} aria-hidden="true" />
+                    {t(option.label)}
+                  </button>
+                ))}
               </div>
             </div>
-          ) : (
-            <ContentGroupWorkspaceHeader
-              groups={groups}
-              activeGroupId={activeGroupId}
-              itemCount={filtered.length}
-              onRenameGroup={renameGroup}
-              onDeleteGroup={deleteGroup}
-              canManageGroup={(group) => group.kind === 'custom'}
+            <div className={filterChoiceGroupClass}>
+              <div className={filterChoiceHeadingClass}>
+                <strong className="text-app-text">{t('Tag')}</strong>
+                {tags.length > 0 ? <button className={filterClearInlineClass} type="button" onClick={() => setTags([])}>{t('Clear')}</button> : null}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {availableTags.length > 0 ? (
+                  availableTags.map((item) => (
+                    <button
+                      className={cn(filterChipClass, tags.includes(item) && filterChipActiveClass)}
+                      type="button"
+                      key={item}
+                      aria-pressed={tags.includes(item)}
+                      onClick={() => toggleTagFilter(item)}
+                    >
+                      {item}
+                    </button>
+                  ))
+                ) : (
+                  <span className="text-sm text-app-muted">{t('No tags yet.')}</span>
+                )}
+              </div>
+            </div>
+            {activeFilterCount > 0 ? (
+              <button className={ghostButtonClass} type="button" onClick={clearFilters}>
+                {t('Clear filters')}
+              </button>
+            ) : null}
+          </CollapsibleFilters>
+        }
+        groups={customGroups}
+        sidebarGroups={groups}
+        headerGroups={groups}
+        totalCount={activeTodos.length}
+        activeGroupId={activeGroupId}
+        getGroupCount={(groupId) => activeTodos.filter((todo) => matchesGroup(todo, groupId)).length}
+        itemCount={filtered.length}
+        canManageGroup={(group) => group.kind === 'custom'}
+        onActiveGroupChange={setActiveGroupId}
+        onGroupsChange={saveGroups}
+        onRenameGroup={renameGroup}
+        onDeleteGroup={deleteGroup}
+        createLabel="Add task group"
+        workspaceHeader={query.trim() ? <SearchResultsHeader count={filtered.length} /> : undefined}
+      >
+        {filtered.length === 0 ? (
+          <EmptyState title="No tasks found" message="Add a task or change the filters." />
+        ) : null}
+
+        <div className="grid gap-3.5">
+          {filtered.map((todo) => (
+            <TodoCard
+              todo={todo}
+              key={todo.id}
+              groupTitle={groups.find((group) => group.id === todo.groupId)?.title}
+              onToggle={() => toggle(todo)}
+              onEdit={() => openEditTask(todo)}
+              onPin={() => togglePin(todo)}
+              onArchive={() => archive(todo)}
+              onTrash={() => moveToTrash(todo)}
             />
-          )}
-
-          {filtered.length === 0 ? (
-            <EmptyState title="No tasks found" message="Add a task or change the filters." />
-          ) : null}
-
-          <div className="grid gap-3.5">
-            {filtered.map((todo) => (
-              <TodoCard
-                todo={todo}
-                key={todo.id}
-                groupTitle={groups.find((group) => group.id === todo.groupId)?.title}
-                onToggle={() => toggle(todo)}
-                onEdit={() => openEditTask(todo)}
-                onPin={() => togglePin(todo)}
-                onArchive={() => archive(todo)}
-                onTrash={() => moveToTrash(todo)}
-              />
-            ))}
-          </div>
-        </section>
-      </div>
+          ))}
+        </div>
+      </GroupedCollectionLayout>
       {editing !== undefined ? (
         <TodoForm
           todo={editing}
@@ -288,7 +244,23 @@ export function TodosPage({ data, onChange }: TodosPageProps) {
           onSave={saveTodo}
         />
       ) : null}
-    </section>
+    </ModulePageShell>
+  );
+}
+
+function SearchResultsHeader({ count }: { count: number }) {
+  const { t } = useI18n();
+
+  return (
+    <div className="mb-4 border-b border-[var(--line-soft)] pb-3">
+      <div className="min-w-0">
+        <span className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-app-accent-strong">{t('Search results')}</span>
+        <h2 className="text-xl font-extrabold text-app-text">{t('Search results')}</h2>
+        <small className="text-app-muted">
+          {count} {t('tasks')}
+        </small>
+      </div>
+    </div>
   );
 }
 

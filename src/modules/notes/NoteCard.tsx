@@ -1,5 +1,5 @@
-import { ArchiveButton, DeleteButton, EditButton, PinButton } from '../../shared/components/ActionButtons';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+﻿import { ArchiveButton, DeleteButton, EditButton, PinButton } from '../../shared/components/ActionButtons';
+import { useI18n } from '../../shared/i18n';
 import { formatDate } from '../../shared/utils/dateUtils';
 import { cn } from '../../shared/utils/classNames';
 import { notePreview } from './noteUtils';

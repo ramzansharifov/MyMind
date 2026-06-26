@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { useI18n } from '../i18n/I18nProvider';
+﻿import type { ReactNode } from 'react';
+import { useI18n } from '../i18n';
 
 interface PageHeaderProps {
   title: string;

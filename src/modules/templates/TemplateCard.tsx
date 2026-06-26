@@ -1,7 +1,7 @@
-import { Copy, Wand2 } from 'lucide-react';
+﻿import { Copy, Wand2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { ArchiveButton, DeleteButton, EditButton, PinButton } from '../../shared/components/ActionButtons';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import { cn } from '../../shared/utils/classNames';
 import { copyTextToClipboard, normalizeTemplateVariables, templatePreview, templateVariableLabel } from './templateUtils';
 import type { TextTemplate } from './types';

@@ -1,11 +1,11 @@
-import { useState, type FormEvent } from 'react';
+﻿import { useState, type FormEvent } from 'react';
 import { AddButton, ArchiveButton, DeleteButton, EditButton, PinButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
-import { EntityForm } from '../../shared/components/EntityForm';
+import { EntityForm } from '../../shared/forms';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { GroupedCollectionLayout } from '../../shared/components/GroupedCollectionLayout';
-import { PageHeader } from '../../shared/components/PageHeader';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { ModulePageShell } from '../../shared/components/ModulePageShell';
+import { useI18n } from '../../shared/i18n';
 import type { ContentGroup } from '../../shared/types/common';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
 import { cn } from '../../shared/utils/classNames';
@@ -88,8 +88,11 @@ export function ContactsPage({ data, onChange }: ContactsPageProps) {
   }
 
   return (
-    <section>
-      <PageHeader title="Contacts" subtitle="People, relationships, birthdays, memory notes, and social links." actions={<AddButton label="Add contact" onClick={() => setEditing(null)} />} />
+    <ModulePageShell
+      title="Contacts"
+      subtitle="People, relationships, birthdays, memory notes, and social links."
+      actions={<AddButton label="Add contact" onClick={() => setEditing(null)} />}
+    >
       <GroupedCollectionLayout
         filters={<CollapsibleFilters query={query} placeholder="Search contacts" onQueryChange={setQuery} />}
           groups={groups}
@@ -152,7 +155,7 @@ export function ContactsPage({ data, onChange }: ContactsPageProps) {
           onSave={saveContact}
         />
       ) : null}
-    </section>
+    </ModulePageShell>
   );
 }
 

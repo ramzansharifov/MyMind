@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
+﻿import type { ReactNode } from 'react';
 import { Search } from 'lucide-react';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '../i18n';
 import { cn } from '../utils/classNames';
 
 export interface LibrarySidebarStat {

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Bar,
   BarChart,
   CartesianGrid,
@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 import type { ReactNode } from 'react';
 import { StatCard } from '../../shared/components/StatCard';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import { formatDate } from '../../shared/utils/dateUtils';
 import type { ExerciseDefinition, ProgressRecord, WorkoutPlan, WorkoutSession } from './types';
 

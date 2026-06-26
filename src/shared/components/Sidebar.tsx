@@ -1,8 +1,8 @@
-import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { appModules, getModuleGroupIcon, type AppModuleDefinition } from '../app/moduleRegistry';
-import { normalizeSidebarSettings } from '../app/appData';
+﻿import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { appModules, getModuleDisplayLabel, getModuleGroupIcon, type AppModuleDefinition } from '../app/moduleRegistry';
+import { normalizeSidebarSettings } from '../app/settingsModel';
 import type { ModuleKey, SidebarModuleGroup, SidebarSettings } from '../types/common';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '../i18n';
 import { Tooltip } from './Tooltip';
 import { cn } from '../utils/classNames';
 
@@ -232,7 +232,7 @@ function SidebarModuleButton({
 }) {
   const { t } = useI18n();
   const Icon = module.icon;
-  const label = t(module.label);
+  const label = getModuleDisplayLabel(module, t);
   return (
     <Tooltip content={label} disabled={!isCollapsed}>
       <button

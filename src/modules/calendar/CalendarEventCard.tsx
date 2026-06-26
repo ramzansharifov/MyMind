@@ -1,6 +1,6 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { ArchiveButton, DeleteButton, EditButton, PinButton } from '../../shared/components/ActionButtons';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import { cn } from '../../shared/utils/classNames';
 import { formatDate } from '../../shared/utils/dateUtils';
 import type { CalendarEvent } from './types';

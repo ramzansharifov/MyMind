@@ -1,10 +1,10 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+﻿import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { LoadingState } from '../../shared/components/LoadingState';
-import { PageHeader } from '../../shared/components/PageHeader';
+import { ModulePageShell } from '../../shared/components/ModulePageShell';
 import { PageTabs } from '../../shared/components/PageTabs';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import { trashEntity } from '../../shared/utils/archiveUtils';
 import { formatDate, localDateOnly, millisecondsUntilNextLocalDay } from '../../shared/utils/dateUtils';
 import { createId } from '../../shared/utils/idGenerator';
@@ -103,12 +103,7 @@ export function HabitsPage({ data, onChange }: HabitsPageProps) {
   }
 
   return (
-    <section>
-      <PageHeader
-        title="Habits"
-        subtitle="A daily routine list with notes and preserved history."
-      />
-
+    <ModulePageShell title="Habits" subtitle="A daily routine list with notes and preserved history.">
       <PageTabs
         tabs={[
           { id: 'routine', label: 'Routine' },
@@ -196,7 +191,7 @@ export function HabitsPage({ data, onChange }: HabitsPageProps) {
         </Suspense>
       ) : null}
       {editing !== undefined ? <HabitForm habit={editing} onCancel={() => setEditing(undefined)} onSave={saveHabit} /> : null}
-    </section>
+    </ModulePageShell>
   );
 }
 

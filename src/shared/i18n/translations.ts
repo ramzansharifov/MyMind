@@ -1,6 +1,25 @@
-export type Language = 'en' | 'ru';
+﻿export type Language = 'en' | 'ru';
 
 const ru: Record<string, string> = {
+  'modules.dashboard': 'Панель',
+  'modules.movies': 'Фильмы',
+  'modules.workouts': 'Тренировки',
+  'modules.nutrition': 'Питание',
+  'modules.todos': 'Задачи',
+  'modules.finance': 'Финансы',
+  'modules.habits': 'Привычки',
+  'modules.calendar': 'Календарь',
+  'modules.journal': 'Дневник',
+  'modules.notes': 'Заметки',
+  'modules.templates': 'Шаблоны',
+  'modules.study': 'Обучение',
+  'modules.boards': 'Доски',
+  'modules.projects': 'Проекты',
+  'modules.contacts': 'Контакты',
+  'modules.health': 'Здоровье',
+  'modules.goals': 'Цели',
+  'modules.inventory': 'Инвентарь',
+  'modules.settings': 'Настройки',
   Dashboard: 'Панель',
   Movies: 'Фильмы',
   Workouts: 'Тренировки',
@@ -1026,6 +1045,12 @@ Object.assign(ru, {
   Study: '\u041e\u0431\u0443\u0447\u0435\u043d\u0438\u0435',
   Boards: '\u0414\u043e\u0441\u043a\u0438',
 });
+
+export type TranslationKey = keyof typeof ru;
+
+export function hasTranslationKey(value: string): value is TranslationKey {
+  return Object.prototype.hasOwnProperty.call(ru, value);
+}
 
 export function translateText(value: string, language: Language) {
   if (language === 'en') {

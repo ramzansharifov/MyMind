@@ -1,6 +1,6 @@
-import { AlarmClock, Bell, Globe2, Pause, Play, Plus, RotateCcw, Timer, Trash2 } from 'lucide-react';
+﻿import { AlarmClock, Bell, Globe2, Pause, Play, Plus, RotateCcw, Timer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import { cn } from '../../shared/utils/classNames';
 
 interface AlarmItem {

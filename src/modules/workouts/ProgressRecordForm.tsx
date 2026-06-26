@@ -1,9 +1,9 @@
-import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+﻿import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import { AddButton } from '../../shared/components/ActionButtons';
-import { EntityForm } from '../../shared/components/EntityForm';
+import { EntityForm } from '../../shared/forms';
 import { Tooltip } from '../../shared/components/Tooltip';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import { createId } from '../../shared/utils/idGenerator';
 import type { ProgressRecord, ProgressRecordMetric } from './types';
 

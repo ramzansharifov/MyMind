@@ -1,7 +1,7 @@
-import { AddButton, DeleteButton, EditButton } from '../../shared/components/ActionButtons';
+﻿import { AddButton, DeleteButton, EditButton } from '../../shared/components/ActionButtons';
 import { EmptyState } from '../../shared/components/EmptyState';
-import { PageHeader } from '../../shared/components/PageHeader';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { ModulePageShell } from '../../shared/components/ModulePageShell';
+import { useI18n } from '../../shared/i18n';
 import { cn } from '../../shared/utils/classNames';
 import { formatDate } from '../../shared/utils/dateUtils';
 import { createId } from '../../shared/utils/idGenerator';
@@ -93,9 +93,7 @@ export function NutritionPage({ data, onChange }: NutritionPageProps) {
   }
 
   return (
-    <section className="grid gap-5">
-      <PageHeader title="Nutrition" subtitle="Track meals, daily totals, water, and nutrition history." />
-
+    <ModulePageShell title="Nutrition" subtitle="Track meals, daily totals, water, and nutrition history.">
       <section className={sectionPanelClass}>
         <div className={sectionHeadingClass}>
           <div>
@@ -133,7 +131,7 @@ export function NutritionPage({ data, onChange }: NutritionPageProps) {
       {openForm?.kind === 'nutrition-meal' ? (
         <NutritionMealForm meal={openForm.meal} onCancel={() => setOpenForm(null)} onSave={(meal) => saveNutritionEntry([meal])} />
       ) : null}
-    </section>
+    </ModulePageShell>
   );
 }
 

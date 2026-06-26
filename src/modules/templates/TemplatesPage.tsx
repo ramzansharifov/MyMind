@@ -1,10 +1,10 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { AddButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { GroupedCollectionLayout } from '../../shared/components/GroupedCollectionLayout';
-import { PageHeader } from '../../shared/components/PageHeader';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { ModulePageShell } from '../../shared/components/ModulePageShell';
+import { useI18n } from '../../shared/i18n';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
 import { cn } from '../../shared/utils/classNames';
 import { countItemsByContentGroup, matchesContentGroup } from '../../shared/utils/contentGroupUtils';
@@ -72,12 +72,11 @@ export function TemplatesPage({ data, onChange }: TemplatesPageProps) {
   }
 
   return (
-    <section>
-      <PageHeader
-        title="Templates"
-        subtitle="Reusable text blocks that can be copied or assembled from variables."
-        actions={<AddButton label="Add template" onClick={() => setEditing(null)} />}
-      />
+    <ModulePageShell
+      title="Templates"
+      subtitle="Reusable text blocks that can be copied or assembled from variables."
+      actions={<AddButton label="Add template" onClick={() => setEditing(null)} />}
+    >
       <GroupedCollectionLayout
         filters={
           <CollapsibleFilters
@@ -158,7 +157,7 @@ export function TemplatesPage({ data, onChange }: TemplatesPageProps) {
         />
       ) : null}
       {building ? <TemplateBuilder template={building} onClose={() => setBuilding(null)} /> : null}
-    </section>
+    </ModulePageShell>
   );
 }
 

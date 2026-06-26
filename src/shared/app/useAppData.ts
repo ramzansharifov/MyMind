@@ -1,37 +1,21 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { getModuleCollections } from './moduleCollections';
 import { createDemoData, fillWorkoutDemoGaps, isAppDataEmpty } from '../storage/demoData';
 import { storageClient } from '../storage/storageClient';
 import type { CollectionName } from '../storage/storageTypes';
 import type { AppSettings, ModuleKey } from '../types/common';
 import { cleanupExpiredTrash } from '../utils/appDataUtils';
+import { dataCollections, reminderCollections, type AppCollectionName } from './collectionRegistry';
+import { createDefaultSettings, normalizeSettings } from './settingsModel';
 import {
-  createDefaultSettings,
-  dataCollections,
   emptyData,
-  moduleCollections,
-  normalizeSettings,
   normalizeCollectionValue,
   getDataCollection,
-  reminderCollections,
   setDataCollection,
-  type AppCollectionName,
   type AppData,
 } from './appData';
 
 
-function resolveModuleCollections(moduleKey: ModuleKey): AppCollectionName[] {
-  const configured = moduleCollections[moduleKey];
-
-  if (configured?.length) {
-    return configured;
-  }
-
-  if (moduleKey === 'dashboard' || moduleKey === 'settings') {
-    return dataCollections;
-  }
-
-  return [moduleKey as AppCollectionName];
-}
 export function useAppData(activeModule: ModuleKey, setActiveModule: Dispatch<SetStateAction<ModuleKey>>) {
   const [data, setData] = useState<AppData>(emptyData);
   const [dataDirectory, setDataDirectory] = useState('');
@@ -64,7 +48,7 @@ export function useAppData(activeModule: ModuleKey, setActiveModule: Dispatch<Se
       setActiveModule(startModule);
       setIsLoading(false);
       isHydratingRef.current = false;
-      void loadCollections([...reminderCollections, ...resolveModuleCollections(startModule)], { runWorkspaceMaintenance: startModule === 'dashboard' });
+      void loadCollections([...reminderCollections, ...getModuleCollections(startModule)], { runWorkspaceMaintenance: startModule === 'dashboard' });
     } catch (error) {
       console.error('Failed to load data:', error);
       setStatusMessage('Error loading data. Check console for details.');
@@ -262,7 +246,7 @@ export function useAppData(activeModule: ModuleKey, setActiveModule: Dispatch<Se
     if (isLoading) {
       return;
     }
-    void loadCollections(resolveModuleCollections(activeModule), { runWorkspaceMaintenance: activeModule === 'dashboard' || activeModule === 'settings' });
+    void loadCollections(getModuleCollections(activeModule), { runWorkspaceMaintenance: activeModule === 'dashboard' || activeModule === 'settings' });
   }, [activeModule, isLoading]);
 
   useEffect(() => {

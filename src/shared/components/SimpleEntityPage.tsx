@@ -1,14 +1,14 @@
-import { useState, type FormEvent } from 'react';
+﻿import { useState, type FormEvent } from 'react';
 import { AddButton, ArchiveButton, DeleteButton, EditButton, PinButton } from './ActionButtons';
 import { splitCsv, joinCsv } from '../utils/formatters';
 import { createId } from '../utils/idGenerator';
 import { EmptyState } from './EmptyState';
-import { EntityForm as EntityFormShell } from './EntityForm';
-import { TextField, TextareaField, SelectField } from './FormFields';
+import { EntityForm as EntityFormShell } from '../forms';
+import { TextField, TextareaField, SelectField } from '../forms';
 import { ChoiceTile } from './ChoiceTile';
 import { CollapsibleFilters } from './CollapsibleFilters';
 import { ModulePageShell } from './ModulePageShell';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '../i18n';
 import { useCollectionItems } from '../hooks/useCollectionItems';
 import { cn } from '../utils/classNames';
 

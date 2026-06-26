@@ -1,6 +1,6 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+﻿import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Check } from 'lucide-react';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '../i18n';
 import { cn } from '../utils/classNames';
 
 interface ChoiceTileProps extends ButtonHTMLAttributes<HTMLButtonElement> {

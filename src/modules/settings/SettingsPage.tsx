@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+﻿import type { ReactNode } from 'react';
 import { useState } from 'react';
 import {
   Archive,
@@ -22,11 +22,11 @@ import {
   Upload,
 } from 'lucide-react';
 import { DeleteButton } from '../../shared/components/ActionButtons';
-import { PageHeader } from '../../shared/components/PageHeader';
+import { ModulePageShell } from '../../shared/components/ModulePageShell';
 import { Tooltip } from '../../shared/components/Tooltip';
-import { appModules, moduleGroupIcons } from '../../shared/app/moduleRegistry';
+import { appModules, getModuleDisplayLabel, moduleGroupIcons } from '../../shared/app/moduleRegistry';
 import { ArchiveTrashPage } from './ArchiveTrashManager';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import type { CollectionName } from '../../shared/storage/storageTypes';
 import type { AppData } from '../../shared/app/appData';
 import type { AppSettings, ModuleGroupIconKey, ModuleKey, SidebarSettings } from '../../shared/types/common';
@@ -60,7 +60,6 @@ type ModulesSettingsTab = 'visibility' | 'groups';
 type DataSettingsTab = 'general' | 'moduleTransfer';
 
 const pageClass = 'grid gap-5';
-const headerClass = 'grid gap-2';
 const breadcrumbClass = 'flex flex-wrap items-center gap-2 text-sm text-app-muted';
 const breadcrumbButtonClass = 'w-auto rounded-control border border-app-border bg-app-surface-soft px-3 py-2 text-sm font-bold text-app-text transition hover:border-[var(--accent-border)] hover:text-app-accent-strong';
 const homeGridClass = 'grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4';
@@ -146,9 +145,10 @@ export function SettingsPage({
   const activeLabel = sectionCards.find((section) => section.id === activeSection)?.label ?? 'Settings';
 
   return (
-    <section className={pageClass}>
-      <div className={headerClass}>
-        <PageHeader title="Settings" subtitle="Local storage, backups, and future migration controls." />
+    <ModulePageShell
+      title="Settings"
+      subtitle="Local storage, backups, and future migration controls."
+      filters={
         <nav className={breadcrumbClass} aria-label={t('Settings path')}>
           <button className={breadcrumbButtonClass} type="button" onClick={() => setActiveSection('overview')}>
             {t('Settings')}
@@ -160,9 +160,10 @@ export function SettingsPage({
             </>
           ) : null}
         </nav>
-      </div>
-
-      {activeSection === 'overview' ? (
+      }
+    >
+      <div className={pageClass}>
+        {activeSection === 'overview' ? (
         <div className={homeGridClass}>
           {sectionCards.filter((section) => section.id !== 'overview').map((section) => (
             <button className={sectionCardClass} type="button" key={section.id} onClick={() => setActiveSection(section.id)}>
@@ -221,13 +222,14 @@ export function SettingsPage({
         </section>
       ) : null}
 
-      {activeSection === 'study_hotkeys' ? (
-        <section className={panelClass}>
-          <SettingsPanelHeading icon={<Monitor size={18} />} title="Study hotkeys" description="Keyboard shortcuts for the Study module editor and navigation." />
-          <StudyHotkeys />
-        </section>
-      ) : null}
-    </section>
+        {activeSection === 'study_hotkeys' ? (
+          <section className={panelClass}>
+            <SettingsPanelHeading icon={<Monitor size={18} />} title="Study hotkeys" description="Keyboard shortcuts for the Study module editor and navigation." />
+            <StudyHotkeys />
+          </section>
+        ) : null}
+      </div>
+    </ModulePageShell>
   );
 }
 
@@ -337,6 +339,7 @@ function ModulesSettings({
           <div className={moduleGridClass}>
             {appModules.map((module) => {
               const Icon = module.icon;
+              const label = getModuleDisplayLabel(module, t);
               const isVisible = !hiddenModules.has(module.key) || !module.canHide;
               return (
                 <button
@@ -353,7 +356,7 @@ function ModulesSettings({
                     <Icon size={17} aria-hidden="true" />
                   </span>
                   <span>
-                    <strong className="block text-sm text-app-text">{t(module.label)}</strong>
+                    <strong className="block text-sm text-app-text">{label}</strong>
                     <small className="mt-1 block text-xs text-app-muted">{module.canHide ? t(isVisible ? 'Shown in sidebar' : 'Hidden from sidebar') : t('Always visible')}</small>
                   </span>
                 </button>
@@ -475,6 +478,7 @@ function ModuleGroupCard({
           {availableModules.length > 0 ? (
             availableModules.map((module) => {
               const Icon = module.icon;
+              const label = getModuleDisplayLabel(module, t);
               const isIncluded = group.moduleKeys.includes(module.key);
               return (
                 <button
@@ -487,7 +491,7 @@ function ModuleGroupCard({
                     {isIncluded ? <Check size={14} /> : null}
                   </span>
                   <Icon size={16} aria-hidden="true" />
-                  <span>{t(module.label)}</span>
+                  <span>{label}</span>
                 </button>
               );
             })
@@ -579,7 +583,7 @@ function ApplicationSettings({
           <ChoiceCard
             key={module.key}
             active={settings.startModule === module.key}
-            title={module.label}
+            title={getModuleDisplayLabel(module, t)}
             subtitle="Open on launch"
             onClick={() => void onSettingsChange({ ...settings, startModule: module.key })}
           />
@@ -924,6 +928,4 @@ const moduleMap: Record<string, ModuleKey> = {
   inventory: 'inventory',
 };
 
-const startModules: Array<{ key: ModuleKey; label: string }> = [
-  ...appModules.map((module) => ({ key: module.key, label: module.label })),
-];
+const startModules = appModules;

@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react';
+﻿import { useState, type FormEvent } from 'react';
 import { CalendarDays, Check, Repeat } from 'lucide-react';
 import { AddButton } from '../../shared/components/ActionButtons';
-import { EntityForm } from '../../shared/components/EntityForm';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { EntityForm } from '../../shared/forms';
+import { useI18n } from '../../shared/i18n';
 import { cn } from '../../shared/utils/classNames';
 import { joinCsv, splitCsv } from '../../shared/utils/formatters';
 import { createId } from '../../shared/utils/idGenerator';

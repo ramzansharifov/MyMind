@@ -1,9 +1,9 @@
-import { BookOpen, CalendarHeart, CheckSquare, Dumbbell, Flag, Lightbulb, Plus, WalletCards } from 'lucide-react';
+﻿import { BookOpen, CalendarHeart, CheckSquare, Dumbbell, Flag, Lightbulb, Plus, WalletCards } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { AppData } from '../../shared/app/appData';
 import { GlobalSearch } from '../../shared/components/GlobalSearch';
 import { StatCard } from '../../shared/components/StatCard';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import type { AppSettings, ModuleKey } from '../../shared/types/common';
 import { cn } from '../../shared/utils/classNames';
 import { isHiddenFromRegularLists } from '../../shared/utils/archiveUtils';

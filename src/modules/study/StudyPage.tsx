@@ -32,6 +32,7 @@ import {
   getVisibleStudyNodes,
   normalizeStudyData,
   nowIso,
+  repairMojibakeText,
 } from './studyUtils';
 import type { StudyData, StudyMaterial, StudyNode } from './types';
 
@@ -102,13 +103,22 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
   const materialCount = safeData.nodes.filter((node) => node.type === 'material').length;
   const isSearchActive = search.trim().length > 0;
   const treeMenuNode = treeMenu ? safeData.nodes.find((node) => node.id === treeMenu.nodeId) ?? null : null;
-  const saveStatusLabel = isSaving ? 'Ð¡Ð¾Ñ…Ñ€Ð°Ð½ÐµÐ½Ð¸Ðµ...' : hasUnsavedChanges ? 'Ð•ÑÑ‚ÑŒ Ð¸Ð·Ð¼ÐµÐ½ÐµÐ½Ð¸Ñ' : activeMaterial ? 'Ð¡Ð¾Ñ…Ñ€Ð°Ð½ÐµÐ½Ð¾' : 'Ð“Ð¾Ñ‚Ð¾Ð²Ð¾';
+  const saveStatusLabel = isSaving ? 'Сохранение...' : hasUnsavedChanges ? 'Есть изменения' : activeMaterial ? 'Сохранено' : 'Готово';
   const saveStatusTone = isSaving ? 'saving' : hasUnsavedChanges ? 'dirty' : 'saved';
   const studyTreeSignature = useMemo(
     () =>
-      safeData.nodes
-        .map((node) => `${node.id}:${node.type}:${node.materialId ?? ''}:${node.updatedAt}`)
-        .join('|'),
+      JSON.stringify(
+        safeData.nodes.map((node) => [
+          node.id,
+          node.type,
+          node.parentId,
+          node.title,
+          node.materialId,
+          node.isExpanded,
+          node.order,
+          node.updatedAt,
+        ]),
+      ),
     [safeData.nodes],
   );
 
@@ -204,14 +214,14 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
 
         if (!material) {
           material = await studyStorageClient.saveMaterial(
-            createStudyMaterial(selectedMaterialId, selectedNode?.title ?? 'ÐÐ¾Ð²Ñ‹Ð¹ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð»'),
+            createStudyMaterial(selectedMaterialId, selectedNode?.title ?? 'Новый материал'),
           );
 
           if (cancelled) return;
         }
 
         if (!material) {
-          throw new Error('ÐÐµ ÑƒÐ´Ð°Ð»Ð¾ÑÑŒ ÑÐ¾Ð·Ð´Ð°Ñ‚ÑŒ Ð·Ð°Ð¿Ð¸ÑÑŒ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð»Ð° Ð¾Ð±ÑƒÑ‡ÐµÐ½Ð¸Ñ Ð² SQLite.');
+          throw new Error('Не удалось создать запись материала обучения в SQLite.');
         }
 
         const blockContent = normalizeStudyBlockDocument(material.editorContent, material.plainText);
@@ -233,7 +243,7 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
         setHasUnsavedChanges(false);
       } catch (error) {
         if (!cancelled) {
-          setErrorMessage(error instanceof Error ? error.message : 'ÐÐµ ÑƒÐ´Ð°Ð»Ð¾ÑÑŒ Ð·Ð°Ð³Ñ€ÑƒÐ·Ð¸Ñ‚ÑŒ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð».');
+          setErrorMessage(error instanceof Error ? error.message : 'Не удалось загрузить материал.');
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -264,13 +274,13 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
 
     const savePromise = pendingStudyTreeSaveRef.current
       .catch(() => undefined)
-      .then(() => studyStorageClient.saveTree(normalized));
+      .then(() => studyStorageClient.saveTree(normalized))
+      .catch((error) => {
+        setErrorMessage(error instanceof Error ? error.message : 'Не удалось сохранить структуру обучения.');
+        throw error;
+      });
 
     pendingStudyTreeSaveRef.current = savePromise.then(() => undefined).catch(() => undefined);
-
-    void savePromise.catch((error) => {
-      setErrorMessage(error instanceof Error ? error.message : 'ÐÐµ ÑƒÐ´Ð°Ð»Ð¾ÑÑŒ ÑÐ¾Ñ…Ñ€Ð°Ð½Ð¸Ñ‚ÑŒ ÑÑ‚Ñ€ÑƒÐºÑ‚ÑƒÑ€Ñƒ Ð¾Ð±ÑƒÑ‡ÐµÐ½Ð¸Ñ.');
-    });
 
     return savePromise;
   }
@@ -308,7 +318,7 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
             id: nodeId,
             type: 'material',
             parentId: null,
-            title: item.title || 'Новый материал',
+            title: repairMojibakeText(item.title || 'Новый материал'),
             materialId: item.id,
             isExpanded: true,
             order: Date.parse(item.updatedAt) || Date.now() + indexOffset,
@@ -400,7 +410,7 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
         const saved = await flushPendingStudySaves();
 
         if (!saved) {
-          throw new Error('ÐÐµ ÑƒÐ´Ð°Ð»Ð¾ÑÑŒ ÑÐ¾Ñ…Ñ€Ð°Ð½Ð¸Ñ‚ÑŒ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð» Ð¾Ð±ÑƒÑ‡ÐµÐ½Ð¸Ñ.');
+          throw new Error('Не удалось сохранить материал обучения.');
         }
       },
       discard: discardMaterialChanges,
@@ -424,7 +434,7 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
       try {
         const saved = await studyStorageClient.saveMaterial(createStudyMaterial(node.materialId, node.title));
         if (!saved) {
-          throw new Error('SQLite Ð½Ðµ Ð²ÐµÑ€Ð½ÑƒÐ» ÑÐ¾Ð·Ð´Ð°Ð½Ð½Ñ‹Ð¹ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð».');
+          throw new Error('SQLite не вернул созданный материал.');
         }
 
         const nodes = [
@@ -444,7 +454,7 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
           nodes,
         });
 
-        updateStudy(nextData);
+        await updateStudy(nextData);
 
         const blockContent = normalizeStudyBlockDocument(saved.editorContent, saved.plainText);
 
@@ -461,7 +471,7 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
         hasUnsavedChangesRef.current = false;
         setHasUnsavedChanges(false);
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : 'ÐÐµ ÑƒÐ´Ð°Ð»Ð¾ÑÑŒ ÑÐ¾Ð·Ð´Ð°Ñ‚ÑŒ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð».');
+        setErrorMessage(error instanceof Error ? error.message : 'Не удалось создать материал.');
       }
 
       return;
@@ -485,7 +495,7 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
       nodes,
     });
 
-    updateStudy(nextData);
+    await updateStudy(nextData);
 
     activeMaterialRef.current = null;
     setActiveMaterial(null);
@@ -502,7 +512,7 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
     if (node.id === selectedNode?.id) return;
     if (!(await flushPendingStudySaves())) return;
 
-    updateStudy({
+    await updateStudy({
       ...safeData,
       selectedNodeId: node.id,
     });
@@ -521,17 +531,18 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
       .map((node) => node.id);
 
     if (ancestorIds.length > 0) {
-      updateStudy({
+      void updateStudy({
         ...safeData,
         nodes: safeData.nodes.map((node) =>
           ancestorIds.includes(node.id)
             ? {
                 ...node,
                 isExpanded: true,
+                updatedAt: nowIso(),
               }
             : node,
         ),
-      });
+      }).catch(() => undefined);
     }
 
     setTreeMenu(null);
@@ -587,12 +598,12 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
           setActiveMaterial(saved);
         }
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : 'ÐÐµ ÑƒÐ´Ð°Ð»Ð¾ÑÑŒ Ð¿ÐµÑ€ÐµÐ¸Ð¼ÐµÐ½Ð¾Ð²Ð°Ñ‚ÑŒ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð».');
+        setErrorMessage(error instanceof Error ? error.message : 'Не удалось переименовать материал.');
         return;
       }
     }
 
-    updateStudy({
+    await updateStudy({
       ...safeData,
       nodes: safeData.nodes.map((node) => (node.id === targetNode.id ? { ...node, title, updatedAt: timestamp } : node)),
     });
@@ -621,7 +632,7 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
         ? nodes.find((node) => node.parentId === targetNode.parentId)?.id ?? targetNode.parentId ?? nodes[0]?.id ?? null
         : safeData.selectedNodeId;
 
-      updateStudy({
+      await updateStudy({
         selectedNodeId: nextSelectedNodeId,
         nodes,
       });
@@ -638,7 +649,7 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
         setHasUnsavedChanges(false);
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'ÐÐµ ÑƒÐ´Ð°Ð»Ð¾ÑÑŒ ÑƒÐ´Ð°Ð»Ð¸Ñ‚ÑŒ ÑÐ»ÐµÐ¼ÐµÐ½Ñ‚.');
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось удалить элемент.');
     }
   }
 
@@ -649,14 +660,17 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
     setNodePendingDelete(targetNode);
   }
 
-  function toggleFolder(nodeId: string) {
-    updateStudy({
+  async function toggleFolder(nodeId: string) {
+    const timestamp = nowIso();
+
+    await updateStudy({
       ...safeData,
       nodes: safeData.nodes.map((node) =>
         node.id === nodeId
           ? {
               ...node,
               isExpanded: !node.isExpanded,
+              updatedAt: timestamp,
             }
           : node,
       ),
@@ -687,7 +701,7 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
     const timestamp = nowIso();
     const order = Date.now();
 
-    updateStudy({
+    await updateStudy({
       ...safeData,
       nodes: safeData.nodes.map((node) => {
         if (node.id === nodeId) {
@@ -860,7 +874,7 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
 
       const saved = await studyStorageClient.saveMaterial(nextMaterial);
       if (!saved) {
-        throw new Error('SQLite Ð½Ðµ Ð²ÐµÑ€Ð½ÑƒÐ» ÑÐ¾Ñ…Ñ€Ð°Ð½Ñ‘Ð½Ð½Ñ‹Ð¹ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð».');
+        throw new Error('SQLite не вернул сохранённый материал.');
       }
 
       if (selectedMaterialIdRef.current === saved.id) {
@@ -879,7 +893,7 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
 
       return saved;
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'ÐÐµ ÑƒÐ´Ð°Ð»Ð¾ÑÑŒ ÑÐ¾Ñ…Ñ€Ð°Ð½Ð¸Ñ‚ÑŒ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð».');
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось сохранить материал.');
       return null;
     } finally {
       setIsSaving(false);
@@ -904,22 +918,22 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
       <aside className="sticky top-0 flex h-full min-h-0 flex-col overflow-hidden border-r border-app-border bg-[linear-gradient(180deg,color-mix(in_srgb,var(--surface)_94%,var(--accent)_6%),var(--surface))] p-4 max-[980px]:static max-[980px]:h-auto">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <span className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-muted">Ð‘Ð¸Ð±Ð»Ð¸Ð¾Ñ‚ÐµÐºÐ°</span>
-            <strong className="block text-base font-extrabold text-app-text">ÐžÐ±ÑƒÑ‡ÐµÐ½Ð¸Ðµ</strong>
+            <span className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-muted">Библиотека</span>
+            <strong className="block text-base font-extrabold text-app-text">Обучение</strong>
           </div>
 
           <div className="flex items-center gap-2">
-            <button className={iconButtonClass} type="button" onClick={() => void createNode('folder')} aria-label="Ð¡Ð¾Ð·Ð´Ð°Ñ‚ÑŒ Ð¿Ð°Ð¿ÐºÑƒ" title="Ð¡Ð¾Ð·Ð´Ð°Ñ‚ÑŒ Ð¿Ð°Ð¿ÐºÑƒ">
+            <button className={iconButtonClass} type="button" onClick={() => void createNode('folder')} aria-label="Создать папку" title="Создать папку">
               <FolderPlus size={18} />
             </button>
 
-            <button className={primaryIconButtonClass} type="button" onClick={() => void createNode('material')} aria-label="Ð¡Ð¾Ð·Ð´Ð°Ñ‚ÑŒ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð»" title="Ð¡Ð¾Ð·Ð´Ð°Ñ‚ÑŒ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð»">
+            <button className={primaryIconButtonClass} type="button" onClick={() => void createNode('material')} aria-label="Создать материал" title="Создать материал">
               <Plus size={18} />
             </button>
           </div>
         </div>
 
-        <div className="mb-3 grid grid-cols-2 gap-2" aria-label="Ð¡Ñ‚Ð°Ñ‚Ð¸ÑÑ‚Ð¸ÐºÐ° Ð¾Ð±ÑƒÑ‡ÐµÐ½Ð¸Ñ">
+        <div className="mb-3 grid grid-cols-2 gap-2" aria-label="Статистика обучения">
           <span className={statPillClass}>
             <Folder size={14} />
             {folderCount}
@@ -932,14 +946,14 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
 
         <label className="mb-3 flex min-h-control items-center gap-2 rounded-control border border-app-border bg-app-surface-soft px-3 text-app-muted focus-within:border-[color-mix(in_srgb,var(--accent)_56%,var(--border))]">
           <Search size={16} />
-          <input className="min-w-0 flex-1 border-0 bg-transparent px-0 shadow-none outline-none focus:border-0 focus:shadow-none" value={search} placeholder="ÐŸÐ¾Ð¸ÑÐº Ð¿Ð¾ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð»Ð°Ð¼" onChange={(event) => setSearch(event.target.value)} />
+          <input className="min-w-0 flex-1 border-0 bg-transparent px-0 shadow-none outline-none focus:border-0 focus:shadow-none" value={search} placeholder="Поиск по материалам" onChange={(event) => setSearch(event.target.value)} />
         </label>
 
         <div className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-app-muted">
-          <span>{isSearchActive ? `ÐÐ°Ð¹Ð´ÐµÐ½Ð¾: ${visibleNodes.length}` : 'Ð¡Ñ‚Ñ€ÑƒÐºÑ‚ÑƒÑ€Ð°'}</span>
+          <span>{isSearchActive ? `Найдено: ${visibleNodes.length}` : 'Структура'}</span>
           {isSearchActive ? (
             <button className="text-app-accent-strong hover:text-app-text" type="button" onClick={() => setSearch('')}>
-              Ð¡Ð±Ñ€Ð¾ÑÐ¸Ñ‚ÑŒ
+              Сбросить
             </button>
           ) : null}
         </div>
@@ -956,12 +970,12 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
               className={cn(rootDropClass, treeDropTarget?.parentId === null && rootDropActiveClass)}
               data-study-drop-target="root"
             >
-              ÐŸÐµÑ€ÐµÐ½ÐµÑÑ‚Ð¸ Ð² ÐºÐ¾Ñ€ÐµÐ½ÑŒ
+              Перенести в корень
             </div>
           ) : null}
 
           {rootNodes.length === 0 ? (
-            <div className="grid min-h-[120px] place-items-center rounded-panel border border-dashed border-app-border p-4 text-center text-sm text-app-muted">{isSearchActive ? 'ÐÐ¸Ñ‡ÐµÐ³Ð¾ Ð½Ðµ Ð½Ð°Ð¹Ð´ÐµÐ½Ð¾.' : 'Ð¡Ð¾Ð·Ð´Ð°Ð¹ Ð¿Ð°Ð¿ÐºÑƒ Ð¸Ð»Ð¸ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð».'}</div>
+            <div className="grid min-h-[120px] place-items-center rounded-panel border border-dashed border-app-border p-4 text-center text-sm text-app-muted">{isSearchActive ? 'Ничего не найдено.' : 'Создай папку или материал.'}</div>
           ) : (
             rootNodes.map((node) => (
               <StudyTreeNode
@@ -992,29 +1006,29 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
               <>
                 <button className={treeMenuButtonClass} type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => createNode('material', treeMenuNode.id))}>
                   <FilePlus2 size={15} />
-                  ÐœÐ°Ñ‚ÐµÑ€Ð¸Ð°Ð»
+                  Материал
                 </button>
                 <button className={treeMenuButtonClass} type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => createNode('folder', treeMenuNode.id))}>
                   <FolderPlus size={15} />
-                  ÐŸÐ°Ð¿ÐºÐ°
+                  Папка
                 </button>
               </>
             ) : null}
             <button className={treeMenuButtonClass} type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => startRenameNode(treeMenuNode))}>
               <Pencil size={15} />
-              ÐŸÐµÑ€ÐµÐ¸Ð¼ÐµÐ½Ð¾Ð²Ð°Ñ‚ÑŒ
+              Переименовать
             </button>
             <button className={cn(treeMenuButtonClass, 'text-app-danger hover:border-[color-mix(in_srgb,var(--danger)_42%,var(--border))] hover:bg-[color-mix(in_srgb,var(--danger)_12%,var(--surface-strong))]')} type="button" role="menuitem" onClick={() => void handleTreeMenuAction(() => requestDeleteNode(treeMenuNode))}>
               <Trash2 size={15} />
-              Ð£Ð´Ð°Ð»Ð¸Ñ‚ÑŒ
+              Удалить
             </button>
           </div>
         ) : null}
       </aside>
 
       <main className="h-full min-h-0 min-w-0 overflow-y-auto p-6">
-        <nav className="mb-2 flex flex-wrap items-center gap-1.5 px-1 text-xs text-app-muted" aria-label="ÐŸÑƒÑ‚ÑŒ">
-          <span>ÐžÐ±ÑƒÑ‡ÐµÐ½Ð¸Ðµ</span>
+        <nav className="mb-2 flex flex-wrap items-center gap-1.5 px-1 text-xs text-app-muted" aria-label="Путь">
+          <span>Обучение</span>
           {selectedPath.map((node) => (
             <button className="after:ml-1.5 after:text-app-muted after:content-['/'] last:after:hidden hover:text-app-accent-strong" key={node.id} type="button" onClick={() => void selectNode(node)}>
               {node.title}
@@ -1025,37 +1039,37 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
         <div className="mb-4 flex items-start justify-between gap-4 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-5 [backdrop-filter:var(--glass-blur)] shadow-panel max-[900px]:flex-col">
           <div className="min-w-0">
             <div className="mb-2 flex flex-wrap items-center gap-3">
-              <span className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-accent-strong">{selectedNode?.type === 'folder' ? 'ÐŸÐ°Ð¿ÐºÐ°' : 'ÐœÐ°Ñ‚ÐµÑ€Ð¸Ð°Ð»'}</span>
+              <span className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-app-accent-strong">{selectedNode?.type === 'folder' ? 'Папка' : 'Материал'}</span>
               <div className={cn(saveStatusClass, saveStatusTone === 'dirty' && 'text-app-warning', saveStatusTone === 'saving' && 'text-app-accent-strong')}>
                 <span className={cn("h-2 w-2 rounded-full bg-app-positive", saveStatusTone === 'dirty' && 'bg-app-warning', saveStatusTone === 'saving' && 'bg-app-accent-strong')} aria-hidden="true" />
                 {saveStatusLabel}
               </div>
             </div>
 
-            <h1 className="truncate text-[34px] font-extrabold leading-tight text-app-text">{selectedNode?.title ?? 'ÐžÐ±ÑƒÑ‡ÐµÐ½Ð¸Ðµ'}</h1>
+            <h1 className="truncate text-[34px] font-extrabold leading-tight text-app-text">{selectedNode?.title ?? 'Обучение'}</h1>
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
             <div className="inline-flex rounded-control border border-app-border bg-app-surface-soft p-1">
               <button className={cn(modeToggleButtonClass, mode === 'edit' && modeToggleActiveClass)} type="button" onClick={() => setMode('edit')}>
                 <Edit3 size={16} />
-                ÐŸÑ€Ð°Ð²ÐºÐ°
+                Правка
               </button>
 
               <button className={cn(modeToggleButtonClass, mode === 'read' && modeToggleActiveClass)} type="button" onClick={() => setMode('read')}>
                 <BookOpen size={16} />
-                Ð§Ñ‚ÐµÐ½Ð¸Ðµ
+                Чтение
               </button>
             </div>
 
             <button className={ghostButtonClass} type="button" onClick={() => startRenameNode(selectedNode)} disabled={!selectedNode}>
               <Pencil size={16} />
-              ÐŸÐµÑ€ÐµÐ¸Ð¼ÐµÐ½Ð¾Ð²Ð°Ñ‚ÑŒ
+              Переименовать
             </button>
 
             <button className={dangerButtonClass} type="button" onClick={() => requestDeleteNode(selectedNode)} disabled={!selectedNode}>
               <Trash2 size={18} />
-              Ð£Ð´Ð°Ð»Ð¸Ñ‚ÑŒ
+              Удалить
             </button>
           </div>
         </div>
@@ -1066,7 +1080,7 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
           <div>
             <section className="min-w-0">
               {isLoading ? (
-                <div className="grid min-h-[260px] place-items-center rounded-panel border border-app-border bg-app-surface-soft p-6 text-app-muted">Ð—Ð°Ð³Ñ€ÑƒÐ·ÐºÐ° Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð»Ð°...</div>
+                <div className="grid min-h-[260px] place-items-center rounded-panel border border-app-border bg-app-surface-soft p-6 text-app-muted">Загрузка материала...</div>
               ) : mode === 'edit' ? (
                 <>
                   <StudyBlockEditor
@@ -1075,11 +1089,11 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
                     onChange={handleEditorChange}
                     sidebarFooter={
                       <div className="flex items-center justify-between gap-3 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-3 text-app-muted [backdrop-filter:var(--glass-blur)] shadow-panel">
-                        <span>{draftPlainText.trim().length} ÑÐ¸Ð¼Ð²Ð¾Ð»Ð¾Ð²</span>
+                        <span>{draftPlainText.trim().length} символов</span>
 
                         <button className={primaryButtonClass} type="button" onClick={() => void saveMaterial()} disabled={isSaving}>
                           <Save size={18} />
-                          {isSaving ? 'Ð¡Ð¾Ñ…Ñ€Ð°Ð½ÐµÐ½Ð¸Ðµ...' : 'Ð¡Ð¾Ñ…Ñ€Ð°Ð½Ð¸Ñ‚ÑŒ'}
+                          {isSaving ? 'Сохранение...' : 'Сохранить'}
                         </button>
                       </div>
                     }
@@ -1103,16 +1117,16 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
               <FolderOpen className="text-app-accent-strong" size={34} />
               <div>
                 <strong className="block text-xl font-extrabold">{selectedNode.title}</strong>
-                <span className="text-sm text-app-muted">{selectedFolderChildren.length ? `${selectedFolderChildren.length} ÑÐ»ÐµÐ¼ÐµÐ½Ñ‚Ð¾Ð² Ð²Ð½ÑƒÑ‚Ñ€Ð¸` : 'ÐŸÐ°Ð¿ÐºÐ° Ð¿Ð¾ÐºÐ° Ð¿ÑƒÑÑ‚Ð°Ñ'}</span>
+                <span className="text-sm text-app-muted">{selectedFolderChildren.length ? `${selectedFolderChildren.length} элементов внутри` : 'Папка пока пустая'}</span>
               </div>
               <div className="ml-auto flex flex-wrap gap-2 max-[720px]:ml-0">
                 <button className={ghostButtonClass} type="button" onClick={() => void createNode('folder', selectedNode.id)}>
                   <FolderPlus size={17} />
-                  ÐŸÐ°Ð¿ÐºÐ°
+                  Папка
                 </button>
                 <button className={primaryButtonClass} type="button" onClick={() => void createNode('material', selectedNode.id)}>
                   <FilePlus2 size={17} />
-                  ÐœÐ°Ñ‚ÐµÑ€Ð¸Ð°Ð»
+                  Материал
                 </button>
               </div>
             </div>
@@ -1129,24 +1143,24 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
               </div>
             ) : (
               <div className="grid min-h-[180px] place-items-center rounded-panel border border-dashed border-app-border p-6 text-center text-app-muted">
-                <span>Ð”Ð¾Ð±Ð°Ð²ÑŒ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð» Ð¸Ð»Ð¸ Ð²Ð»Ð¾Ð¶ÐµÐ½Ð½ÑƒÑŽ Ð¿Ð°Ð¿ÐºÑƒ, Ñ‡Ñ‚Ð¾Ð±Ñ‹ ÑÐ¾Ð±Ñ€Ð°Ñ‚ÑŒ ÑÑ‚Ñ€ÑƒÐºÑ‚ÑƒÑ€Ñƒ Ð¾Ð±ÑƒÑ‡ÐµÐ½Ð¸Ñ.</span>
+                <span>Добавь материал или вложенную папку, чтобы собрать структуру обучения.</span>
               </div>
             )}
           </div>
         ) : (
           <div className="grid min-h-[320px] place-items-center gap-2 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-6 text-center text-app-muted [backdrop-filter:var(--glass-blur)] shadow-panel">
             <FileText className="text-app-accent-strong" size={32} />
-            <strong className="text-app-text">ÐÐµÑ‚ Ð²Ñ‹Ð±Ñ€Ð°Ð½Ð½Ð¾Ð³Ð¾ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð»Ð°</strong>
-            <span>Ð¡Ð¾Ð·Ð´Ð°Ð¹ Ð¿Ð°Ð¿ÐºÑƒ Ð¸Ð»Ð¸ Ð¼Ð°Ñ‚ÐµÑ€Ð¸Ð°Ð» Ð² Ð»ÐµÐ²Ð¾Ð¼ ÑÐ°Ð¹Ð´Ð±Ð°Ñ€Ðµ.</span>
+            <strong className="text-app-text">Нет выбранного материала</strong>
+            <span>Создай папку или материал в левом сайдбаре.</span>
           </div>
         )}
       </main>
 
       {nodePendingDelete ? (
         <ConfirmDialog
-          title={`Ð£Ð´Ð°Ð»Ð¸Ñ‚ÑŒ Â«${nodePendingDelete.title}Â»?`}
+          title={`Удалить «${nodePendingDelete.title}»?`}
           message={getDeleteNodeConfirmMessage(nodePendingDelete, safeData.nodes)}
-          confirmLabel="Ð£Ð´Ð°Ð»Ð¸Ñ‚ÑŒ"
+          confirmLabel="Удалить"
           confirmVariant="danger"
           action="delete"
           onCancel={() => setNodePendingDelete(null)}
@@ -1163,16 +1177,16 @@ export function StudyPage({ data, onChange, onEditorDirtyChange, onEditorActions
 
 function getDeleteNodeConfirmMessage(node: StudyNode, nodes: StudyNode[]) {
   if (node.type === 'material') {
-    return 'ÐœÐ°Ñ‚ÐµÑ€Ð¸Ð°Ð» Ð±ÑƒÐ´ÐµÑ‚ ÑƒÐ´Ð°Ð»Ñ‘Ð½ Ð²Ð¼ÐµÑÑ‚Ðµ Ñ ÑÐ¾Ñ…Ñ€Ð°Ð½Ñ‘Ð½Ð½Ñ‹Ð¼ ÑÐ¾Ð´ÐµÑ€Ð¶Ð¸Ð¼Ñ‹Ð¼. Ð­Ñ‚Ð¾ Ð´ÐµÐ¹ÑÑ‚Ð²Ð¸Ðµ Ð½ÐµÐ»ÑŒÐ·Ñ Ð¾Ñ‚Ð¼ÐµÐ½Ð¸Ñ‚ÑŒ.';
+    return 'Материал будет удалён вместе с сохранённым содержимым. Это действие нельзя отменить.';
   }
 
   const descendantCount = Math.max(collectDescendantIds(nodes, node.id).size - 1, 0);
 
   if (descendantCount === 0) {
-    return 'ÐŸÐ°Ð¿ÐºÐ° Ð±ÑƒÐ´ÐµÑ‚ ÑƒÐ´Ð°Ð»ÐµÐ½Ð°. Ð­Ñ‚Ð¾ Ð´ÐµÐ¹ÑÑ‚Ð²Ð¸Ðµ Ð½ÐµÐ»ÑŒÐ·Ñ Ð¾Ñ‚Ð¼ÐµÐ½Ð¸Ñ‚ÑŒ.';
+    return 'Папка будет удалена. Это действие нельзя отменить.';
   }
 
-  return `ÐŸÐ°Ð¿ÐºÐ° Ð¸ Ð²ÑÐµ Ð²Ð»Ð¾Ð¶ÐµÐ½Ð½Ñ‹Ðµ ÑÐ»ÐµÐ¼ÐµÐ½Ñ‚Ñ‹ Ð±ÑƒÐ´ÑƒÑ‚ ÑƒÐ´Ð°Ð»ÐµÐ½Ñ‹. Ð’Ð½ÑƒÑ‚Ñ€Ð¸: ${descendantCount}. Ð­Ñ‚Ð¾ Ð´ÐµÐ¹ÑÑ‚Ð²Ð¸Ðµ Ð½ÐµÐ»ÑŒÐ·Ñ Ð¾Ñ‚Ð¼ÐµÐ½Ð¸Ñ‚ÑŒ.`;
+  return `Папка и все вложенные элементы будут удалены. Внутри: ${descendantCount}. Это действие нельзя отменить.`;
 }
 
 function StudyTreeNode({
@@ -1196,7 +1210,7 @@ function StudyTreeNode({
   nodes: StudyNode[];
   selectedNodeId: string | null;
   onSelect: (node: StudyNode) => void | Promise<void>;
-  onToggle: (nodeId: string) => void;
+  onToggle: (nodeId: string) => void | Promise<void>;
   onContextMenu: (event: ReactMouseEvent, node: StudyNode) => void;
   onPointerDown: (event: ReactPointerEvent, node: StudyNode) => void;
   draggedNodeId: string | null;
@@ -1232,10 +1246,10 @@ function StudyTreeNode({
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
-              onToggle(node.id);
+              void onToggle(node.id);
             }}
             disabled={children.length === 0}
-            aria-label={isExpanded ? 'Ð¡Ð²ÐµÑ€Ð½ÑƒÑ‚ÑŒ Ð¿Ð°Ð¿ÐºÑƒ' : 'Ð Ð°ÑÐºÑ€Ñ‹Ñ‚ÑŒ Ð¿Ð°Ð¿ÐºÑƒ'}
+            aria-label={isExpanded ? 'Свернуть папку' : 'Раскрыть папку'}
           >
             {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
           </button>

@@ -1,7 +1,7 @@
-import { Archive, Check, Trash2 } from 'lucide-react';
+﻿import { Archive, Check, Trash2 } from 'lucide-react';
 import { AppButton, CancelButton } from './ActionButtons';
 import { Modal } from './Modal';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '../i18n';
 
 interface ConfirmDialogProps {
   title: string;

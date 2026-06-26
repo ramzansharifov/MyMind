@@ -1,4 +1,4 @@
-import {
+﻿import {
   Area,
   AreaChart,
   Bar,
@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import type { ReactNode } from 'react';
 import { StatCard } from '../../shared/components/StatCard';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import { formatDate } from '../../shared/utils/dateUtils';
 import { formatCurrency } from '../../shared/utils/formatters';
 import {

@@ -1,4 +1,4 @@
-import type { BoardFolder, BoardItem, BoardsData } from './types';
+﻿import type { BoardFolder, BoardItem, BoardsData } from './types';
 import { STUDY_BOARDS_FOLDER_ID } from './types';
 
 export const emptyBoardsData: BoardsData = {
@@ -19,7 +19,7 @@ export function createStudyBoardsFolder(): BoardFolder {
   const timestamp = nowIso();
   return {
     id: STUDY_BOARDS_FOLDER_ID,
-    title: 'Обучение',
+    title: '\u041e\u0431\u0443\u0447\u0435\u043d\u0438\u0435',
     parentId: null,
     order: 0,
     systemKey: 'study',
@@ -115,3 +115,4 @@ export function updateBoardSnapshot(data: BoardsData, boardId: string, snapshot:
     )),
   });
 }
+

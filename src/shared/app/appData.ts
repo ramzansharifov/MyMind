@@ -19,10 +19,14 @@ import type { TodoData, TodoItem } from '../../modules/todos/types';
 import { DEFAULT_TODO_GROUPS } from '../../modules/todos/todoUtils';
 import type { MealRecord, NutritionEntry } from '../../modules/nutrition/types';
 import type { WorkoutData } from '../../modules/workouts/types';
-import { appModules, moduleGroupIconDefinitions } from './moduleRegistry';
-import type { CollectionName } from '../storage/storageTypes';
-import type { AppSettings, ContentGroup, GroupedContentData, ModuleGroupIconKey, ModuleKey, SidebarSettings } from '../types/common';
+import type { CollectionMap } from '../storage/storageTypes';
+import { dataCollections, reminderCollections, type AppCollectionName } from './collectionRegistry';
+import { normalizeGroupedContentData } from './groupedContentModel';
 import { localDateOnly, weekdayNumber } from '../utils/dateUtils';
+
+export { dataCollections, reminderCollections } from './collectionRegistry';
+export type { AppCollectionName } from './collectionRegistry';
+export { createDefaultSettings, createDefaultSidebarSettings, normalizeSettings, normalizeSidebarSettings } from './settingsModel';
 
 export interface AppData {
   [collectionName: string]: unknown;
@@ -43,8 +47,6 @@ export interface AppData {
   goals: Goal[];
   inventory: InventoryItem[];
 }
-
-export type AppCollectionName = Exclude<CollectionName, 'app_settings'>;
 
 export const emptyData: AppData = {
   movies: [],
@@ -73,88 +75,6 @@ export const emptyData: AppData = {
   inventory: [],
 };
 
-export function createDefaultSettings(): AppSettings {
-  const timestamp = new Date().toISOString();
-  return {
-    themeMode: 'system',
-    language: 'en',
-    dataDirectory: '',
-    currency: 'USD',
-    uiDensity: 'comfortable',
-    accentColor: 'teal',
-    startModule: 'dashboard',
-    sidebar: createDefaultSidebarSettings(),
-    seedDataCreated: false,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
-}
-
-export function createDefaultSidebarSettings(): SidebarSettings {
-  return {
-    hiddenModules: [],
-    groups: [],
-  };
-}
-
-export function normalizeSettings(settings: AppSettings): AppSettings {
-  const startModule = appModules.some((module) => module.key === settings.startModule) ? settings.startModule : 'dashboard';
-
-  return {
-    ...createDefaultSettings(),
-    ...settings,
-    startModule,
-    sidebar: normalizeSidebarSettings(settings.sidebar),
-  };
-}
-
-export function normalizeSidebarSettings(settings: SidebarSettings | undefined): SidebarSettings {
-  const hideableModules = new Set(appModules.filter((module) => module.canHide).map((module) => module.key));
-  const groupableModules = new Set(appModules.filter((module) => module.canGroup).map((module) => module.key));
-  const usedModuleKeys = new Set<ModuleKey>();
-  return {
-    hiddenModules: Array.from(new Set(settings?.hiddenModules ?? [])).filter((key) => hideableModules.has(key)),
-    groups: (settings?.groups ?? []).map((group) => {
-      const moduleKeys = Array.from(new Set(group.moduleKeys ?? [])).filter((key) => {
-        if (!groupableModules.has(key) || usedModuleKeys.has(key)) {
-          return false;
-        }
-        usedModuleKeys.add(key);
-        return true;
-      });
-      const icon = (group as Partial<{ icon: ModuleGroupIconKey }>).icon;
-      return {
-        id: group.id,
-        title: group.title || 'New group',
-        icon: icon && moduleGroupIconDefinitions.has(icon) ? icon : 'folder',
-        moduleKeys,
-        isVisible: group.isVisible ?? true,
-        isExpanded: group.isExpanded ?? true,
-      };
-    }),
-  };
-}
-
-export const dataCollections: AppCollectionName[] = [
-  'movies',
-  'workouts',
-  'todos',
-  'finance',
-  'habits',
-  'calendar_events',
-  'journal_entries',
-  'notes',
-  'templates',
-  'study',
-  'boards',
-  'projects',
-  'contacts',
-  'health',
-  'goals',
-  'inventory',
-];
-
-export const reminderCollections: AppCollectionName[] = ['todos', 'habits', 'calendar_events'];
 
 function getAppDataKeyForCollection(collectionName: AppCollectionName): string {
   switch (collectionName) {
@@ -199,28 +119,6 @@ function getDefaultDynamicCollectionValue(collectionName: AppCollectionName) {
   }
 }
 
-
-export const moduleCollections: Record<string, AppCollectionName[]> = {
-  dashboard: dataCollections,
-  movies: ['movies'],
-  workouts: ['workouts'],
-  nutrition: ['workouts'],
-  todos: ['todos'],
-  finance: ['finance'],
-  habits: ['habits'],
-  calendar: ['calendar_events'],
-  journal: ['journal_entries'],
-  notes: ['notes'],
-  templates: ['templates'],
-  study: ['study'],
-  boards: ['boards'],
-  projects: ['projects'],
-  contacts: ['contacts'],
-  health: ['health'],
-  goals: ['goals'],
-  inventory: ['inventory'],
-  settings: dataCollections,
-};
 
 export function normalizeData(data: AppData): AppData {
   return {
@@ -284,44 +182,44 @@ export function normalizeData(data: AppData): AppData {
   };
 }
 
-export function normalizeCollectionValue(collectionName: AppCollectionName, value: unknown) {
+export function normalizeCollectionValue<K extends AppCollectionName>(collectionName: K, value: unknown): CollectionMap[K] {
   const normalized = normalizeData(setDataCollection(emptyData, collectionName, value));
   return getDataCollection(normalized, collectionName);
 }
 
-export function getDataCollection(data: AppData, collectionName: AppCollectionName) {
+export function getDataCollection<K extends AppCollectionName>(data: AppData, collectionName: K): CollectionMap[K] {
   switch (collectionName) {
     case 'movies':
-      return data.movies;
+      return data.movies as CollectionMap[K];
     case 'workouts':
-      return data.workouts;
+      return data.workouts as CollectionMap[K];
     case 'todos':
-      return data.todos;
+      return data.todos as CollectionMap[K];
     case 'finance':
-      return data.finance;
+      return data.finance as CollectionMap[K];
     case 'habits':
-      return data.habits;
+      return data.habits as CollectionMap[K];
     case 'calendar_events':
-      return data.calendarEvents;
+      return data.calendarEvents as CollectionMap[K];
     case 'journal_entries':
-      return data.journalEntries;
+      return data.journalEntries as CollectionMap[K];
     case 'notes':
-      return data.notes;
+      return data.notes as CollectionMap[K];
     case 'templates':
-      return data.templates;
+      return data.templates as CollectionMap[K];
     case 'projects':
-      return data.projects;
+      return data.projects as CollectionMap[K];
     case 'contacts':
-      return data.contacts;
+      return data.contacts as CollectionMap[K];
     case 'health':
-      return data.health;
+      return data.health as CollectionMap[K];
     case 'goals':
-      return data.goals;
+      return data.goals as CollectionMap[K];
     case 'inventory':
-      return data.inventory;
+      return data.inventory as CollectionMap[K];
     default: {
       const key = getAppDataKeyForCollection(collectionName);
-      return (data as Record<string, unknown>)[key] ?? getDefaultDynamicCollectionValue(collectionName);
+      return ((data as Record<string, unknown>)[key] ?? getDefaultDynamicCollectionValue(collectionName)) as CollectionMap[K];
     }
   }
 }
@@ -474,42 +372,6 @@ function normalizeTodoData(todos: TodoData | TodoItem[] | undefined): TodoData {
   };
 }
 
-function normalizeGroupedContentData<TItem extends { id: string; groupId?: string | null }>(
-  data: GroupedContentData<TItem> | TItem[] | unknown,
-  mapItem: (item: TItem) => TItem = (item) => item,
-): GroupedContentData<TItem> {
-  const timestamp = new Date().toISOString();
-  const source = data as Partial<GroupedContentData<TItem>> | TItem[] | undefined;
-  const rawItems = Array.isArray(source) ? source : source?.items ?? [];
-  const rawGroups = Array.isArray(source) ? [] : source?.groups ?? [];
-  const seenGroups = new Set<string>();
-  const groups = rawGroups
-    .filter((group): group is ContentGroup => {
-      if (!group?.id || seenGroups.has(group.id)) {
-        return false;
-      }
-      seenGroups.add(group.id);
-      return true;
-    })
-    .map((group) => ({
-      id: group.id,
-      title: group.title || 'New group',
-      createdAt: group.createdAt ?? timestamp,
-      updatedAt: group.updatedAt ?? timestamp,
-    }));
-  const groupIds = new Set(groups.map((group) => group.id));
-
-  return {
-    items: rawItems.map((item) => {
-      const mapped = mapItem(item);
-      return {
-        ...mapped,
-        groupId: mapped.groupId && groupIds.has(mapped.groupId) ? mapped.groupId : null,
-      };
-    }),
-    groups,
-  };
-}
 
 function normalizeHabitLogDate(log: HabitLog) {
   const source = log.isCompleted ? log.completedAt ?? log.updatedAt ?? log.date : log.date;

@@ -1,9 +1,9 @@
-import { Archive, ChevronDown, ChevronUp, RotateCcw, Trash2 } from 'lucide-react';
+﻿import { Archive, ChevronDown, ChevronUp, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { AppData } from '../../shared/app/appData';
 import { CloseButton, DeleteButton } from '../../shared/components/ActionButtons';
 import { ModalPortal } from '../../shared/components/ModalPortal';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import { archiveEntity, isArchived, isTrashed, restoreEntity, trashEntity, type LifecycleEntity } from '../../shared/utils/archiveUtils';
 import { cn } from '../../shared/utils/classNames';
 import { formatDate } from '../../shared/utils/dateUtils';

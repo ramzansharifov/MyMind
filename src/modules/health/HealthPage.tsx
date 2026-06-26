@@ -1,9 +1,9 @@
-import { useState, type FormEvent } from 'react';
+﻿import { useState, type FormEvent } from 'react';
 import { AddButton, DeleteButton, EditButton } from '../../shared/components/ActionButtons';
-import { EntityForm } from '../../shared/components/EntityForm';
+import { EntityForm } from '../../shared/forms';
 import { EmptyState } from '../../shared/components/EmptyState';
-import { PageHeader } from '../../shared/components/PageHeader';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { ModulePageShell } from '../../shared/components/ModulePageShell';
+import { useI18n } from '../../shared/i18n';
 import { formatDate } from '../../shared/utils/dateUtils';
 import { createId } from '../../shared/utils/idGenerator';
 import type { HealthData, HealthEntry } from './types';
@@ -20,14 +20,11 @@ export function HealthPage({ data, onChange }: { data: HealthData; onChange: (da
   }
 
   return (
-    <section>
-      <PageHeader
-        title="Health"
-        subtitle="Sleep, mood, energy, symptoms, and simple body metrics."
-        actions={
-          <AddButton label="Add health entry" onClick={() => setEditing(null)} />
-        }
-      />
+    <ModulePageShell
+      title="Health"
+      subtitle="Sleep, mood, energy, symptoms, and simple body metrics."
+      actions={<AddButton label="Add health entry" onClick={() => setEditing(null)} />}
+    >
       <div className="mb-[18px] grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3.5">
         <article className={statCardClass}>
           <span className="text-app-muted">{t('Entries')}</span>
@@ -67,7 +64,7 @@ export function HealthPage({ data, onChange }: { data: HealthData; onChange: (da
         </div>
       )}
       {editing !== undefined ? <HealthEntryForm entry={editing} onCancel={() => setEditing(undefined)} onSave={saveEntry} /> : null}
-    </section>
+    </ModulePageShell>
   );
 }
 

@@ -1,15 +1,13 @@
-import { lazy, Suspense, useState, type FormEvent } from 'react';
+﻿import { lazy, Suspense, useState } from 'react';
 import { AddButton, DeleteButton, EditButton } from '../../shared/components/ActionButtons';
-import { ContentGroupWorkspaceHeader, GroupFormDialog } from '../../shared/components/ContentGroupsPanel';
 import { EmptyState } from '../../shared/components/EmptyState';
-import { GroupsSidebar } from '../../shared/components/GroupsSidebar';
+import { GroupedCollectionLayout } from '../../shared/components/GroupedCollectionLayout';
 import { LoadingState } from '../../shared/components/LoadingState';
-import { PageHeader } from '../../shared/components/PageHeader';
+import { ModulePageShell } from '../../shared/components/ModulePageShell';
 import { PageTabs } from '../../shared/components/PageTabs';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import { cn } from '../../shared/utils/classNames';
 import { formatDate } from '../../shared/utils/dateUtils';
-import { createId } from '../../shared/utils/idGenerator';
 import { ExerciseForm } from './ExerciseForm';
 import { ProgressRecordForm } from './ProgressRecordForm';
 import { StartingPositionForm } from './StartingPositionForm';
@@ -33,7 +31,6 @@ const sectionPanelClass =
   'grid gap-4 rounded-panel border border-app-border bg-[var(--panel-bg)] p-4 text-app-text shadow-panel [backdrop-filter:var(--glass-blur)]';
 const sectionHeadingClass = 'flex items-start justify-between gap-4 border-b border-[var(--line-soft)] pb-3 max-[760px]:flex-col';
 const mutedTextClass = 'text-sm text-app-muted';
-const contentGridClass = 'grid grid-cols-[minmax(210px,260px)_1fr] gap-4 max-[900px]:grid-cols-1';
 const itemGridClass = 'grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] content-start gap-3';
 const cardGridClass = 'grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4';
 const stackClass = 'grid gap-3';
@@ -86,8 +83,6 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
   const [activeSection, setActiveSection] = useState<Section>('exercises');
   const [openForm, setOpenForm] = useState<OpenForm>(null);
   const [activeExerciseGroupId, setActiveExerciseGroupId] = useState<string>('all');
-  const [newExerciseGroupTitle, setNewExerciseGroupTitle] = useState('');
-  const [isCreatingExerciseGroup, setIsCreatingExerciseGroup] = useState(false);
   const { t } = useI18n();
   const exercises = data.exercises ?? [];
   const exerciseGroups = data.exerciseGroups ?? [];
@@ -114,26 +109,6 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
     });
   }
 
-  function saveExerciseGroup(event?: FormEvent<HTMLFormElement>) {
-    event?.preventDefault();
-    const title = newExerciseGroupTitle.trim();
-    if (!title) {
-      return;
-    }
-    const timestamp = new Date().toISOString();
-    const group: ExerciseGroup = {
-      id: createId('exercise-group'),
-      title,
-      description: '',
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    };
-    onChange({ ...data, exerciseGroups: [...exerciseGroups, group] });
-    setActiveExerciseGroupId(group.id);
-    setNewExerciseGroupTitle('');
-    setIsCreatingExerciseGroup(false);
-  }
-
   function renameExerciseGroup(groupId: string, title: string) {
     const timestamp = new Date().toISOString();
     onChange({
@@ -157,6 +132,38 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
       setActiveExerciseGroupId('all');
     }
   }
+
+  function saveExerciseGroups(nextGroups: ExerciseGroup[]) {
+    const timestamp = new Date().toISOString();
+    const systemGroupIds = new Set(['all', 'ungrouped']);
+    onChange({
+      ...data,
+      exerciseGroups: nextGroups
+        .filter((group) => !systemGroupIds.has(group.id))
+        .map((group) => ({
+          ...group,
+          description: group.description ?? '',
+          createdAt: group.createdAt ?? timestamp,
+          updatedAt: group.updatedAt ?? timestamp,
+        })),
+    });
+  }
+
+  function countExercisesInGroup(groupId: string) {
+    if (groupId === 'all') {
+      return exercises.length;
+    }
+    if (groupId === 'ungrouped') {
+      return exercises.filter((exercise) => !exercise.groupId).length;
+    }
+    return exercises.filter((exercise) => exercise.groupId === groupId).length;
+  }
+
+  const exerciseSidebarGroups: ExerciseGroup[] = [
+    { id: 'all', title: 'All', description: '', createdAt: 'system', updatedAt: 'system' },
+    { id: 'ungrouped', title: 'No group', description: '', createdAt: 'system', updatedAt: 'system' },
+    ...exerciseGroups,
+  ];
 
   const visibleExercises =
     activeExerciseGroupId === 'all'
@@ -193,12 +200,7 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
   const latestProgress = [...progressRecords].sort((a, b) => b.date.localeCompare(a.date))[0];
 
   return (
-    <section className="grid gap-5">
-      <PageHeader
-        title="Workouts"
-        subtitle="Manage exercises, workouts, progress, and training plans."
-      />
-
+    <ModulePageShell title="Workouts" subtitle="Manage exercises, workouts, progress, and training plans.">
       <PageTabs tabs={SECTION_TABS} activeTab={activeSection} ariaLabel="Training sections" onChange={setActiveSection} />
 
       {/* Exercises Section */}
@@ -211,58 +213,23 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
             </div>
             <AddButton label="Add exercise" onClick={() => setOpenForm({ kind: 'exercise' })} />
           </div>
-          <ContentGroupWorkspaceHeader
-            groups={[
-              { id: 'all', title: 'All', createdAt: 'system', updatedAt: 'system' },
-              { id: 'ungrouped', title: 'No group', createdAt: 'system', updatedAt: 'system' },
-              ...exerciseGroups,
-            ]}
+          <GroupedCollectionLayout<ExerciseDefinition, ExerciseGroup>
+            groups={exerciseGroups}
+            sidebarGroups={exerciseSidebarGroups}
+            headerGroups={exerciseSidebarGroups}
+            totalCount={exercises.length}
             activeGroupId={activeExerciseGroupId}
+            getGroupCount={countExercisesInGroup}
             itemCount={visibleExercises.length}
+            canManageGroup={(group) => Boolean(exerciseGroups.some((item) => item.id === group.id))}
+            onActiveGroupChange={setActiveExerciseGroupId}
+            onGroupsChange={saveExerciseGroups}
             onRenameGroup={renameExerciseGroup}
             onDeleteGroup={deleteExerciseGroup}
-            canManageGroup={(group) => Boolean(exerciseGroups.some((item) => item.id === group.id))}
-          />
-          <div className={contentGridClass}>
-            <GroupsSidebar
-              title="Groups"
-              totalCount={exercises.length}
-              groups={[
-                { id: 'all', title: 'All' },
-                { id: 'ungrouped', title: 'No group' },
-                ...exerciseGroups,
-              ]}
-              activeGroupId={activeExerciseGroupId}
-              ariaLabel="Exercise groups"
-              getGroupCount={(groupId) => {
-                if (groupId === 'all') {
-                  return exercises.length;
-                }
-                if (groupId === 'ungrouped') {
-                  return exercises.filter((exercise) => !exercise.groupId).length;
-                }
-                return exercises.filter((exercise) => exercise.groupId === groupId).length;
-              }}
-              onActiveGroupChange={setActiveExerciseGroupId}
-              onCreateGroup={() => setIsCreatingExerciseGroup(true)}
-              createLabel="Add exercise group"
-            >
-              {isCreatingExerciseGroup ? (
-                <GroupFormDialog
-                  title="Create group"
-                  saveLabel="Add group"
-                  value={newExerciseGroupTitle}
-                  onChange={setNewExerciseGroupTitle}
-                  onCancel={() => {
-                    setIsCreatingExerciseGroup(false);
-                    setNewExerciseGroupTitle('');
-                  }}
-                  onSubmit={saveExerciseGroup}
-                />
-              ) : null}
-            </GroupsSidebar>
+            createLabel="Add exercise group"
+          >
             <div className={itemGridClass}>
-            {visibleExercises.map((exercise) => (
+              {visibleExercises.map((exercise) => (
                 <article className={cardClass} key={exercise.id}>
                   <div className="grid gap-2">
                     <span className={kickerClass}>{exerciseGroups.find((group) => group.id === exercise.groupId)?.title ?? t('No group')}</span>
@@ -286,7 +253,7 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
                 />
               ) : null}
             </div>
-          </div>
+          </GroupedCollectionLayout>
         </section>
       )}
 
@@ -567,6 +534,6 @@ export function WorkoutsPage({ data, onChange }: WorkoutsPageProps) {
       {openForm?.kind === 'progress-record' ? (
         <ProgressRecordForm record={openForm.record} onCancel={() => setOpenForm(null)} onSave={saveProgressRecord} />
       ) : null}
-    </section>
+    </ModulePageShell>
   );
 }

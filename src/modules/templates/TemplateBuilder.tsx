@@ -1,7 +1,7 @@
-import { Copy, Wand2 } from 'lucide-react';
+﻿import { Copy, Wand2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Modal } from '../../shared/components/Modal';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import { copyTextToClipboard, createVariableKey, formatTemplateDate, normalizeTemplateVariables, renderTemplate } from './templateUtils';
 import type { TextTemplate } from './types';
 

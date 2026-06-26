@@ -1,5 +1,5 @@
-import { DeleteButton, EditButton } from '../../shared/components/ActionButtons';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+﻿import { DeleteButton, EditButton } from '../../shared/components/ActionButtons';
+import { useI18n } from '../../shared/i18n';
 import { formatDate } from '../../shared/utils/dateUtils';
 import { formatCurrency } from '../../shared/utils/formatters';
 import type { SavingsGoal } from './types';

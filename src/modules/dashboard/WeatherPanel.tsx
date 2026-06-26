@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import {
   Cloud,
   CloudDrizzle,
@@ -17,7 +17,7 @@ import {
   Wind,
   X,
 } from 'lucide-react';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import { LoadingState } from '../../shared/components/LoadingState';
 import { Tooltip } from '../../shared/components/Tooltip';
 import type { AppSettings } from '../../shared/types/common';

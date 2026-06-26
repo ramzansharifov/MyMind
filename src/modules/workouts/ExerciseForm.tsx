@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react';
-import { EntityForm } from '../../shared/components/EntityForm';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+﻿import { useState, type FormEvent } from 'react';
+import { EntityForm } from '../../shared/forms';
+import { useI18n } from '../../shared/i18n';
 import { createId } from '../../shared/utils/idGenerator';
 import type { ExerciseDefinition, ExerciseGroup } from './types';
 

@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+﻿import { useState, useMemo } from 'react';
 import { Modal } from './Modal';
-import { TextField } from './FormFields';
+import { TextField } from '../forms';
 import { SaveButton, CancelButton } from './ActionButtons';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '../i18n';
 import { cn } from '../utils/classNames';
 
 interface ItemSelectionModalProps<T> {

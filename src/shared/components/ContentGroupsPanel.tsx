@@ -1,36 +1,48 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Edit3, UserPlus } from 'lucide-react';
 import { DeleteButton } from './ActionButtons';
-import { FormModal } from './FormModal';
+import { FormModal, TextField } from '../forms';
 import { GroupsSidebar } from './GroupsSidebar';
 import { ItemSelectionModal } from './ItemSelectionModal';
-import { TextField } from './FormFields';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '../i18n';
 import { createId } from '../utils/idGenerator';
-import { cn } from '../utils/classNames';
 import type { ContentGroup } from '../types/common';
 
-interface ContentGroupsPanelProps {
-  groups: ContentGroup[];
+interface ContentGroupsPanelProps<TGroup extends ContentGroup = ContentGroup> {
+  groups: TGroup[];
+  sidebarGroups?: TGroup[];
   totalCount: number;
   activeGroupId: string;
-  counts: Record<string, number>;
+  counts?: Record<string, number>;
+  getGroupCount?: (groupId: string) => number;
   onActiveGroupChange: (groupId: string) => void;
-  onGroupsChange: (groups: ContentGroup[]) => void;
+  onGroupsChange: (groups: TGroup[]) => void;
+  onCreateGroup?: () => void;
+  createGroupDialog?: ReactNode;
+  createLabel?: string;
+  includeAllGroup?: boolean;
 }
 
-export function ContentGroupsPanel({
+export function ContentGroupsPanel<TGroup extends ContentGroup = ContentGroup>({
   groups,
+  sidebarGroups,
   totalCount,
   activeGroupId,
-  counts,
+  counts = {},
+  getGroupCount,
   onActiveGroupChange,
   onGroupsChange,
-}: ContentGroupsPanelProps) {
-  const { t } = useI18n();
+  onCreateGroup,
+  createGroupDialog,
+  createLabel = 'Add group',
+  includeAllGroup = true,
+}: ContentGroupsPanelProps<TGroup>) {
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [newGroupTitle, setNewGroupTitle] = useState('');
-  const allGroups = [{ id: 'all', title: 'All', createdAt: 'system', updatedAt: 'system' }, ...groups];
+  const allGroup = { id: 'all', title: 'All', createdAt: 'system', updatedAt: 'system' } as TGroup;
+  const defaultGroups = includeAllGroup ? [allGroup, ...groups] : groups;
+  const visibleGroups = sidebarGroups ?? defaultGroups;
+  const resolveGroupCount = getGroupCount ?? ((groupId: string) => (groupId === 'all' ? totalCount : counts[groupId] ?? 0));
 
   function addGroup(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
@@ -40,12 +52,12 @@ export function ContentGroupsPanel({
     }
 
     const timestamp = new Date().toISOString();
-    const group: ContentGroup = {
+    const group = {
       id: createId('content-group'),
       title,
       createdAt: timestamp,
       updatedAt: timestamp,
-    };
+    } as TGroup;
 
     onGroupsChange([...groups, group]);
     onActiveGroupChange(group.id);
@@ -57,12 +69,14 @@ export function ContentGroupsPanel({
     <GroupsSidebar
       title="Groups"
       totalCount={totalCount}
-      groups={allGroups}
+      groups={visibleGroups}
       activeGroupId={activeGroupId}
-      getGroupCount={(groupId) => (groupId === 'all' ? totalCount : counts[groupId] ?? 0)}
+      getGroupCount={resolveGroupCount}
       onActiveGroupChange={onActiveGroupChange}
-      onCreateGroup={() => setIsCreatingGroup(true)}
+      onCreateGroup={onCreateGroup ?? (() => setIsCreatingGroup(true))}
+      createLabel={createLabel}
     >
+      {createGroupDialog}
       {isCreatingGroup ? (
         <GroupFormDialog
           title="Create group"
@@ -80,13 +94,13 @@ export function ContentGroupsPanel({
   );
 }
 
-interface ContentGroupWorkspaceHeaderProps<T> {
-  groups: Array<ContentGroup & { kind?: string }>;
+interface ContentGroupWorkspaceHeaderProps<T, TGroup extends ContentGroup & { kind?: string } = ContentGroup & { kind?: string }> {
+  groups: TGroup[];
   activeGroupId: string;
   itemCount: number;
   onRenameGroup: (groupId: string, title: string) => void;
   onDeleteGroup: (groupId: string) => void;
-  canManageGroup?: (group: ContentGroup & { kind?: string }) => boolean;
+  canManageGroup?: (group: TGroup) => boolean;
   actions?: ReactNode;
   availableItems?: T[];
   getItemLabel?: (item: T) => string;
@@ -94,7 +108,10 @@ interface ContentGroupWorkspaceHeaderProps<T> {
   onAddItemsToGroup?: (items: T[]) => void;
 }
 
-export function ContentGroupWorkspaceHeader<T extends { id: string }>({
+export function ContentGroupWorkspaceHeader<
+  T extends { id: string },
+  TGroup extends ContentGroup & { kind?: string } = ContentGroup & { kind?: string },
+>({
   groups,
   activeGroupId,
   itemCount,
@@ -106,7 +123,7 @@ export function ContentGroupWorkspaceHeader<T extends { id: string }>({
   getItemLabel,
   getItemDescription,
   onAddItemsToGroup,
-}: ContentGroupWorkspaceHeaderProps<T>) {
+}: ContentGroupWorkspaceHeaderProps<T, TGroup>) {
   const { t } = useI18n();
   const group = groups.find((item) => item.id === activeGroupId);
   const [isEditing, setIsEditing] = useState(false);

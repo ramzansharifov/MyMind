@@ -1,5 +1,5 @@
-import { AddButton, DeleteButton, EditButton } from '../../shared/components/ActionButtons';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+﻿import { AddButton, DeleteButton, EditButton } from '../../shared/components/ActionButtons';
+import { useI18n } from '../../shared/i18n';
 import { exerciseName, planExerciseIds, weekdayLabels } from './workoutUtils';
 import type { ExerciseDefinition, WorkoutPlan } from './types';
 

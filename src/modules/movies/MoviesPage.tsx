@@ -1,9 +1,9 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+﻿import { useEffect, useState, type CSSProperties } from 'react';
 import { AddButton, BackButton, EditButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
 import { EmptyState } from '../../shared/components/EmptyState';
-import { PageHeader } from '../../shared/components/PageHeader';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { ModulePageShell } from '../../shared/components/ModulePageShell';
+import { useI18n } from '../../shared/i18n';
 import { cn } from '../../shared/utils/classNames';
 import { archiveEntity, isHiddenFromRegularLists, trashEntity } from '../../shared/utils/archiveUtils';
 import { filterMovies, movieGenres } from './movieUtils';
@@ -178,14 +178,11 @@ export function MoviesPage({ movies, onChange }: MoviesPageProps) {
   }
 
   return (
-    <section className="min-w-0">
-      <PageHeader
-        title="Movies"
-        subtitle="A watchlist, memory bank, and little film shelf."
-        actions={
-          <AddButton label="Add movie" onClick={() => setEditing(null)} />
-        }
-      />
+    <ModulePageShell
+      title="Movies"
+      subtitle="A watchlist, memory bank, and little film shelf."
+      actions={<AddButton label="Add movie" onClick={() => setEditing(null)} />}
+    >
       <CollapsibleFilters
         query={query}
         placeholder="Search title"
@@ -263,7 +260,7 @@ export function MoviesPage({ movies, onChange }: MoviesPageProps) {
           ))}
         </div>
       )}
-    </section>
+    </ModulePageShell>
   );
 }
 

@@ -1,7 +1,7 @@
-import { ChevronDown, SlidersHorizontal } from 'lucide-react';
+﻿import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { SearchInput } from './SearchInput';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '../i18n';
 import { cn } from '../utils/classNames';
 
 interface CollapsibleFiltersProps {

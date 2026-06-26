@@ -1,7 +1,7 @@
-import { CalendarClock, Check, Circle, Eye, ImagePlus, Link, Trash2, Upload } from 'lucide-react';
+﻿import { CalendarClock, Check, Circle, Eye, ImagePlus, Link, Trash2, Upload } from 'lucide-react';
 import { useId, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { BackButton, SaveButton } from '../../shared/components/ActionButtons';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import { cn } from '../../shared/utils/classNames';
 import { createId } from '../../shared/utils/idGenerator';
 import { joinCsv, splitCsv } from '../../shared/utils/formatters';

@@ -1,12 +1,12 @@
-import { lazy, Suspense, useState, type FormEvent } from 'react';
+﻿import { lazy, Suspense, useState, type FormEvent } from 'react';
 import { AddButton, DeleteButton, EditButton } from '../../shared/components/ActionButtons';
 import { CollapsibleFilters } from '../../shared/components/CollapsibleFilters';
-import { EntityForm } from '../../shared/components/EntityForm';
+import { EntityForm } from '../../shared/forms';
 import { EmptyState } from '../../shared/components/EmptyState';
 import { LoadingState } from '../../shared/components/LoadingState';
-import { PageHeader } from '../../shared/components/PageHeader';
+import { ModulePageShell } from '../../shared/components/ModulePageShell';
 import { PageTabs } from '../../shared/components/PageTabs';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+import { useI18n } from '../../shared/i18n';
 import { archiveEntity, trashEntity } from '../../shared/utils/archiveUtils';
 import { cn } from '../../shared/utils/classNames';
 import { formatCurrency } from '../../shared/utils/formatters';
@@ -233,12 +233,10 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
   }
 
   return (
-    <section>
-      <PageHeader
-        title="Finance"
-        subtitle="Accounts, starting balances, income, expenses, goals, and tags for local financial tracking."
-      />
-
+    <ModulePageShell
+      title="Finance"
+      subtitle="Accounts, starting balances, income, expenses, goals, and tags for local financial tracking."
+    >
       <div className="mb-[18px] flex flex-wrap items-center justify-between gap-3 rounded-panel border border-[var(--glass-border)] bg-[var(--panel-bg)] p-3 [backdrop-filter:var(--glass-blur)] shadow-panel">
         <PageTabs tabs={financeTabs} activeTab={view} ariaLabel="Finance sections" onChange={setView} />
 
@@ -464,7 +462,7 @@ export function FinancePage({ data, currency, onChange }: FinancePageProps) {
           }}
         />
       ) : null}
-    </section>
+    </ModulePageShell>
   );
 }
 

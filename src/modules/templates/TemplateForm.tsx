@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState, type FormEvent } from 'react';
-import { EntityForm } from '../../shared/components/EntityForm';
-import { useI18n } from '../../shared/i18n/I18nProvider';
+﻿import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { EntityForm } from '../../shared/forms';
+import { useI18n } from '../../shared/i18n';
 import type { ContentGroup } from '../../shared/types/common';
 import { joinCsv, splitCsv } from '../../shared/utils/formatters';
 import { createId } from '../../shared/utils/idGenerator';

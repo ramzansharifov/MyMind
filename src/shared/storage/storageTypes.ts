@@ -17,7 +17,27 @@ import type { TodoData } from '../../modules/todos/types';
 import type { WorkoutData } from '../../modules/workouts/types';
 import type { AppSettings } from '../types/common';
 
-export type CollectionName = string;
+export const collectionNames = [
+  'movies',
+  'workouts',
+  'todos',
+  'finance',
+  'habits',
+  'calendar_events',
+  'journal_entries',
+  'notes',
+  'templates',
+  'study',
+  'boards',
+  'projects',
+  'contacts',
+  'health',
+  'goals',
+  'inventory',
+  'app_settings',
+] as const;
+
+export type CollectionName = (typeof collectionNames)[number];
 
 export interface CollectionMap {
   [key: string]: unknown;

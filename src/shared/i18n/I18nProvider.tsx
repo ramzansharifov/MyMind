@@ -1,11 +1,11 @@
-import { createContext, useContext, useMemo } from 'react';
+﻿import { createContext, useContext, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import type { Language } from './translations';
+import type { Language, TranslationKey } from './translations';
 import { translateText } from './translations';
 
 interface I18nContextValue {
   language: Language;
-  t: (value: string) => string;
+  t: (value: TranslationKey | (string & {})) => string;
 }
 
 const I18nContext = createContext<I18nContextValue>({

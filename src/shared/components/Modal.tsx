@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react';
+﻿import type { ReactNode } from 'react';
 import { CloseButton } from './ActionButtons';
 import { ModalPortal } from './ModalPortal';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '../i18n';
 import { cn } from '../utils/classNames';
 
 type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
